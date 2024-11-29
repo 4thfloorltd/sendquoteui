@@ -4,8 +4,13 @@ import axios from "axios";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Layout from "./components/Layout";
 import Landing from "./components/Landing";
+
 import Register from "./routes/Register";
 import Login from "./routes/Login";
+
+// secured routes
+import QuoteInput from "./routes/secured/QuoteInput";
+
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "./theme";
 
@@ -35,6 +40,7 @@ function App() {
               <Route index element={<Landing />} />
               <Route path="register" element={<Register />} />{" "}
               <Route path="login" element={<Login />} />
+              <Route path="/secured/quote-input" element={<QuoteInput />} />
             </Route>
           </Routes>
 

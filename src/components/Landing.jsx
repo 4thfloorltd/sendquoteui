@@ -13,8 +13,8 @@ const Landing = () => {
         </h1>
       </div>
       <p className="text-xl font-light mt-5 text-center animate-slideUp transition duration-500 delay-200">
-        Effortlessly organize your tasks, prioritize what matters, and stay
-        ahead of your schedule with Tamskirt.
+        Streamline your quoting process, helping you win more business with
+        ease.
       </p>
       <div className="flex items-center justify-center gap-5 mt-5">
         <Link to="/register">

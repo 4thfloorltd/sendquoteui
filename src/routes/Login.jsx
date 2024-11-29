@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { TextField, Button, Typography } from "@mui/material";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+
+  const navigate = useNavigate();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -19,6 +21,8 @@ const Login = () => {
   const handleSubmit = (e) => {
     e.preventDefault();
     console.log("Login submitted:", formData);
+
+    navigate("/secured/quote-input");
   };
 
   return (
@@ -38,7 +42,7 @@ const Login = () => {
             type="email"
             value={formData.email}
             onChange={handleChange}
-            required
+            // required
             InputProps={{
               style: { backgroundColor: "#f5f5f5", color: "#000" },
             }}
@@ -52,7 +56,7 @@ const Login = () => {
             type="password"
             value={formData.password}
             onChange={handleChange}
-            required
+            // required
             InputProps={{
               style: { backgroundColor: "#f5f5f5", color: "#000" },
             }}

@@ -9,6 +9,11 @@ const theme = createTheme({
       main: "#e0ecff",
     },
   },
+  typography: {
+    button: {
+      textTransform: "none",
+    },
+  },
   components: {
     MuiButton: {
       styleOverrides: {
