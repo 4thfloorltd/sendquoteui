@@ -95,7 +95,7 @@ const SendQuoteModal = ({ open, handleClose, quoteDetails }) => {
           }}
         >
           <Divider />
-          <Typography variant="h6">Share this link via</Typography>
+          <Typography variant="h6">Share this quote via</Typography>
           <Box
             sx={{
               display: "flex",
