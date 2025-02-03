@@ -1,5 +1,6 @@
 import { createTheme } from "@mui/material/styles";
 
+// Global overrides to Material UI styles
 const theme = createTheme({
   palette: {
     primary: {
@@ -10,6 +11,7 @@ const theme = createTheme({
     },
   },
   typography: {
+    fontFamily: "Manrope, system-ui, Avenir, Helvetica, Arial, sans-serif",
     button: {
       textTransform: "none",
     },
@@ -58,6 +60,20 @@ const theme = createTheme({
             backgroundColor: "rgba(224, 236, 255, 0.5)",
             boxShadow: "none",
           },
+        },
+      },
+    },
+    MuiInputLabel: {
+      styleOverrides: {
+        asterisk: {
+          display: "none",
+        },
+      },
+    },
+    MuiOutlinedInput: {
+      styleOverrides: {
+        root: {
+          borderRadius: "8px",
         },
       },
     },

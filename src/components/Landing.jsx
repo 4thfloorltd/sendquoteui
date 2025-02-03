@@ -22,17 +22,9 @@ const Landing = () => {
             variant="contained"
             color="primary"
             className="animate-slideUp transition duration-500 delay-250"
+            style={{ fontSize: "1rem" }}
           >
-            Get started
-          </Button>
-        </Link>
-        <Link to="/login">
-          <Button
-            variant="contained"
-            color="secondary"
-            className="animate-slideUp transition duration-500 delay-250"
-          >
-            Log in
+            Try sendaquote for free
           </Button>
         </Link>
       </div>
