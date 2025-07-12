@@ -42,10 +42,10 @@ function AppContent() {
           <Route path="pricing" element={<Pricing />} />
           <Route path="register" element={<Register />} />
           <Route path="login" element={<Login />} />
-          <Route path="/secured/dashboard" element={<Dashboard />} />
-          <Route path="/secured/quotes" element={<Quotes />} />
-          <Route path="/secured/quoteReview" element={<QuoteReview />} />
-          <Route path="/secured/settings/" element={<Settings />} />
+          <Route path="secured/dashboard" element={<Dashboard />} />
+          <Route path="secured/quotes" element={<Quotes />} />
+          <Route path="secured/quoteReview" element={<QuoteReview />} />
+          <Route path="secured/settings" element={<Settings />} />
         </Route>
       </Routes>
     </>
