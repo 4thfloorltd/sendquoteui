@@ -4,13 +4,8 @@
     <meta charset="utf-8">
     <script>
       // Redirect to index.html and preserve the path for SPA routing
-      var l = window.location;
-      window.location.replace(
-        "/" +
-        (l.pathname ? l.pathname.substr(1) : "") +
-        (l.search ? l.search : "") +
-        (l.hash ? l.hash : "")
-      );
+      var path = location.pathname + location.search + location.hash;
+      location.replace('/index.html?redirect=' + encodeURIComponent(path));
     </script>
   </head>
   <body></body>
