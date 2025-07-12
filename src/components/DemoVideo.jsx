@@ -1,8 +1,17 @@
 import React from "react";
+import { Box } from "@mui/material";
 
 const DemoVideo = () => {
   return (
-    <div className="mt-5 max-w-5xl mx-auto animate-slideUp transition duration-500 delay-200">
+    <Box
+      sx={{
+        mt: 5,
+        maxWidth: "100%",
+        mx: "auto",
+        animation: "slideUp 0.5s ease-in-out 0.2s",
+        transition: "all 0.5s ease-in-out",
+      }}
+    >
       <iframe
         width="100%"
         height="590"
@@ -13,7 +22,7 @@ const DemoVideo = () => {
         allowFullScreen
         className="rounded-lg shadow-lg"
       ></iframe>
-    </div>
+    </Box>
   );
 };
 

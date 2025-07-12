@@ -9,12 +9,15 @@ import Register from "./routes/Register";
 import Login from "./routes/Login";
 
 // secured routes
-import QuoteInput from "./routes/secured/QuoteInput";
-
+import Dashboard from "./routes/secured/Dashboard";
+import Quotes from "./routes/secured/Quotes";
+import QuoteReview from "./routes/secured/QuoteReview";
+import Settings from "./routes/secured/Settings";
 import { ThemeProvider } from "@mui/material/styles";
 import theme from "./theme";
+import Pricing from "./routes/Pricing";
 
-function App() {
+function AppContent() {
   const [names, setNames] = useState([]);
 
   const fetchAPI = async () => {
@@ -32,26 +35,28 @@ function App() {
   }, []);
 
   return (
+    <>
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Landing />} />
+          <Route path="pricing" element={<Pricing />} />
+          <Route path="register" element={<Register />} />
+          <Route path="login" element={<Login />} />
+          <Route path="/secured/dashboard" element={<Dashboard />} />
+          <Route path="/secured/quotes" element={<Quotes />} />
+          <Route path="/secured/quoteReview" element={<QuoteReview />} />
+          <Route path="/secured/settings/" element={<Settings />} />
+        </Route>
+      </Routes>
+    </>
+  );
+}
+
+function App() {
+  return (
     <ThemeProvider theme={theme}>
       <BrowserRouter>
-        <div className="min-h-[100vh] min-w-[100vw] px-10">
-          <Routes>
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Landing />} />
-              <Route path="register" element={<Register />} />{" "}
-              <Route path="login" element={<Login />} />
-              <Route path="/secured/quote-input" element={<QuoteInput />} />
-            </Route>
-          </Routes>
-
-          {/* API testing {names.length > 0 &&
-            names.map((name, index) => (
-              <div key={index}>
-                <p>{name}</p>
-                <br />
-              </div>
-            ))} */}
-        </div>
+        <AppContent />
       </BrowserRouter>
     </ThemeProvider>
   );

@@ -1,65 +1,66 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
-import { CreditScore, TableRows, Calculate } from "@mui/icons-material";
-import useInView from "../hooks/useInView";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faUser, faReply, faThumbsUp } from "@fortawesome/free-solid-svg-icons";
 
 export const FeatureItem = ({ icon, title, description }) => {
   return (
-    <Box
-      className="feature-item flex flex-col bg-white rounded-lg p-12"
-      sx={{ border: "1px solid lightgrey" }}
-    >
+    <Box className="feature-item flex flex-row">
       {/* Icon Section */}
       <Box
-        className="rounded-full bg-[#174082] p-4 flex items-center justify-center mb-4"
-        style={{
-          width: "64px",
-          height: "64px",
+        className="rounded-md bg-[#083a6b] p-4 flex mr-4"
+        sx={{
+          width: "48px",
+          height: "48px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
         }}
       >
-        {icon}
+        <FontAwesomeIcon icon={icon} />
       </Box>
-      {/* Title Section */}
-      <Typography
-        variant="h6"
-        className="text-lg my-3"
-        sx={{ color: "#333", fontWeight: "bold" }}
-      >
-        {title}
-      </Typography>
-      {/* Description Section */}
-      <Typography
-        variant="body2"
-        className="text-sm font-light"
-        style={{ color: "#666" }}
-      >
-        {description}
-      </Typography>
+      {/* Title and Description Section */}
+      <Box className="flex flex-col">
+        <Typography
+          variant="h6"
+          className="text-lg"
+          sx={{ color: "#333", fontWeight: "bold" }}
+        >
+          {title}
+        </Typography>
+        <Typography
+          variant="body2"
+          className="text-sm font-light"
+          sx={{ color: "#666" }}
+        >
+          {description}
+        </Typography>
+      </Box>
     </Box>
   );
 };
 
 const Features = () => {
   return (
-    <div className="my-20 flex flex-col items-center">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+    <Box className="flex flex-col md:flex-row m-4 mb-24">
+      <Box className="flex flex-col justify-around bg-blue-100 md:w-1/2 md:pr-4 p-8">
         <FeatureItem
-          icon={<CreditScore sx={{ color: "white", fontSize: "32px" }} />}
-          title="Quick and Professional Quote Generation"
-          description="Easily formalize quotes with a professional template that enhances client trust."
+          icon={<faUser sx={{ color: "white", fontSize: "24px" }} />}
+          title="Customer Requests Quote"
+          description="The customer submits a request for a quote, providing necessary details and requirements."
         />
         <FeatureItem
-          icon={<TableRows sx={{ color: "white", fontSize: "32px" }} />}
-          title="Track and Manage Quotes"
-          description="Keep track of sent, pending, accepted, and declined quotes in one place."
+          icon={<faReply sx={{ color: "white", fontSize: "24px" }} />}
+          title="Business Sends Quote"
+          description="The business reviews the request and returns a professional quote to the customer."
         />
         <FeatureItem
-          icon={<Calculate sx={{ color: "white", fontSize: "32px" }} />}
-          title="Save Time with Calculations"
-          description="Reduce the time spent on manual quoting with automated calculations and templates."
+          icon={<faThumbsUp sx={{ color: "white", fontSize: "24px" }} />}
+          title="Customer Reviews Quote"
+          description="The customer reviews the quote and accepts it, initiating the next steps in the process."
         />
-      </div>
-    </div>
+      </Box>
+    </Box>
   );
 };
 

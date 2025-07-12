@@ -4,7 +4,7 @@ import { createTheme } from "@mui/material/styles";
 const theme = createTheme({
   palette: {
     primary: {
-      main: "#174082",
+      main: "#083a6b",
     },
     secondary: {
       main: "#e0ecff",
@@ -15,17 +15,34 @@ const theme = createTheme({
     button: {
       textTransform: "none",
     },
+    h1: { color: "#083a6b" },
+    h2: { color: "#083a6b" },
+    h3: { color: "#083a6b" },
+    h4: { color: "#083a6b" },
+    h5: { color: "#083a6b" },
+    h6: { color: "#083a6b" },
   },
   components: {
+    MuiTypography: {
+      styleOverrides: {
+        h4: {
+          color: "#083a6b",
+        },
+        h6: {
+          color: "#083a6b",
+        },
+      },
+    },
     MuiButton: {
       styleOverrides: {
         containedPrimary: {
-          backgroundColor: "#174082",
+          backgroundColor: "#083a6b",
+          borderRadius: "8px",
           color: "#fff",
           textTransform: "none",
           boxShadow: "none",
           "&:hover": {
-            backgroundColor: "#115293",
+            backgroundColor: "#0d3a66",
             boxShadow: "none",
           },
         },
@@ -35,28 +52,28 @@ const theme = createTheme({
           textTransform: "none",
           boxShadow: "none",
           "&:hover": {
-            borderColor: "#115293",
-            backgroundColor: "rgba(25, 118, 210, 0.1)",
+            borderColor: "#083a6b",
+            backgroundColor: "rgba(17, 82, 147, 0.1)",
             boxShadow: "none",
           },
         },
         containedSecondary: {
           backgroundColor: "#e0ecff",
-          color: "#174082",
+          color: "#083a6b",
           textTransform: "none",
           boxShadow: "none",
           "&:hover": {
-            backgroundColor: "#c2d6ff",
+            backgroundColor: "#b3d1ff",
             boxShadow: "none",
           },
         },
         outlinedSecondary: {
           borderColor: "#e0ecff",
-          color: "#174082",
+          color: "#083a6b",
           textTransform: "none",
           boxShadow: "none",
           "&:hover": {
-            borderColor: "#c2d6ff",
+            borderColor: "#b3d1ff",
             backgroundColor: "rgba(224, 236, 255, 0.5)",
             boxShadow: "none",
           },
@@ -73,7 +90,26 @@ const theme = createTheme({
     MuiOutlinedInput: {
       styleOverrides: {
         root: {
+          background: "#fff",
           borderRadius: "8px",
+        },
+        input: {
+          background: "#fff",
+          borderRadius: "8px",
+        },
+      },
+    },
+    MuiListItem: {
+      styleOverrides: {
+        root: {
+          color: "#111827",
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          position: "static",
         },
       },
     },

@@ -12,7 +12,7 @@ import SmsIcon from "@mui/icons-material/Sms";
 import ShareIcon from "@mui/icons-material/Share";
 
 const SendQuoteModal = ({ open, handleClose, quoteDetails }) => {
-  const link = `https://sendaquote.co.uk/quote/${quoteDetails.quoteNumber}`;
+  const link = `https://sendquote.co.uk/quote/${quoteDetails.quoteNumber}`;
 
   const handleShareEmail = () => {
     const subject = `Quote: ${quoteDetails.quoteNumber}`;
