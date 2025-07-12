@@ -22,7 +22,7 @@ const Login = () => {
     e.preventDefault();
     console.log("Login submitted:", formData);
 
-    navigate("/secured/quote-input");
+    navigate("/secured/dashboard");
   };
 
   return (
