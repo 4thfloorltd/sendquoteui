@@ -93,10 +93,14 @@ const Landing = () => {
 
   const scrollToRequestAccess = () => {
     const emailAddressInput = document.getElementById("emailAddressTextField");
-    window.scrollTo({ behavior: "smooth", top: 0 });
-    setTimeout(() => {
-      emailAddressInput.focus();
-    }, 900);
+    if (emailAddressInput) {
+      emailAddressInput.focus(); // Focus immediately on user gesture
+      emailAddressInput.scrollIntoView({ behavior: "smooth", block: "center" });
+      // Optionally, re-focus after scrolling for non-iOS browsers
+      setTimeout(() => {
+        emailAddressInput.focus();
+      }, 900);
+    }
   };
 
   const validateEmail = (email) => {
