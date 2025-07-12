@@ -3,9 +3,9 @@
   <head>
     <meta charset="utf-8">
     <script>
-      // Redirect to index.html and preserve the path for SPA routing
-      var path = location.pathname + location.search + location.hash;
-      location.replace('/index.html?redirect=' + encodeURIComponent(path));
+      // Redirect to the original path so React Router can handle it
+      var l = window.location;
+      window.location.replace("/" + l.pathname.slice(1) + l.search + l.hash);
     </script>
   </head>
   <body></body>
