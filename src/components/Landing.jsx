@@ -261,7 +261,12 @@ const Landing = () => {
             )}
           </Box>
         </Box>
-        <Box className="flex justify-center mb-12" sx={{}}>
+        <Box
+          className="flex justify-center mb-12"
+          sx={{
+            px: { xs: "16px", sm: "32px" },
+          }}
+        >
           <img
             src="/images/landing.png"
             alt="Desktop Illustration"
@@ -272,7 +277,6 @@ const Landing = () => {
               height: "auto",
               borderRadius: "12px",
               display: "block",
-              padding: "0 16px",
             }}
           />
         </Box>
