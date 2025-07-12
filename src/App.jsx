@@ -18,21 +18,21 @@ import theme from "./theme";
 import Pricing from "./routes/Pricing";
 
 function AppContent() {
-  const [names, setNames] = useState([]);
+  // const [names, setNames] = useState([]);
 
-  const fetchAPI = async () => {
-    try {
-      const response = await axios.get("http://localhost:8080/api");
-      setNames(response.data.names);
-      console.log(response.data.names);
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
+  // const fetchAPI = async () => {
+  //   try {
+  //     const response = await axios.get("http://localhost:8080/api");
+  //     setNames(response.data.names);
+  //     console.log(response.data.names);
+  //   } catch (error) {
+  //     console.error("Error fetching data:", error);
+  //   }
+  // };
 
-  useEffect(() => {
-    fetchAPI();
-  }, []);
+  // useEffect(() => {
+  //   fetchAPI();
+  // }, []);
 
   return (
     <>
