@@ -2,11 +2,7 @@
 <html>
   <head>
     <meta charset="utf-8">
-    <script>
-      // Redirect to index.html and preserve the path for SPA routing
-      var path = location.pathname + location.search + location.hash;
-      location.replace('/index.html?redirect=' + encodeURIComponent(path));
-    </script>
+    <meta http-equiv="refresh" content="0; url=/" />
   </head>
   <body></body>
 </html>
