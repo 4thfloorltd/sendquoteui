@@ -286,7 +286,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
 
   return (
     <>
-      <Box sx={{ textAlign: "center", mb: 2}}>
+      <Box sx={{ textAlign: "center", mb: 2 }}>
         <Typography variant="h5" sx={{ fontWeight: "bold" }}>
           {showForm ? "Create a Quote" : "Your Sent Quotes"}
         </Typography>
@@ -303,7 +303,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
             variant="subtitle1"
             sx={{ mb: 2, color: "gray", textAlign: "left" }}
           >
-            <span style={{ fontSize: "0.95em", color: "#888" }}>
+            <span style={{ color: "#888" }}>
               Date: <b>{new Date().toLocaleDateString()}</b>
             </span>
             <br />
@@ -669,44 +669,53 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                 flexDirection: "column",
                 px: 1, // minimal inner horizontal padding
                 py: 0, // no extra vertical padding
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  width: "100%",
+                  position: "relative",
                 }}
               >
-               <Box
-  sx={{
-    display: "flex",
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    position: "relative",
-  }}
->
-  <Typography
-    variant="subtitle1"
-    sx={{ fontWeight: 600, color: "#083a6b", flex: 1, textAlign: "left" }}
-  >
-    Quote Summary
-  </Typography>
-  <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
-    <Button
-      size="small"
-      onClick={() => setShowSummaryDetails((prev) => !prev)}
-      sx={{
-        minWidth: 0,
-        px: 2,
-        display: "flex",
-        alignItems: "center",
-      }}
-      endIcon={
-        showSummaryDetails ? <KeyboardArrowUpIcon /> : <ExpandMoreIcon />
-      }
-    >
-      {showSummaryDetails ? "Collapse" : "Expand"}
-    </Button>
-  </Box>
-  <Box sx={{ flex: 1 }} /> {/* Spacer to balance the row */}
-</Box>
-                <Divider sx={{ width: "100%", mb: 1 }} />
+                <Typography
+                  variant="subtitle1"
+                  sx={{
+                    fontWeight: 600,
+                    color: "#083a6b",
+                    flex: 1,
+                    textAlign: "left",
+                  }}
+                >
+                  Quote Summary
+                </Typography>
                 <Box
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    alignItems: "center",
+                  }}
+                >
+                  <Button
+                    size="small"
+                    onClick={() => setShowSummaryDetails((prev) => !prev)}
+                    endIcon={
+                      showSummaryDetails ? (
+                        <KeyboardArrowUpIcon />
+                      ) : (
+                        <ExpandMoreIcon />
+                      )
+                    }
+                  >
+                    {showSummaryDetails ? "Collapse" : "Expand"}
+                  </Button>
+                </Box>
+              </Box>
+              <Divider sx={{ width: "100%", mb: 1 }} />
+              <Box
                 sx={{
                   display: "flex",
                   flexDirection: "column",
@@ -714,7 +723,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                   justifyContent: "space-between",
                   width: "100%",
                 }}
-                >
+              >
                 <Box sx={{ width: "100%" }}>
                   {/* Show summary details above subtotal/tax/total */}
                   {showSummaryDetails && (
