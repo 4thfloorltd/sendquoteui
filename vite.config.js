@@ -5,5 +5,9 @@ import react from "@vitejs/plugin-react-swc";
 
 export default defineConfig({
   base: "/",
-  plugins: [react()],
+  build: {
+    outDir: "docs",  // or "dist" depending on your setup
+    emptyOutDir: false  // prevents deletion of CNAME and 404.html
+  },
+  plugins: [react()]
 });
