@@ -106,7 +106,7 @@ const Settings = () => {
       autoComplete="off"
     >
       {" "}
-      <Box sx={{ mb: 8 }}>
+      <Box sx={{ mb: 2}}>
         <Typography
           variant="h5"
           sx={{ fontWeight: "bold", textAlign: "center" }}

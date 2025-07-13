@@ -24,7 +24,6 @@ import {
 
 const Quotes = ({ showForm: initialShowForm = false }) => {
   const [showForm, setShowForm] = useState(initialShowForm);
-  const [bottomNavVisible, setBottomNavVisible] = useState(true);
   const [showSummaryDetails, setShowSummaryDetails] = useState(false);
   const [quoteNumber, setQuoteNumber] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -60,30 +59,6 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const isMobile = useMediaQuery("(max-width:768px)");
-
-  // Listen for BottomNavigation visibility
-  React.useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      // Only apply bottom nav visibility logic on mobile (<768px)
-      if (isMobile) {
-        if (
-          currentScrollY > (window._lastScrollYQuotes || 0) &&
-          currentScrollY > 60
-        ) {
-          setBottomNavVisible(false);
-        } else {
-          setBottomNavVisible(true);
-        }
-        window._lastScrollYQuotes = currentScrollY;
-      } else {
-        setBottomNavVisible(false);
-      }
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    // Also update on resize or isMobile change
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, [isMobile]);
 
   const handleButtonClick = () => {
     setShowForm(!showForm);
@@ -311,7 +286,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
 
   return (
     <>
-      <Box sx={{ textAlign: "center", mb: 4 }}>
+      <Box sx={{ textAlign: "center", mb: 2}}>
         <Typography variant="h5" sx={{ fontWeight: "bold" }}>
           {showForm ? "Create a Quote" : "Your Sent Quotes"}
         </Typography>
@@ -357,8 +332,8 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
             gap: "16px",
             width: "100%",
             paddingBottom: showSummaryDetails
-              ? `${220 + formData.items.length * 24}px`
-              : `${200 + formData.items.length * 84}px`,
+              ? `${200 + formData.items.length * 24}px`
+              : `${64 + formData.items.length * 84}px`,
           }}
         >
           <Grid container spacing={2}>
@@ -670,7 +645,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
               display: "flex",
               justifyContent: "center",
               // Only add marginBottom if bottom nav is visible
-              mb: bottomNavVisible ? { xs: "56px", sm: "56px", md: "32px" } : 0,
+              mb: { xs: "56px", sm: "56px", md: "32px" },
               borderRadius: { md: "8px 8px 0 0" },
               boxShadow: {
                 xs: "0 -2px 16px 0 rgba(0,0,0,0.12)",
@@ -694,53 +669,52 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                 flexDirection: "column",
                 px: 1, // minimal inner horizontal padding
                 py: 0, // no extra vertical padding
-              }}
-            >
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  width: "100%",
                 }}
               >
-                <Typography
-                  variant="subtitle1"
-                  sx={{ fontWeight: 600, color: "#083a6b" }}
-                >
-                  Quote Summary
-                </Typography>
-                <Button
-                  size="small"
-                  onClick={() => setShowSummaryDetails((prev) => !prev)}
-                  sx={{
-                    minWidth: 0,
-                    px: 1,
-                    display: "flex",
-                    alignItems: "center",
-                  }}
-                  endIcon={
-                    showSummaryDetails ? (
-                      <KeyboardArrowUpIcon />
-                    ) : (
-                      <ExpandMoreIcon />
-                    )
-                  }
-                >
-                  {showSummaryDetails ? "Collapse" : "Expand"}
-                </Button>
-              </Box>
-              <Divider sx={{ width: "100%", mb: 1 }} />
-              <Box
+               <Box
+  sx={{
+    display: "flex",
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    position: "relative",
+  }}
+>
+  <Typography
+    variant="subtitle1"
+    sx={{ fontWeight: 600, color: "#083a6b", flex: 1, textAlign: "left" }}
+  >
+    Quote Summary
+  </Typography>
+  <Box sx={{ flex: 1, display: "flex", justifyContent: "center" }}>
+    <Button
+      size="small"
+      onClick={() => setShowSummaryDetails((prev) => !prev)}
+      sx={{
+        minWidth: 0,
+        px: 2,
+        display: "flex",
+        alignItems: "center",
+      }}
+      endIcon={
+        showSummaryDetails ? <KeyboardArrowUpIcon /> : <ExpandMoreIcon />
+      }
+    >
+      {showSummaryDetails ? "Collapse" : "Expand"}
+    </Button>
+  </Box>
+  <Box sx={{ flex: 1 }} /> {/* Spacer to balance the row */}
+</Box>
+                <Divider sx={{ width: "100%", mb: 1 }} />
+                <Box
                 sx={{
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: { xs: "center" },
+                  alignItems: { xs: "flex-start" }, // Align summary details left
                   justifyContent: "space-between",
                   width: "100%",
                 }}
-              >
+                >
                 <Box sx={{ width: "100%" }}>
                   {/* Show summary details above subtotal/tax/total */}
                   {showSummaryDetails && (

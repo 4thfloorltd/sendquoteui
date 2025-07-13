@@ -52,7 +52,7 @@ function Layout() {
               component="main"
               sx={{
                 flexGrow: 1,
-                padding: "32px 16px", // Add padding for spacing
+                padding: "32px 16px 72px"
               }}
             >
               <Outlet />

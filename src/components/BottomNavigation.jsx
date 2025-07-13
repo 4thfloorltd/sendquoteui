@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useState } from "react";
 import { useLocation, Link } from "react-router-dom";
 import {
   BottomNavigation,
@@ -14,15 +14,12 @@ import {
   faCog,
   faHeadphones,
   faEllipsisH,
-  faPlusCircle,
 } from "@fortawesome/free-solid-svg-icons";
 
 const BottomNav = () => {
   const location = useLocation();
   const [selectedTab, setSelectedTab] = useState(0);
   const [anchorEl, setAnchorEl] = useState(null);
-  const [visible, setVisible] = useState(true);
-  const lastScrollY = useRef(window.scrollY);
 
   const handleMenuOpen = (event) => {
     setAnchorEl(event.currentTarget);
@@ -36,23 +33,8 @@ const BottomNav = () => {
     window.location.href = "mailto:support@sendquote.app";
   };
 
-  // Hide on scroll down, show on scroll up
-  useEffect(() => {
-    const handleScroll = () => {
-      const currentScrollY = window.scrollY;
-      if (currentScrollY > lastScrollY.current && currentScrollY > 60) {
-        setVisible(false); // Hide when scrolling down
-      } else {
-        setVisible(true); // Show when scrolling up
-      }
-      lastScrollY.current = currentScrollY;
-    };
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
   // Map routes to tab indices
-  useEffect(() => {
+  React.useEffect(() => {
     if (location.pathname.startsWith("/secured/dashboard")) {
       setSelectedTab(0);
     } else if (location.pathname.startsWith("/secured/quotes")) {
@@ -76,10 +58,9 @@ const BottomNav = () => {
           left: 0,
           right: 0,
           backgroundColor: "#fff",
-          boxShadow: "0px -2px 4px rgba(0, 0, 0, 0.1)", // Add shadow for better visibility
-          zIndex: 1000, // Ensure it stays above other elements
-          borderBottom: "1px solid #e5e7eb", // Add a border for separation
-          transform: visible ? "translateY(0)" : "translateY(100%)",
+          boxShadow: "0px -2px 4px rgba(0, 0, 0, 0.1)",
+          zIndex: 1000,
+          borderBottom: "1px solid #e5e7eb",
         }}
       >
         <BottomNavigationAction
@@ -88,11 +69,11 @@ const BottomNav = () => {
           to="/secured/dashboard"
           icon={<FontAwesomeIcon icon={faTachometerAlt} />}
           sx={{
-            color: "#6B7280", // Default color
-            padding: "4px 8px", // Reduce padding
-            minWidth: "auto", // Reduce minimum width
+            color: "#6B7280",
+            padding: "4px 8px",
+            minWidth: "auto",
             "&.Mui-selected": {
-              color: "#083a6b", // Highlight color for selected tab
+              color: "#083a6b",
             },
           }}
         />
@@ -102,11 +83,11 @@ const BottomNav = () => {
           to="/secured/quotes"
           icon={<FontAwesomeIcon icon={faPaperPlane} />}
           sx={{
-            color: "#6B7280", // Default color
-            padding: "4px 8px", // Reduce padding
-            minWidth: "auto", // Reduce minimum width
+            color: "#6B7280",
+            padding: "4px 8px",
+            minWidth: "auto",
             "&.Mui-selected": {
-              color: "#083a6b", // Highlight color for selected tab
+              color: "#083a6b",
             },
           }}
         />
@@ -116,53 +97,51 @@ const BottomNav = () => {
           to="/secured/settings"
           icon={<FontAwesomeIcon icon={faCog} />}
           sx={{
-            color: "#6B7280", // Default color
-            padding: "4px 8px", // Reduce padding
-            minWidth: "auto", // Reduce minimum width
+            color: "#6B7280",
+            padding: "4px 8px",
+            minWidth: "auto",
             "&.Mui-selected": {
-              color: "#083a6b", // Highlight color for selected tab
+              color: "#083a6b",
             },
           }}
         />
         <BottomNavigationAction
           label="Support"
           icon={<FontAwesomeIcon icon={faHeadphones} />}
-          onClick={handleSupportClick} // Handle mailto link
+          onClick={handleSupportClick}
           sx={{
-            color: "#6B7280", // Default color
-            padding: "4px 8px", // Reduce padding
-            minWidth: "auto", // Reduce minimum width
+            color: "#6B7280",
+            padding: "4px 8px",
+            minWidth: "auto",
             "&:hover": {
-              color: "#083a6b", // Hover color
+              color: "#083a6b",
             },
           }}
         />
 
-        {false && ( // Keep the "More" dropdown for future overflow scenarios
+        {false && (
           <BottomNavigationAction
             label="More"
             icon={<FontAwesomeIcon icon={faEllipsisH} />}
             onClick={handleMenuOpen}
             sx={{
               color: "#6B7280",
-              padding: "4px 8px", // Reduce padding
-              minWidth: "auto", // Reduce minimum width
+              padding: "4px 8px",
+              minWidth: "auto",
               "&.Mui-selected": {
-                color: "#083a6b", // Highlight color for selected tab
+                color: "#083a6b",
               },
             }}
           />
         )}
       </BottomNavigation>
 
-      {/* Dropdown Menu for Overflow Items */}
       <Menu
         anchorEl={anchorEl}
         open={Boolean(anchorEl)}
         onClose={handleMenuClose}
         sx={{ zIndex: 1100 }}
       >
-        {/* Add items here if needed in the future */}
         <MenuItem
           component={Link}
           onClick={handleMenuClose}
