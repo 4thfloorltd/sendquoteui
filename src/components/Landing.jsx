@@ -45,6 +45,10 @@ const Landing = () => {
       setEmailError(true);
       setFailCount(failCount + 1);
       if (failCount >= 1) setShowRecaptcha(true);
+
+      const emailInput = document.getElementById("emailAddressTextField");
+      if (emailInput) emailInput.focus();
+      return;
       return;
     }
     if (showRecaptcha && !recaptchaVerified) {
@@ -202,13 +206,16 @@ const Landing = () => {
                   display: "flex",
                   alignItems: "start",
                   gap: "8px",
-                  flexWrap: "nowrap", // Prevent wrapping to a new row
-                  flexDirection: "row", // Ensure horizontal alignment
+                  flexWrap: "nowrap",
+                  flexDirection: { xs: "column", sm: "row" }, // Stack on mobile, row on larger screens
                   marginBottom: "48px",
+                  width: "100%",
+                  maxWidth: "600px",
+                  mx: "auto",
                 }}
               >
                 <TextField
-                  label="Enter your email"
+                  label="Enter your email address"
                   variant="outlined"
                   value={email}
                   onChange={handleChange}
@@ -223,9 +230,9 @@ const Landing = () => {
                   }
                   className="animate-slideUp transition duration-500 delay-250"
                   sx={{
-                    width: { xs: "70%", sm: "350px" }, // Adjust width for responsiveness
+                    width: { xs: "100%", sm: "350px" },
                     "& .MuiOutlinedInput-root": {
-                      height: "56px", // Set height to match the button
+                      height: "56px",
                       "&:hover fieldset": { borderColor: "#083a6b" },
                       "&.Mui-focused fieldset": { borderColor: "#083a6b" },
                     },
@@ -241,8 +248,10 @@ const Landing = () => {
                     fontSize: "1rem",
                     padding: "6px 16px",
                     minWidth: "auto",
-                    height: "56px", // Match the height of the TextField
-                    whiteSpace: "nowrap", // Prevent text wrapping inside the button
+                    height: "56px",
+                    whiteSpace: "nowrap",
+                    width: { xs: "100%", sm: "auto" }, // 100% width on mobile
+                    mt: { xs: 1, sm: 0 }, // Add margin top on mobile for spacing
                   }}
                   onClick={handleRequestAccess}
                 >
