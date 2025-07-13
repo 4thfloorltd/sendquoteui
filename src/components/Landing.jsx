@@ -205,7 +205,7 @@ const Landing = () => {
                 sx={{
                   display: "flex",
                   alignItems: "start",
-                  gap: "8px",
+                  gap: { xs: 0, sm: "8px" },
                   flexWrap: "nowrap",
                   flexDirection: { xs: "column", sm: "row" }, // Stack on mobile, row on larger screens
                   marginBottom: "48px",
