@@ -406,7 +406,7 @@ const Landing = () => {
             },
             {
               q: "Why join the waitlist?",
-              a: "Joining the waitlist gives you early access to SendQuote - be among the first to simplify your quoting process and stand out to potential clients.",
+              a: "Join the waitlist to be the first to know when we launch — simplify your quoting process and stand out to customers.",
             },
           ].map((item, idx) => (
             <Accordion
