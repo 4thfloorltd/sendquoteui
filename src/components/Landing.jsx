@@ -398,15 +398,15 @@ const Landing = () => {
           {[
             {
               q: "What is SendQuote?",
-              a: "SendQuote is a tool that helps you create seamless, customisable quotes to convert leads faster.",
+              a: "SendQuote is a simple, professional tool that lets you create customisable quotes your customers can accept instantly – helping you win and manage more jobs with ease.",
             },
             {
               q: "Who is SendQuote for?",
-              a: "SendQuote is designed for small sized businesses that need to create and manage quotes efficiently.",
+              a: "SendQuote is ideal for individuals and small businesses who need a quick and efficient way to create, send, and manage quotes.",
             },
             {
               q: "Why join the waitlist?",
-              a: "Requesting access allows you to join our waitlist and be among the first to use SendQuote when it becomes available.",
+              a: "Joining the waitlist gives you early access to SendQuote - be among the first to simplify your quoting process and stand out to potential clients.",
             },
           ].map((item, idx) => (
             <Accordion
