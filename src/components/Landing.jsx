@@ -281,14 +281,13 @@ const Landing = () => {
           }}
         >
           <img
-            src="/images/landing.png"
+            src="/images/landing.webp"
             alt="Desktop Illustration"
             className="animate-slideUp transition duration-500 delay-200"
             style={{
               maxWidth: "100%",
               width: "100%",
               height: "auto",
-              borderRadius: "12px",
               display: "block",
             }}
           />
