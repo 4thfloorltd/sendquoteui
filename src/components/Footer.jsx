@@ -66,7 +66,6 @@ const Footer = () => {
               variant="body2"
               sx={{
                 color: "#fff",
-                marginTop: "32px",
                 textAlign: { xs: "left", md: "right" },
               }}
             >

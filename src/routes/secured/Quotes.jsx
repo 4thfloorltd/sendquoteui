@@ -296,7 +296,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
         >
           {showForm
             ? "Add details about your quote"
-            : "You do not have any quotes sent yet"}
+            : "You do not have any sent quotes yet"}
         </Typography>
         {quoteNumber && (
           <Typography
@@ -570,12 +570,35 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                 >
                   <TextField
                     label="Price (£)"
+                    type="number"
                     value={item.price}
                     onBlur={(e) => handleBlur(e, index, "price")}
                     onChange={(e) => handleInputChange(e, index, "price")}
                     fullWidth
                     error={!!(itemErrors[index] && itemErrors[index].price)}
                     helperText={itemErrors[index] && itemErrors[index].price}
+                    inputProps={{
+                      inputMode: "decimal",
+                      pattern: "[0-9]*[.,]?[0-9]{0,2}",
+                      step: "any",
+                      min: 0,
+                      onWheel: (e) => e.target.blur(),
+                      onKeyDown: (e) => {
+                        if (["ArrowUp", "ArrowDown"].includes(e.key)) {
+                          e.preventDefault();
+                        }
+                      },
+                    }}
+                    sx={{
+                      "& input[type=number]": {
+                        MozAppearance: "textfield",
+                      },
+                      "& input[type=number]::-webkit-outer-spin-button, & input[type=number]::-webkit-inner-spin-button":
+                        {
+                          WebkitAppearance: "none",
+                          margin: 0,
+                        },
+                    }}
                   />
                   {index > 0 && (
                     <IconButton

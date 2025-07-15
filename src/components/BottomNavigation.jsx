@@ -61,6 +61,7 @@ const BottomNav = () => {
           boxShadow: "0px -2px 4px rgba(0, 0, 0, 0.1)",
           zIndex: 1000,
           borderBottom: "1px solid #e5e7eb",
+          rowGap: "4px",
         }}
       >
         <BottomNavigationAction
@@ -70,11 +71,12 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faTachometerAlt} />}
           sx={{
             color: "#6B7280",
-            padding: "4px 8px",
+            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
             },
+            rowGap: "4px",
           }}
         />
         <BottomNavigationAction
@@ -84,11 +86,12 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faPaperPlane} />}
           sx={{
             color: "#6B7280",
-            padding: "4px 8px",
+            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
             },
+            rowGap: "4px",
           }}
         />
         <BottomNavigationAction
@@ -98,11 +101,12 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faCog} />}
           sx={{
             color: "#6B7280",
-            padding: "4px 8px",
+            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
             },
+            rowGap: "4px",
           }}
         />
         <BottomNavigationAction
@@ -111,11 +115,12 @@ const BottomNav = () => {
           onClick={handleSupportClick}
           sx={{
             color: "#6B7280",
-            padding: "4px 8px",
+            padding: "8px",
             minWidth: "auto",
             "&:hover": {
               color: "#083a6b",
             },
+            rowGap: "4px",
           }}
         />
 
@@ -126,7 +131,7 @@ const BottomNav = () => {
             onClick={handleMenuOpen}
             sx={{
               color: "#6B7280",
-              padding: "4px 8px",
+              padding: "8x",
               minWidth: "auto",
               "&.Mui-selected": {
                 color: "#083a6b",

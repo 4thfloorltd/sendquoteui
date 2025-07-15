@@ -274,12 +274,7 @@ const Landing = () => {
             )}
           </Box>
         </Box>
-        <Box
-          className="flex justify-center mb-12"
-          sx={{
-            px: { xs: "16px", sm: "32px" },
-          }}
-        >
+        <Box className="flex justify-center mt-4 mb-16">
           <img
             src="/images/landing.webp"
             alt="Desktop Illustration"
@@ -355,7 +350,7 @@ const Landing = () => {
                   className="animate-slideUp transition duration-500 delay-200"
                   sx={{
                     fontWeight: "bold",
-                    marginTop: "16px",
+                    marginTop: "8px",
                     color: "#083a6b",
                   }}
                 >
