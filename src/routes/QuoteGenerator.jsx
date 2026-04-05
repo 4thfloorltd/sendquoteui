@@ -185,8 +185,8 @@ const QuoteGenerator = () => {
       // Parse the landing-page text with AI and replace the default empty row.
       runAiParseRef.current(incoming, { replace: true });
     }
-  // runAiParseRef is a ref – intentionally omitted from deps.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // runAiParseRef is a ref – intentionally omitted from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   useEffect(() => {
@@ -436,10 +436,12 @@ const QuoteGenerator = () => {
   const validateQuoteForm = () => {
     const errors = {};
     if (!quoteData.businessName?.trim()) errors.businessName = true;
-    const email = quoteData.businessEmail?.trim() ?? "";
-    if (!email) errors.businessEmail = "required";
-    else if (!EMAIL_RE.test(email)) errors.businessEmail = "invalid";
+    const bizEmail = quoteData.businessEmail?.trim() ?? "";
+    if (!bizEmail) errors.businessEmail = "required";
+    else if (!EMAIL_RE.test(bizEmail)) errors.businessEmail = "invalid";
     if (!quoteData.customerName?.trim()) errors.customerName = true;
+    const custEmail = quoteData.email?.trim() ?? "";
+    if (custEmail && !EMAIL_RE.test(custEmail)) errors.email = "invalid";
     if (!lineItems.some((item) => item.description?.trim())) errors.lineItems = true;
     setFormErrors(errors);
     return errors;
@@ -454,10 +456,12 @@ const QuoteGenerator = () => {
       const firstId = errors.businessName
         ? "field-businessName"
         : errors.businessEmail
-        ? "field-businessEmail"
-        : errors.customerName
-        ? "field-customerName"
-        : "field-lineItems";
+          ? "field-businessEmail"
+          : errors.customerName
+            ? "field-customerName"
+            : errors.email
+              ? "field-email"
+              : "field-lineItems";
       requestAnimationFrame(() => {
         const el = document.getElementById(firstId);
         if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -672,15 +676,15 @@ const QuoteGenerator = () => {
               ml: { xs: 0, md: "auto" },
             }}
           >
-              <Typography
-                variant="subtitle1"
-                fontWeight={700}
-                color="primary"
-                gutterBottom
-                sx={{ mb: 2.5 }}
-              >
-                My Business details
-              </Typography>
+            <Typography
+              variant="subtitle1"
+              fontWeight={700}
+              color="primary"
+              gutterBottom
+              sx={{ mb: 2.5 }}
+            >
+              My Business details
+            </Typography>
             <TextField
               id="field-businessName"
               variant="outlined"
@@ -738,8 +742,8 @@ const QuoteGenerator = () => {
                 formErrors.businessEmail === "required"
                   ? "Email address is required"
                   : formErrors.businessEmail === "invalid"
-                  ? "Enter a valid email address"
-                  : undefined
+                    ? "Enter a valid email address"
+                    : undefined
               }
               fullWidth
               sx={{
@@ -842,7 +846,7 @@ const QuoteGenerator = () => {
                 />
               )}
             />
-          
+
           </Box>
         </Box>
 
@@ -872,12 +876,38 @@ const QuoteGenerator = () => {
           sx={{ mb: 1.5 }}
         />
         <TextField
+          id="field-email"
           variant="outlined"
           fullWidth
           type="email"
           label="Email"
-          value={quoteData.email}
-          onChange={handleInputChange("email")}
+          value={quoteData.email ?? ""}
+          error={
+            formErrors.email === "invalid"
+          }
+          helperText={
+            formErrors.email === "invalid"
+              ? "Please enter a valid email address"
+              : undefined
+          }
+          onChange={(e) => {
+            const value = e.target.value;
+            handleInputChange("email")({
+              target: { value: value.toLowerCase() },
+            });
+            if (formErrors.email) setFormErrors((prev) => { const n = { ...prev }; delete n.email; return n; });
+          }}
+          onBlur={(e) => {
+            const value = e.target.value.trim().toLowerCase();
+            const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!value) {
+              setFormErrors((prev) => ({ ...prev, email: "required" }));
+            } else if (!EMAIL_RE.test(value)) {
+              setFormErrors((prev) => ({ ...prev, email: "invalid" }));
+            } else if (formErrors.email) {
+              setFormErrors((prev) => { const n = { ...prev }; delete n.email; return n; });
+            }
+          }}
           sx={{ mb: 1.5 }}
         />
 
@@ -955,91 +985,58 @@ const QuoteGenerator = () => {
             </Alert>
           )}
 
-        {/* Wrapper so the AI loading overlay covers only the line items area */}
-        <Box sx={{ position: "relative" }}>
-          {aiParseLoading && (
-            <Box
-              sx={{
-                position: "absolute",
-                inset: 0,
-                zIndex: 10,
-                borderRadius: 2,
-                width: "100%",
-                bgcolor: "rgba(255,255,255,0.65)",
-                backdropFilter: "blur(2px)",
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 1,
-                pointerEvents: "none",
-              }}
-            >
-              <CircularProgress size={32} />
-              <Box component="span" sx={{ fontSize: "0.8rem", color: "text.secondary", fontWeight: 500 }}>
-                AI is adding items…
-              </Box>
-            </Box>
-          )}
-
-          <Stack
-            spacing={1.5}
-            sx={{
-              display: lineItemsUseCards ? "flex" : "none",
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
-            {lineItems.map((row, index) => (
+          {/* Wrapper so the AI loading overlay covers only the line items area */}
+          <Box sx={{ position: "relative" }}>
+            {aiParseLoading && (
               <Box
-                key={row.id}
-                id={`quote-row-${row.id}`}
-                sx={flashedRowIds.has(row.id) ? {
+                sx={{
+                  position: "absolute",
+                  inset: 0,
+                  zIndex: 10,
                   borderRadius: 2,
-                  outline: "2px solid",
-                  outlineColor: "primary.light",
-                  animation: "rowFlash 1.8s ease-out forwards",
-                  "@keyframes rowFlash": {
-                    "0%": { outlineColor: "primary.main", backgroundColor: "#E0ECFF" },
-                    "100%": { outlineColor: "transparent", backgroundColor: "transparent" },
-                  },
-                } : undefined}
+                  width: "100%",
+                  bgcolor: "rgba(255,255,255,0.65)",
+                  backdropFilter: "blur(2px)",
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 1,
+                  pointerEvents: "none",
+                }}
               >
-                <QuoteLineItemRow
-                  variant="card"
-                  row={row}
-                  index={index}
-                  lineItems={lineItems}
-                  activeCurrency={activeCurrency}
-                  formatMoney={formatMoney}
-                  updateLineField={updateLineField}
-                  removeLineItem={removeLineItem}
-                />
+                <CircularProgress size={32} />
+                <Box component="span" sx={{ fontSize: "0.8rem", color: "text.secondary", fontWeight: 500 }}>
+                  AI is adding items…
+                </Box>
               </Box>
-            ))}
-          </Stack>
+            )}
 
-          <TableContainer
-            sx={{
-              display: lineItemsUseCards ? "none" : "block",
-              overflowX: "auto",
-              mx: -0.5,
-            }}
-          >
-            <Table
-              size="medium"
+            <Stack
+              spacing={1.5}
               sx={{
-                tableLayout: "fixed",
+                display: lineItemsUseCards ? "flex" : "none",
                 width: "100%",
-                minWidth: 700,
+                minWidth: 0,
               }}
             >
-              <TableBody>
-                {lineItems.map((row, index) => (
+              {lineItems.map((row, index) => (
+                <Box
+                  key={row.id}
+                  id={`quote-row-${row.id}`}
+                  sx={flashedRowIds.has(row.id) ? {
+                    borderRadius: 2,
+                    outline: "2px solid",
+                    outlineColor: "primary.light",
+                    animation: "rowFlash 1.8s ease-out forwards",
+                    "@keyframes rowFlash": {
+                      "0%": { outlineColor: "primary.main", backgroundColor: "#E0ECFF" },
+                      "100%": { outlineColor: "transparent", backgroundColor: "transparent" },
+                    },
+                  } : undefined}
+                >
                   <QuoteLineItemRow
-                    key={row.id}
-                    id={`quote-row-${row.id}`}
-                    variant="table"
+                    variant="card"
                     row={row}
                     index={index}
                     lineItems={lineItems}
@@ -1047,13 +1044,46 @@ const QuoteGenerator = () => {
                     formatMoney={formatMoney}
                     updateLineField={updateLineField}
                     removeLineItem={removeLineItem}
-                    flash={flashedRowIds.has(row.id)}
                   />
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Box>
+                </Box>
+              ))}
+            </Stack>
+
+            <TableContainer
+              sx={{
+                display: lineItemsUseCards ? "none" : "block",
+                overflowX: "auto",
+                mx: -0.5,
+              }}
+            >
+              <Table
+                size="medium"
+                sx={{
+                  tableLayout: "fixed",
+                  width: "100%",
+                  minWidth: 700,
+                }}
+              >
+                <TableBody>
+                  {lineItems.map((row, index) => (
+                    <QuoteLineItemRow
+                      key={row.id}
+                      id={`quote-row-${row.id}`}
+                      variant="table"
+                      row={row}
+                      index={index}
+                      lineItems={lineItems}
+                      activeCurrency={activeCurrency}
+                      formatMoney={formatMoney}
+                      updateLineField={updateLineField}
+                      removeLineItem={removeLineItem}
+                      flash={flashedRowIds.has(row.id)}
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Box>
         </Box>
         <Stack spacing={1.5} sx={{ mt: 1, alignSelf: "stretch", width: "100%" }}>
           <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ alignItems: "center" }}>
@@ -1093,104 +1123,104 @@ const QuoteGenerator = () => {
             ) : null}
           </Stack>
           {showAiLineSection ? (
-          <Paper
-            variant="outlined"
-            sx={{
-              p: 1.5,
-              borderRadius: 2,
-              bgcolor: "linear-gradient(90deg, #e9f2fd 0%, #fff 100%)",
-              borderColor: "primary.light",
-              boxShadow: "0px 4px 20px 0px rgba(110, 188, 255, 0.08)",
-              position: "relative",
-              overflow: "hidden",
-            }}
-          >
-            <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
-              <AutoAwesome sx={{ fontSize: 22, color: "primary.main" }} />
-              <Typography variant="subtitle2" fontWeight={700} color="primary.main">
-                AI-powered add quote item
-              </Typography>
-            </Stack>
-            {aiParseError && (
-              <Alert severity="error" sx={{ mt: 1 }}>
-                {aiParseError}
-              </Alert>
-            )}
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-              One or more charges per message, e.g. &quot;£120 Garden landscaping&quot; or several lines. Press <b>Enter</b> to send, <b>Shift+Enter</b> for a new line.
-            </Typography>
-            <Stack
-              direction={{ xs: "column", sm: "row" }}
-              spacing={1}
-              alignItems={{ sm: "flex-start" }}
+            <Paper
+              variant="outlined"
               sx={{
-                bgcolor: "primary.main",  // Use the primary button color as background
+                p: 1.5,
                 borderRadius: 2,
-                // border removed as per new instruction
-                transition: "border-color 0.2s",
-                px: 1,
-                py: 1,
-                boxShadow: aiParseLoading ? "0 0 0 2px rgb(212, 228, 241)" : "none",
+                bgcolor: "linear-gradient(90deg, #e9f2fd 0%, #fff 100%)",
+                borderColor: "primary.light",
+                boxShadow: "0px 4px 20px 0px rgba(110, 188, 255, 0.08)",
+                position: "relative",
+                overflow: "hidden",
               }}
             >
-              <AiPromptField
-                value={nlLineChatInput}
-                onChange={(val) => {
-                  setNlLineChatInput(val);
-                  if (nlChatFieldError) setNlChatFieldError(false);
-                }}
-                onSubmit={handleNlChatAddLines}
-                loading={aiParseLoading}
-                error={nlChatFieldError}
-                inputRef={nlLineChatInputRef}
-                minRows={3}
-                maxRows={8}
-                rootSx={{ flex: "1 1 auto", minWidth: 0, borderRadius: 2, bgcolor: "#fff" }}
-                overlaySx={{ borderRadius: 2, top: "16.5px", bottom: "16.5px", left: "14px", right: "14px", overflow: "auto" }}
-                textFieldSx={{
-                  "& .MuiOutlinedInput-root": { bgcolor: "transparent" },
-                  "& .MuiInputBase-input": { 
-                    bgcolor: "transparent",
-                  },
-                  "& .MuiInputBase-input::placeholder": {
-                    padding: "12.5px 14px", // standard text field input padding (top/bottom, left/right)
-                    boxSizing: "border-box",
-                    maxWidth: "100%",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                    display: "block",
-                  },
-                }}
-              />
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={
-                  aiParseLoading ? (
-                    <CircularProgress size={18} color="inherit" />
-                  ) : (
-                    <AutoAwesome />
-                  )
-                }
-                onClick={handleNlChatAddLines}
+              <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
+                <AutoAwesome sx={{ fontSize: 22, color: "primary.main" }} />
+                <Typography variant="subtitle2" fontWeight={700} color="primary.main">
+                  AI-powered add quote item
+                </Typography>
+              </Stack>
+              {aiParseError && (
+                <Alert severity="error" sx={{ mt: 1 }}>
+                  {aiParseError}
+                </Alert>
+              )}
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+                One or more charges per message, e.g. &quot;£120 Garden landscaping&quot; or several lines. Press <b>Enter</b> to send, <b>Shift+Enter</b> for a new line.
+              </Typography>
+              <Stack
+                direction={{ xs: "column", sm: "row" }}
+                spacing={1}
+                alignItems={{ sm: "flex-start" }}
                 sx={{
-                  flexShrink: 0,
-                  minWidth: { sm: 140 },
-                  boxShadow: "0px 2px 8px 0px rgba(110, 188, 255, 0.09)",
-                  fontWeight: 600,
-                  letterSpacing: 0.2,
-                  bgcolor: "#fff",           // Button background is white
-                  color: "primary.main",      // Text/icon color is the primary button color
-                  "&:hover": {
-                    bgcolor: "#f3f4f6",
-                  },
+                  bgcolor: "primary.main",  // Use the primary button color as background
+                  borderRadius: 2,
+                  // border removed as per new instruction
+                  transition: "border-color 0.2s",
+                  px: 1,
+                  py: 1,
+                  boxShadow: aiParseLoading ? "0 0 0 2px rgb(212, 228, 241)" : "none",
                 }}
               >
-                Add to quote
-              </Button>
-            </Stack>
-          </Paper>
+                <AiPromptField
+                  value={nlLineChatInput}
+                  onChange={(val) => {
+                    setNlLineChatInput(val);
+                    if (nlChatFieldError) setNlChatFieldError(false);
+                  }}
+                  onSubmit={handleNlChatAddLines}
+                  loading={aiParseLoading}
+                  error={nlChatFieldError}
+                  inputRef={nlLineChatInputRef}
+                  minRows={3}
+                  maxRows={8}
+                  rootSx={{ flex: "1 1 auto", minWidth: 0, borderRadius: 2, bgcolor: "#fff" }}
+                  overlaySx={{ borderRadius: 2, top: "16.5px", bottom: "16.5px", left: "14px", right: "14px", overflow: "auto" }}
+                  textFieldSx={{
+                    "& .MuiOutlinedInput-root": { bgcolor: "transparent" },
+                    "& .MuiInputBase-input": {
+                      bgcolor: "transparent",
+                    },
+                    "& .MuiInputBase-input::placeholder": {
+                      padding: "12.5px 14px", // standard text field input padding (top/bottom, left/right)
+                      boxSizing: "border-box",
+                      maxWidth: "100%",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      display: "block",
+                    },
+                  }}
+                />
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={
+                    aiParseLoading ? (
+                      <CircularProgress size={18} color="inherit" />
+                    ) : (
+                      <AutoAwesome />
+                    )
+                  }
+                  onClick={handleNlChatAddLines}
+                  sx={{
+                    flexShrink: 0,
+                    minWidth: { sm: 140 },
+                    boxShadow: "0px 2px 8px 0px rgba(110, 188, 255, 0.09)",
+                    fontWeight: 600,
+                    letterSpacing: 0.2,
+                    bgcolor: "#fff",           // Button background is white
+                    color: "primary.main",      // Text/icon color is the primary button color
+                    "&:hover": {
+                      bgcolor: "#f3f4f6",
+                    },
+                  }}
+                >
+                  Add to quote
+                </Button>
+              </Stack>
+            </Paper>
           ) : null}
         </Stack>
         <Divider sx={{ my: 1.5 }} />
@@ -1266,7 +1296,7 @@ const QuoteGenerator = () => {
           ) : (
             <>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-              It looks like you’ve reached the limit of 3 quotes. To send more, you’ll need to upgrade to a paid package. Join the waitlist to be notified when this feature becomes available.
+                It looks like you’ve reached the limit of 3 quotes. To send more, you’ll need to upgrade to a paid package. Join the waitlist to be notified when this feature becomes available.
               </Typography>
               <TextField
                 id="quoteGeneratorWaitlistEmail"

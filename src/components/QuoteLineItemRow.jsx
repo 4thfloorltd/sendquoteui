@@ -95,7 +95,7 @@ export function QuoteLineItemRow({
       value={priceNum}
       onChange={updateLineField(row.id, "unitPrice")}
       fullWidth
-      inputProps={{ min: 0, step: 0.01 }}
+      inputProps={{ min: 0, step: 0.01, inputMode: "decimal", pattern: "[0-9]*" }}
       sx={{
         minWidth: 0,
         "& input": {
@@ -115,7 +115,7 @@ export function QuoteLineItemRow({
       value={lineQuantityDisplay(row)}
       onChange={updateLineField(row.id, "quantity")}
       fullWidth
-      inputProps={{ min: 0, step: 1 }}
+      inputProps={{ min: 0, step: 1, inputMode: "numeric" }}
       sx={{
         minWidth: 0,
         "& input": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
@@ -132,7 +132,7 @@ export function QuoteLineItemRow({
       value={row.vatPercent === undefined || row.vatPercent === null ? 20 : row.vatPercent}
       onChange={updateLineField(row.id, "vatPercent")}
       fullWidth
-      inputProps={{ min: 0, max: 100, step: 1 }}
+      inputProps={{ min: 0, max: 100, step: 1, inputMode: "numeric" }}
       sx={{
         minWidth: 0,
         "& input": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
