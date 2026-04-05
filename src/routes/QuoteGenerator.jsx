@@ -1108,7 +1108,7 @@ const QuoteGenerator = () => {
             <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
               <AutoAwesome sx={{ fontSize: 22, color: "primary.main" }} />
               <Typography variant="subtitle2" fontWeight={700} color="primary.main">
-                AI-powered line item generator
+                AI-powered add quote item
               </Typography>
             </Stack>
             {aiParseError && (
@@ -1149,10 +1149,17 @@ const QuoteGenerator = () => {
                 overlaySx={{ borderRadius: 2, top: "16.5px", bottom: "16.5px", left: "14px", right: "14px", overflow: "auto" }}
                 textFieldSx={{
                   "& .MuiOutlinedInput-root": { bgcolor: "transparent" },
-                  "& .MuiInputBase-input": { bgcolor: "transparent" },
+                  "& .MuiInputBase-input": { 
+                    bgcolor: "transparent",
+                  },
                   "& .MuiInputBase-input::placeholder": {
                     padding: "12.5px 14px", // standard text field input padding (top/bottom, left/right)
                     boxSizing: "border-box",
+                    maxWidth: "100%",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    display: "block",
                   },
                 }}
               />
@@ -1259,7 +1266,7 @@ const QuoteGenerator = () => {
           ) : (
             <>
               <Typography variant="body1" color="text.secondary" sx={{ mb: 2 }}>
-                Quote creation is coming soon. Enter your email to join the waitlist! We’ll notify you when it’s ready.
+              It looks like you’ve reached the limit of 3 quotes. To send more, you’ll need to upgrade to a paid package. Join the waitlist to be notified when this feature becomes available.
               </Typography>
               <TextField
                 id="quoteGeneratorWaitlistEmail"

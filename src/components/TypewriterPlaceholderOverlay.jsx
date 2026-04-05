@@ -45,7 +45,7 @@ export function TypewriterPlaceholderOverlay({
             color: theme.palette.grey[600],
             display: "block",
             overflow: "visible",
-            width: "100%",
+            width: "90%",
             boxSizing: "border-box",
             whiteSpace: "pre-wrap",
             wordBreak: "break-word",
