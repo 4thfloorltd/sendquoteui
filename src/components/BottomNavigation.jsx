@@ -30,7 +30,7 @@ const BottomNav = () => {
   };
 
   const handleSupportClick = () => {
-    window.location.href = "mailto:support@sendquote.app";
+    window.location.href = "mailto:support@sendquote.ai";
   };
 
   // Map routes to tab indices
@@ -71,7 +71,6 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faTachometerAlt} />}
           sx={{
             color: "#6B7280",
-            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
@@ -86,7 +85,6 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faPaperPlane} />}
           sx={{
             color: "#6B7280",
-            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
@@ -101,7 +99,6 @@ const BottomNav = () => {
           icon={<FontAwesomeIcon icon={faCog} />}
           sx={{
             color: "#6B7280",
-            padding: "8px",
             minWidth: "auto",
             "&.Mui-selected": {
               color: "#083a6b",
@@ -115,7 +112,6 @@ const BottomNav = () => {
           onClick={handleSupportClick}
           sx={{
             color: "#6B7280",
-            padding: "8px",
             minWidth: "auto",
             "&:hover": {
               color: "#083a6b",
@@ -124,21 +120,21 @@ const BottomNav = () => {
           }}
         />
 
-        {false && (
-          <BottomNavigationAction
-            label="More"
-            icon={<FontAwesomeIcon icon={faEllipsisH} />}
-            onClick={handleMenuOpen}
-            sx={{
-              color: "#6B7280",
-              padding: "8x",
-              minWidth: "auto",
-              "&.Mui-selected": {
-                color: "#083a6b",
-              },
-            }}
-          />
-        )}
+        {/* "More" tab is currently disabled. Uncomment to enable.
+        <BottomNavigationAction
+          label="More"
+          icon={<FontAwesomeIcon icon={faEllipsisH} />}
+          onClick={handleMenuOpen}
+          sx={{
+            color: "#6B7280",
+            padding: "8x",
+            minWidth: "auto",
+            "&.Mui-selected": {
+              color: "#083a6b",
+            },
+          }}
+        />
+        */}
       </BottomNavigation>
 
       <Menu

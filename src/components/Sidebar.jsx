@@ -144,7 +144,7 @@ const Sidebar = () => {
 
         {/* Support */}
         <a
-          href="mailto:support@sendquote.app"
+          href="mailto:support@sendquote.ai"
           style={{ textDecoration: "none" }}
         >
           <ListItem

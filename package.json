@@ -2,14 +2,15 @@
   "name": "sendaquote",
   "private": true,
   "version": "0.0.0",
-  "type": "module",  
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "predeploy": "npm run build",
-    "deploy": "gh-pages -d dist"
+    "deploy": "gh-pages -d dist",
+    "deploy:functions": "firebase deploy --only functions"
   },
   "dependencies": {
     "@emotion/react": "^11.13.3",
@@ -23,9 +24,11 @@
     "axios": "^1.7.7",
     "firebase": "^11.5.0",
     "font-awesome": "^4.7.0",
+    "jspdf": "^4.2.1",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-google-recaptcha": "^3.1.0"
+    "react-google-recaptcha": "^3.1.0",
+    "react-router-dom": "^6.27.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.11.1",
@@ -40,7 +43,6 @@
     "gh-pages": "^6.3.0",
     "globals": "^15.9.0",
     "postcss": "^8.4.47",
-    "react-router-dom": "^6.27.0",
     "tailwindcss": "^3.4.14",
     "vite": "^5.4.8"
   }

@@ -109,6 +109,7 @@ const Settings = () => {
       <Box sx={{ mb: 2}}>
         <Typography
           variant="h5"
+          color="primary"
           sx={{ fontWeight: "bold", textAlign: "center" }}
         >
           Settings
@@ -121,7 +122,7 @@ const Settings = () => {
         </Typography>
         <Grid container spacing={2}>
           <Grid item xs={12}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+            <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
               Company information
             </Typography>
           </Grid>
@@ -155,7 +156,7 @@ const Settings = () => {
             />
           </Grid>
           <Grid item xs={12}>
-            <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+            <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
               Address information
             </Typography>
           </Grid>

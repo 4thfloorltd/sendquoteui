@@ -25,3 +25,13 @@ dist-ssr
 
 # Environment variables
 .env
+.env.local
+.env.*.local
+
+# Firebase CLI cache (created on every deploy)
+.firebase/
+.firebaserc
+
+# Firebase Functions local env / secret overrides
+functions/.env
+functions/.env.local

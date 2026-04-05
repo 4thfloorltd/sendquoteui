@@ -9,9 +9,9 @@ import {
   Accordion,
   AccordionSummary,
   AccordionDetails,
+  Divider,
 } from "@mui/material";
-import { collection, addDoc } from "firebase/firestore";
-import { db } from "../../firebase";
+import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPaperPlane,
@@ -19,97 +19,25 @@ import {
   faThumbsUp,
   faChevronDown,
 } from "@fortawesome/free-solid-svg-icons";
-import ReCAPTCHA from "react-google-recaptcha";
+import { useNavigate } from "react-router-dom";
+import { AiPromptField } from "./AiPromptField";
 
 const Landing = () => {
-  const [email, setEmail] = useState("");
-  const [emailError, setEmailError] = useState(false);
-  const [recaptchaVerified, setRecaptchaVerified] = useState(false);
-  const [successMessage, setSuccessMessage] = useState(false);
-  const [failCount, setFailCount] = useState(0);
-  const [showRecaptcha, setShowRecaptcha] = useState(false);
+  const [projectMessage, setProjectMessage] = useState("");
+  const navigate = useNavigate();
 
-  const siteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
-
-  const handleChange = (e) => {
-    setEmail(e.target.value);
-    setEmailError(false);
+  const handleSendMessage = () => {
+    const trimmedMessage = projectMessage.trim();
+    if (!trimmedMessage) return;
+    navigate("/quote", { state: { projectDescription: trimmedMessage } });
   };
 
-  const handleRecaptchaChange = (value) => {
-    setRecaptchaVerified(!!value);
-  };
-
-  const handleRequestAccess = async () => {
-    if (!validateEmail(email)) {
-      setEmailError(true);
-      setFailCount(failCount + 1);
-      if (failCount >= 1) setShowRecaptcha(true);
-
-      const emailInput = document.getElementById("emailAddressTextField");
-      if (emailInput) emailInput.focus();
-      return;
-      return;
+  const scrollToPrompt = () => {
+    const promptInput = document.getElementById("projectPromptInput");
+    if (promptInput) {
+      promptInput.focus();
+      promptInput.scrollIntoView({ behavior: "smooth", block: "center" });
     }
-    if (showRecaptcha && !recaptchaVerified) {
-      alert("Please complete the reCAPTCHA verification.");
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "emails"), {
-        email,
-        sentAt: new Date()
-          .toLocaleDateString("en-GB", {
-            weekday: "long",
-            day: "numeric",
-            month: "long",
-            year: "numeric",
-          })
-          .replace(/(\d{1,2})/, (d) => {
-            // Add ordinal suffix
-            const n = Number(d);
-            if (n > 3 && n < 21) return `${n}th`;
-            switch (n % 10) {
-              case 1:
-                return `${n}st`;
-              case 2:
-                return `${n}nd`;
-              case 3:
-                return `${n}rd`;
-              default:
-                return `${n}th`;
-            }
-          }),
-      });
-      setSuccessMessage(true);
-    } catch (error) {
-      console.error("Error adding email to Firestore:", error);
-      alert("Something went wrong. Please try again later.");
-    }
-  };
-
-  const handleKeyDown = (e) => {
-    if (e.key === "Enter") {
-      handleRequestAccess();
-    }
-  };
-
-  const scrollToRequestAccess = () => {
-    const emailAddressInput = document.getElementById("emailAddressTextField");
-    if (emailAddressInput) {
-      emailAddressInput.focus(); // Focus immediately on user gesture
-      emailAddressInput.scrollIntoView({ behavior: "smooth", block: "center" });
-      // Optionally, re-focus after scrolling for non-iOS browsers
-      setTimeout(() => {
-        emailAddressInput.focus();
-      }, 900);
-    }
-  };
-
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(email).toLowerCase());
   };
 
   return (
@@ -180,108 +108,144 @@ const Landing = () => {
               </Typography>
             </Box>
 
-            {successMessage ? (
+            <Box
+              id="project-chat-entry"
+              sx={{
+                width: "100%",
+                maxWidth: "700px",
+                mx: "auto",
+                mb: "48px",
+                border: "1px solid #D1D5DB",
+                borderRadius: "18px",
+                backgroundColor: "#fff",
+                boxShadow: "0 10px 24px rgba(15, 23, 42, 0.08)",
+                p: "10px",
+              }}
+            >
               <Box
-                sx={{
-                  textAlign: "center",
-                  marginTop: "64px",
-                  marginBottom: "64px",
-                  backgroundColor: "#083a6b",
-                  padding: "16px",
-                  borderRadius: "8px",
-                  maxWidth: "600px",
-                  marginLeft: "auto",
-                  marginRight: "auto",
-                }}
-              >
-                <Typography variant="h6" color="#fff" fontSize={16}>
-                  You're on the list! We'll email you when we launch. 🚀
-                </Typography>
-              </Box>
-            ) : (
-              <Box
-                className="flex flex-row items-center justify-center gap-2 mb-2"
-                id="request-access"
                 sx={{
                   display: "flex",
-                  alignItems: "start",
-                  gap: { xs: 0, sm: "8px" },
-                  flexWrap: "nowrap",
-                  flexDirection: { xs: "column", sm: "row" }, // Stack on mobile, row on larger screens
-                  marginBottom: "48px",
+                  flexDirection: "column",
                   width: "100%",
-                  maxWidth: "600px",
-                  mx: "auto",
                 }}
               >
-                <TextField
-                  label="Enter your email address"
-                  variant="outlined"
-                  value={email}
-                  onChange={handleChange}
-                  onKeyDown={handleKeyDown}
-                  error={emailError}
-                  helperText={
-                    emailError && (
-                      <span style={{ fontWeight: 600 }}>
-                        Enter a valid email address (e.g. name@example.com)
-                      </span>
-                    )
-                  }
-                  className="animate-slideUp transition duration-500 delay-250"
+                <Box
                   sx={{
-                    width: { xs: "100%", sm: "350px" },
-                    "& .MuiOutlinedInput-root": {
-                      height: "56px",
-                      "&:hover fieldset": { borderColor: "#083a6b" },
-                      "&.Mui-focused fieldset": { borderColor: "#083a6b" },
-                    },
+                    display: "flex",
+                    alignItems: "flex-start",
+                    gap: 1,
+                    width: "100%",
+                    minWidth: 0,
                   }}
-                  id="emailAddressTextField"
+                >
+                  <Box
+                    sx={{
+                      mt: 0.75,
+                      color: "#083a6b",
+                      backgroundColor: "#E0ECFF",
+                      borderRadius: "999px",
+                      width: 40,
+                      height: 40,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      flexShrink: 0,
+                    }}
+                    aria-hidden
+                  >
+                    <AutoAwesome sx={{ fontSize: 22 }} />
+                  </Box>
+                  <AiPromptField
+                    value={projectMessage}
+                    onChange={setProjectMessage}
+                    onSubmit={handleSendMessage}
+                    variant="standard"
+                    minRows={3}
+                    maxRows={7}
+                    id="projectPromptInput"
+                    InputProps={{ disableUnderline: true }}
+                    inputProps={{ "aria-label": "Describe your project or needs" }}
+                    rootSx={{ flex: "1 1 0" }}
+                    textFieldSx={(theme) => ({
+                      width: "100%",
+                      maxWidth: "100%",
+                      "& .MuiInputBase-root": {
+                        width: "100%",
+                        maxWidth: "100%",
+                        padding: 0,
+                        backgroundColor: "transparent",
+                      },
+                      "& .MuiInputBase-input": {
+                        width: "100%",
+                        boxSizing: "border-box",
+                        padding: theme.spacing(1),
+                        fontFamily: theme.typography.fontFamily,
+                        fontWeight: theme.typography.body1.fontWeight,
+                        fontSize: theme.typography.body1.fontSize,
+                        lineHeight: theme.typography.body1.lineHeight,
+                        letterSpacing: theme.typography.body1.letterSpacing,
+                        backgroundColor: "transparent",
+                      },
+                    })}
+                  />
+                </Box>
+
+                <Divider
+                  sx={{
+                    borderColor: "#E5E7EB",
+                    my: 1.25,
+                  }}
                 />
 
-                <Button
-                  variant="contained"
-                  color="primary"
-                  className="animate-slideUp transition duration-500 delay-250"
+                <Box
                   sx={{
-                    fontSize: "1rem",
-                    padding: "6px 16px",
-                    minWidth: "auto",
-                    height: "56px",
-                    whiteSpace: "nowrap",
-                    width: { xs: "100%", sm: "auto" }, // 100% width on mobile
-                    mt: { xs: 1, sm: 0 }, // Add margin top on mobile for spacing
+                    display: "flex",
+                    justifyContent: "flex-end",
+                    width: "100%",
                   }}
-                  onClick={handleRequestAccess}
                 >
-                  Join the waitlist
-                </Button>
+                  <Button
+                    aria-label="Send project description"
+                    onClick={handleSendMessage}
+                    disabled={!projectMessage.trim()}
+                    variant="contained"
+                    sx={{
+                      color: "#fff",
+                      backgroundColor: "#083a6b",
+                      borderRadius: "25px",
+                      height: 48,
+                      px: 3,
+                      display: "flex",
+                      alignItems: "center",
+                      boxShadow: 2,
+                      fontWeight: 700,
+                      fontSize: "1.05rem",
+                      gap: 1.5,
+                      letterSpacing: 0.2,
+                      "&:hover": { backgroundColor: "#0A4C88" },
+                      "&.Mui-disabled": {
+                        backgroundColor: "#D1D5DB",
+                        color: "#fff",
+                      },
+                    }}
+                    endIcon={<AutoAwesome sx={{ fontSize: 22 }} />}
+                  >
+                    Create a Quote
+                  </Button>
+                </Box>
               </Box>
-            )}
-
-            {!successMessage && validateEmail(email) && showRecaptcha && (
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "center",
-                  marginTop: "12px",
-                  marginBottom: "24px",
-                }}
-              >
-                <ReCAPTCHA sitekey={siteKey} onChange={handleRecaptchaChange} />
-              </Box>
-            )}
+            </Box>
           </Box>
         </Box>
-        <Box className="flex justify-center mt-4 mb-16">
+        <Box
+          className="flex justify-self-center mt-4 mb-16"
+          sx={{ px: { md: "32px" }, maxWidth: "1200px" }}
+        >
           <img
-            src="/images/landing.webp"
+            src="images/landing.webp"
             alt="Desktop Illustration"
             className="animate-slideUp transition duration-500 delay-200"
             style={{
-              maxWidth: "100%",
-              width: "100%",
               height: "auto",
               display: "block",
             }}
@@ -385,10 +349,7 @@ const Landing = () => {
         >
           Frequently Asked Questions
         </Typography>
-        <Box
-          className="flex flex-col w-full max-w-2xl mx-auto"
-          sx={{ px: { xs: "1rem", md: 0 } }}
-        >
+        <Box className="flex flex-col w-full max-w-2xl mx-auto">
           {[
             {
               q: "What is SendQuote?",
@@ -433,39 +394,37 @@ const Landing = () => {
           >
             Still have questions? Ask us at{" "}
             <Link
-              href="mailto:support@sendquote.app"
+              href="mailto:support@sendquote.ai"
               sx={{
                 color: "#083a6b",
                 fontWeight: "bold",
                 textDecoration: "underline",
               }}
             >
-              support@sendquote.app
+              support@sendquote.ai
             </Link>
           </Typography>
         </Box>
 
-        {!successMessage && (
-          <Box className="flex flex-col items-center justify-center mt-8">
-            <Button
-              variant="contained"
-              onClick={scrollToRequestAccess}
-              className="animate-slideUp transition duration-500 delay-250"
-              sx={{
-                alignSelf: "center",
-                backgroundColor: "#fff",
+        <Box className="flex flex-col items-center justify-center mt-8">
+          <Button
+            variant="contained"
+            onClick={scrollToPrompt}
+            className="animate-slideUp transition duration-500 delay-250"
+            sx={{
+              alignSelf: "center",
+              backgroundColor: "#fff",
+              color: "#083a6b",
+              border: "1px solid #083a6b",
+              "&:hover": {
+                backgroundColor: "#f0f0f0",
                 color: "#083a6b",
-                border: "1px solid #083a6b",
-                "&:hover": {
-                  backgroundColor: "#f0f0f0",
-                  color: "#083a6b",
-                },
-              }}
-            >
-              Join the waitlist
-            </Button>
-          </Box>
-        )}
+              },
+            }}
+          >
+            Start your quote
+          </Button>
+        </Box>
       </Box>
     </Box>
   );

@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useLayoutEffect, useRef, useState } from "react";
 import {
   Button,
   Divider,
@@ -11,7 +11,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 import SendIcon from "@mui/icons-material/Send";
 import DeleteIcon from "@mui/icons-material/Delete";
-import SendQuoteModal from "./SendQuoteModal";
+import SendQuoteModal from "../SendQuoteModal";
 import { useMediaQuery } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
@@ -20,7 +20,9 @@ import {
   formatNumberWithCommas,
   formatUkPhoneNumber,
   formatUkPostcode,
-} from "../../helpers/utility";
+  handleFocus,
+} from "../../../helpers/utility";
+import QuoteSummary from "./QuoteSummary";
 
 const Quotes = ({ showForm: initialShowForm = false }) => {
   const [showForm, setShowForm] = useState(initialShowForm);
@@ -42,6 +44,9 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
   const [subtotalOpen, setSubtotalOpen] = useState(true);
   const [errors, setErrors] = useState({});
   const [itemErrors, setItemErrors] = useState([]);
+  // quote summmary box
+  const quoteSummaryRef = useRef(null);
+  const [bottomPadding, setBottomPadding] = useState(220);
 
   // Refs for each field to scroll to on error
   const refs = {
@@ -59,6 +64,16 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   const isMobile = useMediaQuery("(max-width:768px)");
+
+  useLayoutEffect(() => {
+    if (quoteSummaryRef.current) {
+      setBottomPadding(quoteSummaryRef.current.offsetHeight + 24); // 24px extra gap
+    }
+  }, [
+    showSummaryDetails,
+    formData.items.length,
+    formData.items.map((i) => i.item + i.price + i.quantity).join(","), // re-measure if items change
+  ]);
 
   const handleButtonClick = () => {
     setShowForm(!showForm);
@@ -241,10 +256,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
     if (Object.keys(newErrors).length > 0) {
       const firstErrorField = Object.keys(newErrors)[0];
       if (refs[firstErrorField] && refs[firstErrorField].current) {
-        refs[firstErrorField].current.scrollIntoView({
-          behavior: "smooth",
-          block: "center",
-        });
+        handleFocus({ target: refs[firstErrorField].current }); // <-- use your utility
         refs[firstErrorField].current.focus();
       }
       return false;
@@ -287,7 +299,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
   return (
     <>
       <Box sx={{ textAlign: "center", mb: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: "bold" }}>
+        <Typography variant="h5" color="primary" sx={{ fontWeight: "bold" }}>
           {showForm ? "Create a Quote" : "Your Sent Quotes"}
         </Typography>
         <Typography
@@ -331,14 +343,12 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
             flexDirection: "column",
             gap: "16px",
             width: "100%",
-            paddingBottom: showSummaryDetails
-              ? `${200 + formData.items.length * 24}px`
-              : `${64 + formData.items.length * 84}px`,
+            paddingBottom: `${bottomPadding}px`,
           }}
         >
           <Grid container spacing={2}>
             <Grid item xs={12}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
                 Customer information
               </Typography>
             </Grid>
@@ -349,6 +359,15 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                 variant="outlined"
                 value={formData.firstName || ""}
                 onChange={(e) => handleInputChange(e)}
+                onBlur={(e) => {
+                  handleInputChange({
+                    target: {
+                      name: "firstName",
+                      value: capitaliseWords(e.target.value),
+                    },
+                  });
+                }}
+                onFocus={handleFocus}
                 error={!!errors.firstName}
                 helperText={errors.firstName}
                 inputRef={refs.firstName}
@@ -362,6 +381,15 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                 variant="outlined"
                 value={formData.lastName || ""}
                 onChange={(e) => handleInputChange(e)}
+                onBlur={(e) => {
+                  handleInputChange({
+                    target: {
+                      name: "lastName",
+                      value: capitaliseWords(e.target.value),
+                    },
+                  });
+                }}
+                onFocus={handleFocus}
                 error={!!errors.lastName}
                 helperText={errors.lastName}
                 inputRef={refs.lastName}
@@ -379,6 +407,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     v.toLowerCase()
                   )
                 }
+                onFocus={handleFocus}
                 error={!!errors.email}
                 helperText={errors.email}
                 inputRef={refs.email}
@@ -398,6 +427,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     target: { name: "phone", value: formatted },
                   });
                 }}
+                onFocus={handleFocus}
                 error={!!errors.phone}
                 helperText={errors.phone}
                 inputRef={refs.phone}
@@ -414,7 +444,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
               />
             </Grid>
             <Grid item xs={12}>
-              <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+              <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
                 Address information
               </Typography>
             </Grid>
@@ -433,6 +463,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                   });
                 }}
                 onChange={(e) => handleInputChange(e)}
+                onFocus={handleFocus}
                 error={!!errors.addressLine1}
                 helperText={errors.addressLine1}
                 inputRef={refs.addressLine1}
@@ -454,6 +485,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                   });
                 }}
                 onChange={(e) => handleInputChange(e)}
+                onFocus={handleFocus}
                 error={!!errors.addressLine2}
                 helperText={errors.addressLine2}
                 inputRef={refs.addressLine2}
@@ -475,6 +507,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                   });
                 }}
                 onChange={(e) => handleInputChange(e)}
+                onFocus={handleFocus}
                 error={!!errors.townOrCity}
                 helperText={errors.townOrCity}
                 inputRef={refs.townOrCity}
@@ -493,6 +526,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     target: { name: "postcode", value: formatted },
                   });
                 }}
+                onFocus={handleFocus}
                 error={!!errors.postcode}
                 helperText={errors.postcode}
                 inputRef={refs.postcode}
@@ -501,7 +535,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
             </Grid>
           </Grid>
           <Divider sx={{ width: "100%", my: 1 }} />
-          <Typography variant="h6" sx={{ fontWeight: 600, mb: 1 }}>
+          <Typography variant="h6" color="primary" sx={{ fontWeight: 600, mb: 1 }}>
             Quote Items
           </Typography>
           {formData.items.map((item, index) => (
@@ -513,6 +547,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     type="number"
                     value={item.quantity}
                     onChange={(e) => handleInputChange(e, index, "quantity")}
+                    onFocus={handleFocus}
                     fullWidth
                     error={!!(itemErrors[index] && itemErrors[index].quantity)}
                     helperText={itemErrors[index] && itemErrors[index].quantity}
@@ -541,6 +576,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     label={`Item ${index + 1}`}
                     value={item.item}
                     onChange={(e) => handleInputChange(e, index, "item")}
+                    onFocus={handleFocus}
                     fullWidth
                     error={!!(itemErrors[index] && itemErrors[index].item)}
                     helperText={itemErrors[index] && itemErrors[index].item}
@@ -551,6 +587,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     label="Description"
                     value={item.description}
                     onChange={(e) => handleInputChange(e, index, "description")}
+                    onFocus={handleFocus}
                     fullWidth
                     multiline
                     minRows={1}
@@ -574,6 +611,7 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
                     value={item.price}
                     onBlur={(e) => handleBlur(e, index, "price")}
                     onChange={(e) => handleInputChange(e, index, "price")}
+                    onFocus={handleFocus}
                     fullWidth
                     error={!!(itemErrors[index] && itemErrors[index].price)}
                     helperText={itemErrors[index] && itemErrors[index].price}
@@ -654,221 +692,15 @@ const Quotes = ({ showForm: initialShowForm = false }) => {
           >
             Add another item
           </Button>
-          <Box
-            sx={{
-              position: "fixed",
-              left: { xs: 0, md: "186.07px" },
-              bottom: 0,
-              width: { xs: "100vw", md: "750px" },
-              backgroundColor: "white",
-              borderTop: { xs: "1px solid #e0e0e0", md: "none" },
-              zIndex: 1200,
-              px: 0,
-              pt: 1,
-              display: "flex",
-              justifyContent: "center",
-              // Only add marginBottom if bottom nav is visible
-              mb: { xs: "56px", sm: "56px", md: "32px" },
-              borderRadius: { md: "8px 8px 0 0" },
-              boxShadow: {
-                xs: "0 -2px 16px 0 rgba(0,0,0,0.12)",
-                md: "0px 1px 3px rgba(0,0,0,0.12), 0px 1px 2px rgba(0,0,0,0.24)",
-              },
-              right: 0,
-              "@media (min-width:768px)": {
-                left: "186.07px",
-                width: "550px",
-                borderTop: "none",
-                borderRadius: "8px",
-                marginBottom: "32px",
-                justifySelf: "center",
-              },
-            }}
-          >
-            <Box
-              sx={{
-                width: "100%",
-                display: "flex",
-                flexDirection: "column",
-                px: 1, // minimal inner horizontal padding
-                py: 0, // no extra vertical padding
-              }}
-            >
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  width: "100%",
-                  position: "relative",
-                }}
-              >
-                <Typography
-                  variant="subtitle1"
-                  sx={{
-                    fontWeight: 600,
-                    color: "#083a6b",
-                    flex: 1,
-                    textAlign: "left",
-                  }}
-                >
-                  Quote Summary
-                </Typography>
-                <Box
-                  sx={{
-                    flex: 1,
-                    display: "flex",
-                    justifyContent: "flex-end",
-                    alignItems: "center",
-                  }}
-                >
-                  <Button
-                    size="small"
-                    onClick={() => setShowSummaryDetails((prev) => !prev)}
-                    endIcon={
-                      showSummaryDetails ? (
-                        <KeyboardArrowUpIcon />
-                      ) : (
-                        <ExpandMoreIcon />
-                      )
-                    }
-                  >
-                    {showSummaryDetails ? "Collapse" : "Expand"}
-                  </Button>
-                </Box>
-              </Box>
-              <Divider sx={{ width: "100%", mb: 1 }} />
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: { xs: "flex-start" }, // Align summary details left
-                  justifyContent: "space-between",
-                  width: "100%",
-                }}
-              >
-                <Box sx={{ width: "100%" }}>
-                  {/* Show summary details above subtotal/tax/total */}
-                  {showSummaryDetails && (
-                    <Box
-                      sx={{
-                        maxHeight:
-                          formData.items.filter(
-                            (item) => item.item && item.item.trim() !== ""
-                          ).length > 10
-                            ? 220
-                            : "none",
-                        overflowY:
-                          formData.items.filter(
-                            (item) => item.item && item.item.trim() !== ""
-                          ).length > 10
-                            ? "auto"
-                            : "visible",
-                        pr:
-                          formData.items.filter(
-                            (item) => item.item && item.item.trim() !== ""
-                          ).length > 10
-                            ? 1
-                            : 0,
-                        transition: "max-height 0.2s",
-                      }}
-                    >
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "gray", fontWeight: 600 }}
-                      >
-                        {
-                          formData.items.filter(
-                            (item) => item.item && item.item.trim() !== ""
-                          ).length
-                        }{" "}
-                        item
-                        {formData.items.filter(
-                          (item) => item.item && item.item.trim() !== ""
-                        ).length !== 1
-                          ? "s"
-                          : ""}{" "}
-                        added to quote
-                      </Typography>
-                      <Box component="ul" sx={{ pl: 2, m: 0 }}>
-                        {formData.items
-                          .filter(
-                            (item) => item.item && item.item.trim() !== ""
-                          )
-                          .map((item, idx) => (
-                            <li
-                              key={idx}
-                              style={{
-                                marginBottom: 2,
-                                listStyle: "disc",
-                                color: "#083a6b",
-                                marginLeft: "0.5rem",
-                              }}
-                            >
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  display: "inline",
-                                  fontWeight: 500,
-                                }}
-                              >
-                                {item.quantity} × {item.item}
-                              </Typography>
-                              <Typography
-                                variant="body2"
-                                sx={{ display: "inline", color: "gray", ml: 1 }}
-                              >
-                                (£{item.price || "0.00"})
-                              </Typography>
-                            </li>
-                          ))}
-                      </Box>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "gray", mt: 5 }}
-                      >
-                        Subtotal: £{calculateSubtotal()}
-                      </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ fontWeight: 600, color: "gray" }}
-                      >
-                        Tax (20%): £{calculateTax()}
-                      </Typography>
-                    </Box>
-                  )}
-                </Box>
-                <Box
-                  sx={{
-                    display: "flex",
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    width: "100%",
-                    mb: 2,
-                  }}
-                >
-                  <Typography
-                    sx={{
-                      fontWeight: "bold",
-                      color: "#083a6b",
-                      textAlign: "left",
-                    }}
-                  >
-                    Total: £{calculateTotal()}
-                  </Typography>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    type="submit"
-                    startIcon={<SendIcon />}
-                  >
-                    Send Quote
-                  </Button>
-                </Box>
-              </Box>
-            </Box>
-          </Box>
+          <QuoteSummary
+            ref={quoteSummaryRef}
+            showSummaryDetails={showSummaryDetails}
+            setShowSummaryDetails={setShowSummaryDetails}
+            formData={formData}
+            calculateSubtotal={calculateSubtotal}
+            calculateTax={calculateTax}
+            calculateTotal={calculateTotal}
+          />
         </form>
       )}
       <SendQuoteModal

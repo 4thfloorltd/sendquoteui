@@ -102,3 +102,15 @@ export const formatUkPostcode = (input) => {
 
   return cleaned.trim();
 };
+
+export const handleFocus = (e) => {
+  // Only apply on small devices (width <= 768px)
+  if (window.innerWidth <= 768) {
+    setTimeout(() => {
+      const yOffset = -32;
+      const y =
+        e.target.getBoundingClientRect().top + window.pageYOffset + yOffset;
+      window.scrollTo({ top: y, behavior: "smooth" });
+    }, 100);
+  }
+};

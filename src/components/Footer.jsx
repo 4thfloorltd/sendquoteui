@@ -44,7 +44,7 @@ const Footer = () => {
               sx={{ color: "#fff", marginBottom: "16px" }}
             >
               <Link
-                href="mailto:support@sendquote.app"
+                href="mailto:support@sendquote.ai"
                 color="inherit"
                 underline="hover"
                 sx={{
@@ -59,7 +59,7 @@ const Footer = () => {
                   style={{ marginRight: "8px" }}
                   size="lg"
                 />
-                support@sendquote.app
+                support@sendquote.ai
               </Link>
             </Typography>
             <Typography
