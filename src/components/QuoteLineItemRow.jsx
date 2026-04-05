@@ -8,6 +8,10 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { lineGross, lineQuantityDisplay } from "../utils/quoteLineCalculations";
 
+/** Muted fill for computed/read-only fields — neutral gray reads as “not editable” vs white inputs */
+const READONLY_FIELD_BG = "#ECEFF1";
+const READONLY_FIELD_BORDER = "#CFD8DC";
+
 /** Table column widths — must match table `minWidth` / layout in QuoteGenerator */
 const TABLE_COL = {
   desc: { width: "42%", minWidth: 176 },
@@ -151,10 +155,16 @@ export function QuoteLineItemRow({
       sx={{
         minWidth: 0,
         pointerEvents: "none",
+        bgcolor: READONLY_FIELD_BG,
+        borderRadius: 1,
         "& .MuiOutlinedInput-root": {
-          bgcolor: "#E5E7EB",
-          "& fieldset": { borderColor: "#E5E7EB" },
-          "&:hover fieldset": { borderColor: "#E5E7EB" },
+          bgcolor: READONLY_FIELD_BG,
+          backgroundColor: READONLY_FIELD_BG,
+          "& fieldset": { borderColor: READONLY_FIELD_BORDER },
+          "&:hover fieldset": { borderColor: READONLY_FIELD_BORDER },
+        },
+        "& .MuiInputBase-input": {
+          backgroundColor: READONLY_FIELD_BG,
         },
         "& input": {
           textAlign: "right",
