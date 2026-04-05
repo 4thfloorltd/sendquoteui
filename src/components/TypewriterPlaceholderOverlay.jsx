@@ -18,7 +18,7 @@ export function TypewriterPlaceholderOverlay({
         flex: "1 1 0",
         minWidth: 0,
         width: "100%",
-        overflow: "hidden",
+        overflow: "auto",
         ...rootSx,
       }}
     >
