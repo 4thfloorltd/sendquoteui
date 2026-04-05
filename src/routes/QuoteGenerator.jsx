@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import AddIcon from "@mui/icons-material/Add";
 import UpArrowIcon from "@mui/icons-material/ArrowUpward";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFileLines, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import { faFileLines, faPaperPlane, faShare, faDownload } from "@fortawesome/free-solid-svg-icons";
 import {
   Alert,
   Autocomplete,
@@ -472,14 +472,27 @@ const QuoteGenerator = () => {
 
     const email = (quoteData.businessEmail ?? "").trim().toLowerCase();
     setUsageChecking(true);
+
+    // On iOS the Web Share API requires a live user gesture. Because this
+    // function is async (awaits Firestore), the gesture context is consumed
+    // before we reach navigator.share(). The fix: on mobile we open the
+    // export dialog (one extra tap) so the final share/download call happens
+    // directly inside a fresh gesture handler.
+    const allowExport = () => {
+      if (isMobile()) {
+        handleOpenExportPdfDialog();
+      } else {
+        handleExportPdf();
+      }
+    };
+
     try {
       const ref = doc(db, "quote_usage", email);
       const snap = await getDoc(ref);
 
       if (!snap.exists()) {
-        // First ever use — create the record and allow.
         await setDoc(ref, { count: 1, since: serverTimestamp() });
-        handleExportPdf();
+        allowExport();
         return;
       }
 
@@ -488,16 +501,14 @@ const QuoteGenerator = () => {
       const withinWindow = Date.now() - sinceMs < USAGE_RESET_MS;
 
       if (!withinWindow) {
-        // Window expired — reset and allow.
         await setDoc(ref, { count: 1, since: serverTimestamp() });
-        handleExportPdf();
+        allowExport();
         return;
       }
 
       if (data.count < FREE_USES) {
-        // Still within allowance — increment and allow.
         await setDoc(ref, { count: increment(1) }, { merge: true });
-        handleExportPdf();
+        allowExport();
         return;
       }
 
@@ -507,8 +518,7 @@ const QuoteGenerator = () => {
       setWaitlistOpen(true);
     } catch (e) {
       console.error("Usage check failed", e);
-      // On error, allow the action so the user isn't blocked.
-      handleExportPdf();
+      allowExport();
     } finally {
       setUsageChecking(false);
     }
@@ -1378,12 +1388,11 @@ const QuoteGenerator = () => {
       {/* Export / Share PDF Dialog */}
       <Dialog open={exportPdfDialogOpen} onClose={handleCloseExportPdfDialog} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", fontSize: "1.15rem", py: 2 }}>
-          Export quote as PDF
+          Share your quote
         </DialogTitle>
         <DialogContent sx={{ pt: 0 }}>
           <Typography variant="body2" color="text.secondary">
-            Your quote will be generated as a PDF. On mobile it will open your
-            device&apos;s share sheet; on desktop it will download directly.
+            Your quote has been generated as a PDF, click the button to download or share it. 
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, flexDirection: "column", alignItems: "stretch", gap: 1 }}>
@@ -1392,10 +1401,10 @@ const QuoteGenerator = () => {
             size="large"
             fullWidth
             onClick={handleExportPdf}
-            startIcon={<FontAwesomeIcon icon={faFileLines} />}
+            startIcon={<FontAwesomeIcon icon={typeof navigator !== "undefined" && navigator.maxTouchPoints > 0  ? faShare : faDownload} />}
             sx={{ fontSize: "1.0625rem" }}
           >
-            {typeof navigator !== "undefined" && navigator.maxTouchPoints > 0 ? "Share / Download PDF" : "Download PDF"}
+            {typeof navigator !== "undefined" && navigator.maxTouchPoints > 0 ? "Share Quote" : "Download PDF"}
           </Button>
           <Button variant="text" size="large" fullWidth onClick={handleCloseExportPdfDialog} color="inherit" sx={{ fontSize: "1.0625rem" }}>
             Cancel
