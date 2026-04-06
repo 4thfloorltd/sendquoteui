@@ -1469,7 +1469,12 @@ const QuoteGenerator = () => {
             Enter the <Box component="span" sx={{ fontWeight: 700 }}>6-digit code</Box> sent to{" "}
             <Box component="span" sx={{ fontWeight: 700 }}>{verificationEmail || "your email"}</Box> to continue.
           </Typography>
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5, fontWeight: 700 }}>
+          <Typography
+            variant="caption"
+            color="text.secondary"
+            display="block"
+            sx={{ fontWeight: 700, mb: 3 }}
+          >
             If you do not see the code, please check your junk/spam folder.
           </Typography>
           <TextField
@@ -1505,7 +1510,7 @@ const QuoteGenerator = () => {
           />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 0, gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
-          <Box sx={{ display: "flex", gap: 1, ml: "auto" }}>
+          <Box sx={{ display: "flex", gap: 2, ml: "auto", alignItems: "center" }}>
             <Button
               size="large"
               variant="text"
@@ -1516,7 +1521,7 @@ const QuoteGenerator = () => {
                 resendBlocked ||
                 !verificationEmail
               }
-              sx={{ fontSize: "1.0625rem" }}
+              sx={{ fontSize: "14px" }}
             >
               {sendingVerificationCode
                 ? "Resending…"
