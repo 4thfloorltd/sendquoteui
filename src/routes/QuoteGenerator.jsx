@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
+import CloseIcon from "@mui/icons-material/Close";
 import UpArrowIcon from "@mui/icons-material/ArrowUpward";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileLines, faPaperPlane, faShare, faDownload } from "@fortawesome/free-solid-svg-icons";
@@ -14,6 +15,7 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  IconButton,
   ListSubheader,
   MenuItem,
   Paper,
@@ -49,6 +51,10 @@ import { QuoteLineItemRow } from "../components/QuoteLineItemRow";
 import { buildQuotePdfDocument, getQuotePdfFilename } from "../utils/buildQuotePdfDocument";
 import { lineNet, lineVatAmount } from "../utils/quoteLineCalculations";
 import { parseQuoteLinesWithAi } from "../api/parseQuoteLines";
+import {
+  sendQuoteVerificationCode,
+  verifyQuoteVerificationCode,
+} from "../api/quoteVerification";
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
 
@@ -101,6 +107,7 @@ const quoteFormFieldDensitySx = {
 
 /** Below this width the line-items table would overflow; use card layout instead. */
 const LINE_ITEMS_TABLE_MIN_PX = 700;
+const RESEND_COOLDOWN_MS = 60 * 1000;
 
 const QuoteGenerator = () => {
   const location = useLocation();
@@ -109,7 +116,16 @@ const QuoteGenerator = () => {
   const [formErrors, setFormErrors] = useState({});
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [usageChecking, setUsageChecking] = useState(false);
+  const [sendingVerificationCode, setSendingVerificationCode] = useState(false);
   const [exportPdfDialogOpen, setExportPdfDialogOpen] = useState(false);
+  const [verifyDialogOpen, setVerifyDialogOpen] = useState(false);
+  const [verifyDialogLoading, setVerifyDialogLoading] = useState(false);
+  const [verifyDialogError, setVerifyDialogError] = useState("");
+  const [verifyCode, setVerifyCode] = useState("");
+  const [verifyChallengeId, setVerifyChallengeId] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+  const [resendAvailableAtMs, setResendAvailableAtMs] = useState(0);
+  const [resendNowMs, setResendNowMs] = useState(Date.now());
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistEmailError, setWaitlistEmailError] = useState(false);
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
@@ -151,6 +167,18 @@ const QuoteGenerator = () => {
   );
 
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+
+  const resendSecondsLeft = Math.max(
+    0,
+    Math.ceil((resendAvailableAtMs - resendNowMs) / 1000),
+  );
+  const resendBlocked = resendSecondsLeft > 0;
+
+  useEffect(() => {
+    if (!verifyDialogOpen || !resendBlocked) return undefined;
+    const timer = setInterval(() => setResendNowMs(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, [verifyDialogOpen, resendBlocked]);
 
   // Block browser tab close / hard refresh when the form is dirty.
   useEffect(() => {
@@ -450,6 +478,96 @@ const QuoteGenerator = () => {
   const FREE_USES = 3;
   const USAGE_RESET_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
+  const closeVerifyDialog = () => {
+    setVerifyDialogOpen(false);
+    setVerifyDialogLoading(false);
+    setVerifyDialogError("");
+    setVerifyCode("");
+    setVerifyChallengeId("");
+    setVerificationEmail("");
+    setResendAvailableAtMs(0);
+    setResendNowMs(Date.now());
+  };
+
+  const allowExportAfterChecks = () => {
+    if (isMobile()) {
+      handleOpenExportPdfDialog();
+    } else {
+      handleExportPdf();
+    }
+  };
+
+  // Final usage consume step after successful email PIN verification.
+  const consumeUsageAndAllowSend = async (email) => {
+    setUsageChecking(true);
+
+    try {
+      const ref = doc(db, "quote_usage", email);
+      const snap = await getDoc(ref);
+
+      if (!snap.exists()) {
+        await setDoc(ref, { count: 1, since: serverTimestamp() });
+        allowExportAfterChecks();
+        return;
+      }
+
+      const data = snap.data();
+      const sinceMs = data.since?.toMillis?.() ?? Date.now();
+      const withinWindow = Date.now() - sinceMs < USAGE_RESET_MS;
+
+      if (!withinWindow) {
+        await setDoc(ref, { count: 1, since: serverTimestamp() });
+        allowExportAfterChecks();
+        return;
+      }
+
+      if (data.count < FREE_USES) {
+        await setDoc(ref, { count: increment(1) }, { merge: true });
+        allowExportAfterChecks();
+        return;
+      }
+
+      // Limit reached — show waitlist.
+      setWaitlistEmail(email);
+      setWaitlistEmailError(false);
+      setWaitlistOpen(true);
+    } catch (e) {
+      console.error("Usage check failed", e);
+      allowExportAfterChecks();
+    } finally {
+      setUsageChecking(false);
+    }
+  };
+  
+
+  const openVerifyDialogWithFreshCode = async (email) => {
+    const normalizedEmail = String(email ?? "").trim().toLowerCase();
+    // Keep email available even if request fails, so "Resend code" can still work.
+    setVerificationEmail(normalizedEmail);
+    setSendingVerificationCode(true);
+    setVerifyDialogError("");
+    try {
+      const data = await sendQuoteVerificationCode(normalizedEmail);
+      setVerifyChallengeId(String(data?.challengeId ?? ""));
+      setVerifyCode("");
+      setResendAvailableAtMs(Date.now() + RESEND_COOLDOWN_MS);
+      setResendNowMs(Date.now());
+      setVerifyDialogOpen(true);
+    } catch (e) {
+      console.error("Verification code send failed", e);
+      const code = String(e?.code || "");
+      if (code === "functions/resource-exhausted") {
+        // Keep UX aligned with backend cooldown policy.
+        setResendAvailableAtMs((prev) => Math.max(prev, Date.now() + RESEND_COOLDOWN_MS));
+        setResendNowMs(Date.now());
+      }
+      setVerifyDialogError(e?.message || "Could not send verification code. Please try again.");
+      setVerifyDialogOpen(true);
+    } finally {
+      setSendingVerificationCode(false);
+    }
+  };
+
   const handleOpenWaitlist = async () => {
     const errors = validateQuoteForm();
     if (Object.keys(errors).length > 0) {
@@ -472,55 +590,69 @@ const QuoteGenerator = () => {
 
     const email = (quoteData.businessEmail ?? "").trim().toLowerCase();
     setUsageChecking(true);
-
-    // On iOS the Web Share API requires a live user gesture. Because this
-    // function is async (awaits Firestore), the gesture context is consumed
-    // before we reach navigator.share(). The fix: on mobile we open the
-    // export dialog (one extra tap) so the final share/download call happens
-    // directly inside a fresh gesture handler.
-    const allowExport = () => {
-      if (isMobile()) {
-        handleOpenExportPdfDialog();
-      } else {
-        handleExportPdf();
-      }
-    };
-
     try {
+      // Usage gate must run before verification so users over limit
+      // are sent straight to the waitlist (original behavior).
       const ref = doc(db, "quote_usage", email);
       const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        await setDoc(ref, { count: 1, since: serverTimestamp() });
-        allowExport();
+      if (snap.exists()) {
+        const data = snap.data();
+        const sinceMs = data.since?.toMillis?.() ?? Date.now();
+        const withinWindow = Date.now() - sinceMs < USAGE_RESET_MS;
+        if (withinWindow && data.count >= FREE_USES) {
+          setWaitlistEmail(email);
+          setWaitlistEmailError(false);
+          setWaitlistOpen(true);
+          return;
+        }
+        // Returning sender (usage doc exists): skip OTP and continue.
+        await consumeUsageAndAllowSend(email);
         return;
       }
-
-      const data = snap.data();
-      const sinceMs = data.since?.toMillis?.() ?? Date.now();
-      const withinWindow = Date.now() - sinceMs < USAGE_RESET_MS;
-
-      if (!withinWindow) {
-        await setDoc(ref, { count: 1, since: serverTimestamp() });
-        allowExport();
-        return;
-      }
-
-      if (data.count < FREE_USES) {
-        await setDoc(ref, { count: increment(1) }, { merge: true });
-        allowExport();
-        return;
-      }
-
-      // Limit reached — show waitlist.
-      setWaitlistEmail(email);
-      setWaitlistEmailError(false);
-      setWaitlistOpen(true);
+      await openVerifyDialogWithFreshCode(email);
     } catch (e) {
-      console.error("Usage check failed", e);
-      allowExport();
+      console.error("Usage pre-check failed", e);
+      await openVerifyDialogWithFreshCode(email);
     } finally {
       setUsageChecking(false);
+    }
+  };
+
+  const handleResendVerificationCode = async () => {
+    const fallbackEmail = String(quoteData.businessEmail ?? "").trim().toLowerCase();
+    const targetEmail = verificationEmail || fallbackEmail;
+    if (!targetEmail) return;
+    await openVerifyDialogWithFreshCode(targetEmail);
+  };
+
+  const handleConfirmVerification = async () => {
+    const code = verifyCode.trim();
+    if (!/^\d{6}$/.test(code)) {
+      setVerifyDialogError("missing_code");
+      return;
+    }
+    if (!verifyChallengeId || !verificationEmail) {
+      setVerifyDialogError("Verification session expired. Please resend the code.");
+      return;
+    }
+
+    setVerifyDialogLoading(true);
+    setVerifyDialogError("");
+    try {
+      await verifyQuoteVerificationCode({
+        challengeId: verifyChallengeId,
+        email: verificationEmail,
+        code,
+      });
+      closeVerifyDialog();
+      await consumeUsageAndAllowSend(verificationEmail);
+    } catch (e) {
+      console.error("Verification code check failed", e);
+      setVerifyDialogError(
+        e?.message || "Verification failed. Please check the code and try again.",
+      );
+    } finally {
+      setVerifyDialogLoading(false);
     }
   };
 
@@ -1264,8 +1396,12 @@ const QuoteGenerator = () => {
             variant="contained"
             size="large"
             onClick={handleOpenWaitlist}
-            disabled={usageChecking}
-            startIcon={<FontAwesomeIcon icon={faPaperPlane} />}
+            disabled={usageChecking || sendingVerificationCode}
+            startIcon={
+              usageChecking || sendingVerificationCode
+                ? <CircularProgress size={18} color="inherit" />
+                : <FontAwesomeIcon icon={faPaperPlane} />
+            }
             sx={{
               minHeight: 48,
               px: 2.5,
@@ -1273,10 +1409,15 @@ const QuoteGenerator = () => {
               flex: { sm: "0 1 280px", xs: "1 0 100%" },
               width: { xs: "100%", sm: "auto" },
               minWidth: 0,
-              maxWidth: { sm: 250 },
+              maxWidth: { sm: 200 },
+              bgcolor: "#10A86B", 
+              color: "#fff",
+              "&:hover": {
+                bgcolor: "#13C47A",
+              },
             }}
           >
-            {usageChecking ? "Checking…" : "Send quote"}
+            {usageChecking || sendingVerificationCode ? "Sending…" : "Send quote"}
           </Button>
         </Stack>
       </Paper>
@@ -1290,6 +1431,109 @@ const QuoteGenerator = () => {
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button onClick={handleCancelLeave} color="inherit">Stay</Button>
           <Button onClick={handleConfirmLeave} variant="contained" color="error">Leave & clear</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Email verification before allowing send */}
+      <Dialog
+        open={verifyDialogOpen}
+        onClose={() => {
+          if (!verifyDialogLoading && !sendingVerificationCode) closeVerifyDialog();
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            color: "#083a6b",
+            fontSize: "1.2rem",
+            py: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          Verify your email
+          <IconButton
+            aria-label="Close verification dialog"
+            onClick={closeVerifyDialog}
+            disabled={verifyDialogLoading || sendingVerificationCode}
+            size="small"
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ ...quoteFormFieldDensitySx, pt: 0 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Enter the <Box component="span" sx={{ fontWeight: 700 }}>6-digit code</Box> sent to{" "}
+            <Box component="span" sx={{ fontWeight: 700 }}>{verificationEmail || "your email"}</Box> to continue.
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1.5, fontWeight: 700 }}>
+            If you do not see the code, please check your junk/spam folder.
+          </Typography>
+          <TextField
+            label="Verification code"
+            fullWidth
+            autoFocus
+            autoComplete="off"
+            value={verifyCode}
+            onChange={(e) => {
+              const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
+              setVerifyCode(digitsOnly);
+              if (verifyDialogError) setVerifyDialogError("");
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleConfirmVerification();
+            }}
+            inputProps={{
+              autoComplete: "off",
+              inputMode: "numeric",
+              pattern: "[0-9]*",
+              maxLength: 6,
+            }}
+            error={!!verifyDialogError}
+            helperText={
+              verifyDialogError === "missing_code"
+                ? (
+                  <>
+                    Enter the <Box component="span" sx={{ fontWeight: 700 }}>6-digit code</Box> sent to your email.
+                  </>
+                )
+                : verifyDialogError || " "
+            }
+          />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2, pt: 0, gap: 1, flexWrap: "wrap", justifyContent: "flex-end" }}>
+          <Box sx={{ display: "flex", gap: 1, ml: "auto" }}>
+            <Button
+              size="large"
+              variant="text"
+              onClick={handleResendVerificationCode}
+              disabled={
+                verifyDialogLoading ||
+                sendingVerificationCode ||
+                resendBlocked ||
+                !verificationEmail
+              }
+              sx={{ fontSize: "1.0625rem" }}
+            >
+              {sendingVerificationCode
+                ? "Resending…"
+                : resendBlocked
+                  ? `Resend code in ${resendSecondsLeft}s`
+                  : "Resend code"}
+            </Button>
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleConfirmVerification}
+              disabled={verifyDialogLoading || sendingVerificationCode}
+              sx={{ fontSize: "1.0625rem" }}
+            >
+                Continue
+            </Button>
+          </Box>
         </DialogActions>
       </Dialog>
 
