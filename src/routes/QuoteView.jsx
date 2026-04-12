@@ -307,7 +307,7 @@ const QuoteView = () => {
           </Box>
         ) : (
           /* ── Customer header ── */
-          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.5, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 1.5, flexWrap: "wrap", pt: 2 }}>
             <Typography fontWeight={700} color="#083a6b" fontSize={{ xs: "1rem", sm: "1.1rem" }} sx={{ minWidth: 0 }}>
               Quote from{" "}
               <Box component="span" fontWeight={800}>{quote.businessName}</Box>

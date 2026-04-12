@@ -319,7 +319,11 @@ exports.sendQuoteVerificationCode = onCall(
  *   - status must be "accepted" or "declined".
  *   - comment is optional, trimmed, and capped at 1000 characters.
  */
-async function sendQuoteResponseNotification({ to, businessName, customerName, quoteNumber, status, comment, quoteUrl }) {
+async function sendQuoteResponseNotification({
+  to, businessName, customerName, customerEmail,
+  quoteNumber, quoteDate, currency, pricing, lineItems,
+  status, comment, quoteUrl,
+}) {
   const host = smtpHost.value();
   const port = Number.parseInt(String(smtpPort.value() || "587"), 10);
   const user = smtpUser.value();
@@ -337,27 +341,156 @@ async function sendQuoteResponseNotification({ to, businessName, customerName, q
     auth: { user, pass },
   });
 
-  const statusWord = status === "accepted" ? "accepted" : "declined";
-  const statusColor = status === "accepted" ? "#22C55E" : "#EF4444";
-  const subject = `${customerName ?? "Your customer"} has ${statusWord} your quote`;
+  const isAccepted  = status === "accepted";
+  const statusWord  = isAccepted ? "Accepted" : "Declined";
+  const statusColor = isAccepted ? "#16A34A" : "#DC2626";
+  const statusBg    = isAccepted ? "#F0FDF4" : "#FEF2F2";
+  const subject     = `Quote QU-${quoteNumber} has been ${statusWord.toLowerCase()} by ${customerName ?? "your customer"}`;
 
-  const commentHtml = comment
-    ? `<p style="margin:16px 0 0"><strong>Customer comment:</strong></p>
-       <p style="margin:4px 0 0;font-style:italic;color:#555">"${comment}"</p>`
+  // Currency symbol helper
+  const symbols = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" };
+  const sym = symbols[currency] ?? "";
+  const fmt = (n) => `${sym}${Number(n ?? 0).toFixed(2)}`;
+
+  // Line items table rows
+  const lineItemRows = Array.isArray(lineItems) && lineItems.length > 0
+    ? lineItems.map((item) => {
+        const qty      = Number(item.quantity)  || 1;
+        const price    = Number(item.unitPrice)  || 0;
+        const vatPct   = Number(item.vatPercent ?? item.vatRate ?? 0);
+        const lineNet  = qty * price;
+        return `<tr>
+          <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151">${item.description ?? ""}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:center">${qty}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right">${fmt(price)}</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right">${vatPct}%</td>
+          <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right;font-weight:600">${fmt(lineNet)}</td>
+        </tr>`;
+      }).join("")
     : "";
 
-  const commentText = comment ? `\n\nCustomer comment:\n"${comment}"` : "";
+  const lineItemsTable = lineItemRows ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse;margin-top:20px;border:1px solid #E5E7EB;border-radius:8px;overflow:hidden">
+      <thead>
+        <tr style="background:#F8FAFC">
+          <th style="padding:10px 12px;text-align:left;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">Description</th>
+          <th style="padding:10px 12px;text-align:center;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">Qty</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">Unit price</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">VAT</th>
+          <th style="padding:10px 12px;text-align:right;font-size:11px;font-weight:700;color:#6B7280;text-transform:uppercase;letter-spacing:0.05em">Total</th>
+        </tr>
+      </thead>
+      <tbody>${lineItemRows}</tbody>
+    </table>` : "";
 
-  await transporter.sendMail({
-    from,
-    to,
-    subject,
-    text: `Hi${businessName ? ` ${businessName}` : ""},\n\n${customerName ?? "Your customer"} has ${statusWord} quote QU-${quoteNumber}.${commentText}\n\nView the quote: ${quoteUrl}`,
-    html: `<p>Hi${businessName ? ` <strong>${businessName}</strong>` : ""},</p>
-<p><strong>${customerName ?? "Your customer"}</strong> has <strong style="color:${statusColor}">${statusWord}</strong> quote <strong>QU-${quoteNumber}</strong>.</p>
-${commentHtml}
-<p style="margin-top:20px"><a href="${quoteUrl}" style="background:${statusColor};color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">View quote</a></p>`,
-  });
+  const totalsSection = pricing ? `
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px">
+      <tr>
+        <td style="padding:4px 12px;font-size:13px;color:#6B7280;text-align:right">Subtotal</td>
+        <td style="padding:4px 12px;font-size:13px;color:#374151;text-align:right;width:100px">${fmt(pricing.subtotal)}</td>
+      </tr>
+      <tr>
+        <td style="padding:4px 12px;font-size:13px;color:#6B7280;text-align:right">VAT</td>
+        <td style="padding:4px 12px;font-size:13px;color:#374151;text-align:right">${fmt(pricing.tax)}</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 12px;font-size:15px;font-weight:700;color:#083a6b;text-align:right;border-top:2px solid #E5E7EB">Total</td>
+        <td style="padding:6px 12px;font-size:15px;font-weight:700;color:#083a6b;text-align:right;border-top:2px solid #E5E7EB">${fmt(pricing.total)}</td>
+      </tr>
+    </table>` : "";
+
+  const commentSection = comment ? `
+    <div style="margin-top:24px;background:#FFFBEB;border:1px solid #FDE68A;border-radius:8px;padding:16px">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#92400E;text-transform:uppercase;letter-spacing:0.05em">Customer comment</p>
+      <p style="margin:0;font-size:14px;color:#374151;font-style:italic">&ldquo;${comment}&rdquo;</p>
+    </div>` : "";
+
+  const quoteDetailsRow = (label, value) =>
+    `<tr><td style="padding:5px 0;font-size:13px;color:#6B7280;width:130px">${label}</td><td style="padding:5px 0;font-size:13px;color:#111827;font-weight:600">${value}</td></tr>`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+
+        <!-- Header -->
+        <tr><td style="background:#083a6b;border-radius:12px 12px 0 0;padding:24px 32px;text-align:center">
+          <p style="margin:0;font-size:20px;font-weight:700;color:#fff;letter-spacing:0.02em">✈ SendQuote</p>
+        </td></tr>
+
+        <!-- Status banner -->
+        <tr><td style="background:${statusBg};padding:20px 32px;text-align:center;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB">
+          <p style="margin:0 0 4px;font-size:26px;font-weight:800;color:${statusColor}">${statusWord}</p>
+          <p style="margin:0;font-size:15px;color:#374151">
+            <strong>${customerName ?? "Your customer"}</strong> has ${statusWord.toLowerCase()} quote <strong>QU-${quoteNumber}</strong>
+          </p>
+        </td></tr>
+
+        <!-- Body -->
+        <tr><td style="background:#fff;padding:28px 32px;border-left:1px solid #E5E7EB;border-right:1px solid #E5E7EB">
+
+          <p style="margin:0 0 20px;font-size:15px;color:#374151">
+            Hi${businessName ? ` <strong>${businessName}</strong>` : ""},<br><br>
+            This is a notification that your customer has responded to the quote below.
+          </p>
+
+          <!-- Quote details -->
+          <table cellpadding="0" cellspacing="0" style="border:1px solid #E5E7EB;border-radius:8px;padding:16px;background:#F8FAFC;width:100%;box-sizing:border-box">
+            <tbody>
+              ${quoteDetailsRow("Quote number", `QU-${quoteNumber}`)}
+              ${customerName ? quoteDetailsRow("Customer", customerName) : ""}
+              ${customerEmail ? quoteDetailsRow("Email", customerEmail) : ""}
+              ${quoteDate ? quoteDetailsRow("Quote date", quoteDate) : ""}
+              ${currency ? quoteDetailsRow("Currency", currency) : ""}
+            </tbody>
+          </table>
+
+          ${lineItemsTable}
+          ${totalsSection}
+          ${commentSection}
+
+          <!-- CTA -->
+          <div style="text-align:center;margin-top:32px">
+            <a href="${quoteUrl}"
+               style="display:inline-block;background:#083a6b;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:14px 32px;border-radius:8px;letter-spacing:0.01em">
+              View quote →
+            </a>
+          </div>
+
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="background:#F8FAFC;border:1px solid #E5E7EB;border-top:none;border-radius:0 0 12px 12px;padding:20px 32px;text-align:center">
+          <p style="margin:0;font-size:12px;color:#9CA3AF">
+            This email was sent by <strong>SendQuote</strong> on behalf of ${businessName || "your business"}.<br>
+            <a href="${quoteUrl}" style="color:#083a6b;text-decoration:none">View quote online</a>
+          </p>
+        </td></tr>
+
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  const text = [
+    `SendQuote — Quote ${statusWord.toUpperCase()}`,
+    ``,
+    `Hi${businessName ? ` ${businessName}` : ""},`,
+    ``,
+    `${customerName ?? "Your customer"} has ${statusWord.toLowerCase()} quote QU-${quoteNumber}.`,
+    customerEmail ? `Customer email: ${customerEmail}` : "",
+    quoteDate     ? `Quote date: ${quoteDate}` : "",
+    pricing       ? `Total: ${fmt(pricing.total)}` : "",
+    comment       ? `\nCustomer comment:\n"${comment}"` : "",
+    ``,
+    `View the quote: ${quoteUrl}`,
+  ].filter(Boolean).join("\n");
+
+  await transporter.sendMail({ from, to, subject, text, html });
 }
 
 exports.submitQuoteResponse = onCall(
@@ -403,12 +536,17 @@ exports.submitQuoteResponse = onCall(
     // Send email notification to the business owner (non-fatal if it fails).
     const businessEmail = data.businessEmail ?? "";
     if (businessEmail) {
-      const quoteUrl = `https://sendquote.app/quote/${quoteId}`;
+      const quoteUrl = `https://sendquote.ai/quote/${quoteId}`;
       sendQuoteResponseNotification({
-        to: businessEmail,
-        businessName: data.businessName ?? "",
-        customerName: data.customerName ?? "Your customer",
-        quoteNumber:  data.quoteNumber  ?? quoteId.slice(0, 6),
+        to:            businessEmail,
+        businessName:  data.businessName  ?? "",
+        customerName:  data.customerName  ?? "Your customer",
+        customerEmail: data.customerEmail ?? "",
+        quoteNumber:   data.quoteNumber   ?? quoteId.slice(0, 6),
+        quoteDate:     data.quoteDate     ?? "",
+        currency:      data.currency      ?? "GBP",
+        pricing:       data.pricing       ?? null,
+        lineItems:     data.lineItems     ?? [],
         status,
         comment,
         quoteUrl,
