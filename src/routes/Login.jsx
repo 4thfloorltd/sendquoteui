@@ -1,88 +1,171 @@
-import React, { useState } from "react";
-import { Box, TextField, Button, Typography } from "@mui/material";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  Link,
+  Paper,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../../firebase";
+
+function mapAuthError(code) {
+  switch (code) {
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/user-disabled":
+      return "This account has been disabled.";
+    case "auth/user-not-found":
+    case "auth/wrong-password":
+    case "auth/invalid-credential":
+      return "Incorrect email or password.";
+    case "auth/too-many-requests":
+      return "Too many attempts. Try again later.";
+    default:
+      return "Could not sign in. Please try again.";
+  }
+}
 
 const Login = () => {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-  });
-
+  const location = useLocation();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
+  // Info banner passed via navigation state (e.g. redirected after email change)
+  const infoMessage = location.state?.info ?? null;
 
-  const handleSubmit = (e) => {
+  useEffect(() => {
+    const fromNav = location.state?.email;
+    if (typeof fromNav === "string" && fromNav.trim()) {
+      setEmail(fromNav.trim().toLowerCase());
+    }
+  }, [location.pathname, location.state?.email]);
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log("Login submitted:", formData);
-
-    navigate("/secured/dashboard");
+    setError("");
+    setSubmitting(true);
+    try {
+      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      const dest = location.state?.from?.pathname;
+      const safe =
+        typeof dest === "string" && dest.startsWith("/") && !dest.startsWith("//");
+      navigate(safe ? dest : "/secured/quotes", { replace: true });
+    } catch (err) {
+      setError(mapAuthError(err?.code));
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen p-4 mt-20">
-      <h1 className="animate-slideUp transition">Log in</h1>
-      <div
-        className="p-6 rounded-lg w-full max-w-lg"
-        sx={{ backgroundColor: "#ffffff" }}
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: 440,
+        mx: "auto",
+        px: 2,
+        py: { xs: 4, sm: 6 },
+      }}
+    >
+      <Typography
+        variant="h4"
+        component="h1"
+        sx={{ fontWeight: 800, color: "#083a6b", mb: 1, textAlign: "center" }}
       >
-        <Box
-          className="feature-item flex flex-col bg-white rounded-lg p-12"
-          sx={{ border: "1px solid lightgrey" }}
-        >
-          <form onSubmit={handleSubmit}>
-            <TextField
-              label="Email"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              // required
-              InputProps={{
-                style: { backgroundColor: "#f5f5f5", color: "#000" },
-              }}
-            />
-            <TextField
-              label="Password"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              // required
-              InputProps={{
-                style: { backgroundColor: "#f5f5f5", color: "#000" },
-              }}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              sx={{ mt: 2, width: "100%" }}
+        Log in
+      </Typography>
+
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          border: "1px solid #E5E7EB",
+          borderRadius: 2,
+          bgcolor: "#fff",
+        }}
+      >
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          {infoMessage && (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              {infoMessage}
+            </Alert>
+          )}
+          {error ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              {error}
+            </Alert>
+          ) : null}
+          <TextField
+            label="Email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            fullWidth
+            required
+            margin="normal"
+            disabled={submitting}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            name="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            fullWidth
+            required
+            margin="normal"
+            disabled={submitting}
+          />
+          <Box sx={{ textAlign: "right", mt: 0.5, mb: 0.5 }}>
+            <Link
+              component={RouterLink}
+              to="/forgot-password"
+              state={{ email }}
+              underline="hover"
+              variant="body2"
+              sx={{ fontSize: "0.8125rem", color: "#083a6b" }}
             >
-              Log In
-            </Button>
-          </form>
-          <Typography variant="body2">
-            Don't have an account?{" "}
-            <Link to="/pricing" className="text-blue-500 hover:underline">
-              Request Access
+              Forgot password?
             </Link>
-          </Typography>
+          </Box>
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            disabled={submitting}
+            sx={{
+              mt: 2,
+              py: 1.25,
+              textTransform: "none",
+              fontWeight: 600,
+              bgcolor: "#083a6b",
+              "&:hover": { bgcolor: "#062d52" },
+            }}
+          >
+            {submitting ? <CircularProgress size={22} color="inherit" /> : "Log in"}
+          </Button>
         </Box>
-      </div>
-    </div>
+      </Paper>
+
+      <Typography variant="body2" sx={{ mt: 2, textAlign: "center" }}>
+        Don&apos;t have an account?{" "}
+        <Link component={RouterLink} to="/register" underline="hover" fontWeight={600}>
+          Create account
+        </Link>
+      </Typography>
+    </Box>
   );
 };
 

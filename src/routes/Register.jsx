@@ -1,130 +1,284 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Box, TextField, Button, Typography } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Alert,
+  Box,
+  Button,
+  CircularProgress,
+  LinearProgress,
+  Link,
+  Paper,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
+import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { auth, db } from "../../firebase";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** 0–6 points → label, bar colour, progress % for UI */
+function getPasswordStrength(password) {
+  const pwd = String(password ?? "");
+  if (!pwd) {
+    return { pct: 0, label: "", barColor: "grey.400", points: 0 };
+  }
+  let points = 0;
+  if (pwd.length >= 6) points += 1;
+  if (pwd.length >= 10) points += 1;
+  if (/[a-z]/.test(pwd)) points += 1;
+  if (/[A-Z]/.test(pwd)) points += 1;
+  if (/[0-9]/.test(pwd)) points += 1;
+  if (/[^A-Za-z0-9]/.test(pwd)) points += 1;
+
+  const pct = Math.round((points / 6) * 100);
+  let label = "Weak";
+  let barColor = "error.main";
+  let textColor = "error.main";
+
+  if (pwd.length < 6) {
+    label = "Too short";
+    barColor = "error.main";
+    textColor = "error.main";
+  } else if (points <= 2) {
+    label = "Weak";
+    barColor = "error.main";
+    textColor = "error.main";
+  } else if (points === 3) {
+    label = "Fair";
+    barColor = "warning.main";
+    textColor = "warning.dark";
+  } else if (points <= 5) {
+    label = "Good";
+    barColor = "info.main";
+    textColor = "info.dark";
+  } else {
+    label = "Strong";
+    barColor = "success.main";
+    textColor = "success.dark";
+  }
+
+  return { pct, label, barColor, textColor, points };
+}
+
+function mapAuthError(code) {
+  switch (code) {
+    case "auth/email-already-in-use":
+      return "An account already exists with this email. Try logging in instead.";
+    case "auth/invalid-email":
+      return "Enter a valid email address.";
+    case "auth/weak-password":
+      return "Password should be at least 6 characters.";
+    case "auth/operation-not-allowed":
+      return "Email/password sign-in is not enabled. Ask an admin to enable it in Firebase.";
+    default:
+      return "Could not create your account. Please try again.";
+  }
+}
 
 const Register = () => {
   const location = useLocation();
-  const emailRef = useRef(null);
-  const fullNameRef = useRef(null);
-  const [formData, setFormData] = useState({
-    fullName: "",
-    email: "",
-    password: "",
-  });
+  const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (location.state && location.state.email) {
-      setFormData((prevFormData) => ({
-        ...prevFormData,
-        email: location.state.email,
-      }));
+    const prefill = location.state?.email;
+    if (typeof prefill === "string" && prefill.trim()) {
+      setEmail(prefill.trim().toLowerCase());
     }
   }, [location.state]);
 
-  useEffect(() => {
-    const focusField =
-      formData.email === "" ? emailRef.current : fullNameRef.current;
-    if (focusField) {
-      focusField.focus();
-    }
-  }, [formData.email]);
+  const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({
-      ...formData,
-      [name]: value,
-    });
-  };
-
-  const handleSubmit = (e) => {
-    if (!validateEmail(email)) {
-      setEmailError(true);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError("");
+    const trimmedEmail = email.trim().toLowerCase();
+    if (!EMAIL_RE.test(trimmedEmail)) {
+      setError("Enter a valid email address.");
       return;
     }
-    e.preventDefault();
-    console.log("Form submitted:", formData);
-  };
+    if (password.length < 6) {
+      setError("Password must be at least 6 characters.");
+      return;
+    }
 
-  const validateEmail = (email) => {
-    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return re.test(String(email).toLowerCase());
+    setSubmitting(true);
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      await setDoc(doc(db, "users", user.uid), {
+        loginEmail: trimmedEmail,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      navigate("/secured/quotes", { replace: true });
+    } catch (err) {
+      if (err?.code === "auth/email-already-in-use") {
+        try {
+          const { user: existing } = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+          await setDoc(doc(db, "users", existing.uid), {
+            loginEmail: trimmedEmail,
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+          navigate("/secured/quotes", { replace: true });
+        } catch (signInErr) {
+          if (signInErr?.code === "auth/wrong-password" || signInErr?.code === "auth/invalid-credential") {
+            setError("existing-account");
+          } else {
+            setError(mapAuthError(signInErr?.code) || "Could not sign in. Please try again.");
+          }
+        }
+      } else {
+        setError(mapAuthError(err?.code));
+      }
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   return (
-    <div className="flex flex-col items-center justify-start min-h-screen p-4 mt-20">
-      <h1 className="animate-slideUp transition">Register</h1>
-
-      <div
-        className="p-6 rounded-lg w-full max-w-lg"
-        sx={{ backgroundColor: "#ffffff" }}
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: 440,
+        mx: "auto",
+        px: 2,
+        py: { xs: 4, sm: 6 },
+      }}
+    >
+      <Typography
+        variant="h4"
+        component="h1"
+        sx={{ fontWeight: 800, color: "#083a6b", mb: 1, textAlign: "center" }}
       >
-        <Box
-          className="feature-item flex flex-col bg-white rounded-lg p-12"
-          sx={{ border: "1px solid lightgrey" }}
-        >
-          <form onSubmit={handleSubmit}>
-            <TextField
-              label="Email"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              name="email"
-              type="email"
-              value={formData.email}
-              onChange={handleChange}
-              required
-              inputRef={emailRef}
-              InputProps={{
-                style: { backgroundColor: "#f5f5f5", color: "#000" },
-              }}
-            />
-            <TextField
-              label="Full Name"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              name="fullName"
-              value={formData.fullName}
-              onChange={handleChange}
-              required
-              inputRef={fullNameRef}
-              InputProps={{
-                style: { backgroundColor: "#f5f5f5", color: "#000" },
-              }}
-            />
-            <TextField
-              label="Password"
-              variant="outlined"
-              fullWidth
-              margin="normal"
-              name="password"
-              type="password"
-              value={formData.password}
-              onChange={handleChange}
-              required
-              InputProps={{
-                style: { backgroundColor: "#f5f5f5", color: "#000" },
-              }}
-            />
-            <Button
-              type="submit"
-              variant="contained"
-              color="primary"
-              sx={{ mt: 2, width: "100%" }}
-            >
-              Register
-            </Button>
-          </form>
-          <Typography variant="body2">
-            Already have an account?{" "}
-            <Link to="/login" className="text-blue-500 hover:underline">
-              Login
-            </Link>
-          </Typography>
+        Create account
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: "center" }}>
+        Sign up with your email to get started with SendQuote.
+      </Typography>
+
+      <Paper
+        elevation={0}
+        sx={{
+          p: 3,
+          border: "1px solid #E5E7EB",
+          borderRadius: 2,
+          bgcolor: "#fff",
+        }}
+      >
+        <Box component="form" onSubmit={handleSubmit} noValidate>
+          {error === "existing-account" ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              This email is already registered and the password didn&apos;t match.{" "}
+              <Link
+                component={RouterLink}
+                to="/forgot-password"
+                state={{ email }}
+                underline="hover"
+                fontWeight={600}
+              >
+                Forgot your password?
+              </Link>
+            </Alert>
+          ) : error ? (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              {error}
+            </Alert>
+          ) : null}
+          <TextField
+            label="Email"
+            type="email"
+            name="email"
+            autoComplete="email"
+            value={email}
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (error) setError("");
+            }}
+            fullWidth
+            required
+            margin="normal"
+            disabled={submitting}
+          />
+          <TextField
+            label="Password"
+            type="password"
+            name="password"
+            autoComplete="new-password"
+            value={password}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (error) setError("");
+            }}
+            fullWidth
+            required
+            margin="normal"
+            disabled={submitting}
+          />
+          {password.length > 0 ? (
+            <Box sx={{ mt: 0.5, mb: 0.5 }}>
+              <LinearProgress
+                variant="determinate"
+                value={passwordStrength.pct}
+                sx={{
+                  height: 8,
+                  borderRadius: 1,
+                  bgcolor: "grey.200",
+                  "& .MuiLinearProgress-bar": {
+                    borderRadius: 1,
+                    bgcolor: passwordStrength.barColor,
+                  },
+                }}
+              />
+              <Typography
+                variant="caption"
+                component="div"
+                sx={{
+                  mt: 0.75,
+                  fontWeight: 600,
+                  color: passwordStrength.textColor,
+                }}
+              >
+                Password strength: {passwordStrength.label}
+              </Typography>
+              <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.25 }}>
+                Stronger passwords use 10+ characters and mix upper and lower case, numbers, and symbols.
+              </Typography>
+            </Box>
+          ) : null}
+          <Button
+            type="submit"
+            variant="contained"
+            fullWidth
+            size="large"
+            disabled={submitting}
+            sx={{
+              mt: 2,
+              py: 1.25,
+              textTransform: "none",
+              fontWeight: 600,
+              bgcolor: "#083a6b",
+              "&:hover": { bgcolor: "#062d52" },
+            }}
+          >
+            {submitting ? (
+              <CircularProgress size={22} color="inherit" />
+            ) : (
+              "Create account"
+            )}
+          </Button>
         </Box>
-      </div>
-    </div>
+      </Paper>
+
+      <Typography variant="body2" sx={{ mt: 2, textAlign: "center" }}>
+        Already have an account?{" "}
+        <Link component={RouterLink} to="/login" underline="hover" fontWeight={600}>
+          Log in
+        </Link>
+      </Typography>
+    </Box>
   );
 };
 

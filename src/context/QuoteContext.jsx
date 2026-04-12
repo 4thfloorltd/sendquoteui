@@ -5,13 +5,6 @@ const QuoteContext = createContext(null);
 
 export const isoToday = () => new Date().toISOString().slice(0, 10);
 
-export const newQuoteNumber = () => {
-
-  const random = Math.floor(1000 + Math.random() * 9000); // 4-digit
-
-  return `${random}`;
-};
-
 export const newLineItemId = () =>
   typeof crypto !== "undefined" && crypto.randomUUID
     ? crypto.randomUUID()
@@ -26,7 +19,7 @@ export const createInitialQuoteData = () => ({
   businessName: "",
   businessPhone: "",
   businessAddress: "",
-  quoteNumber: newQuoteNumber(),
+  quoteNumber: "0001",
   quoteDate: isoToday(),
   customerName: "",
   email: "",

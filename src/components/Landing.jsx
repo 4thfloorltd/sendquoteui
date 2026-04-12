@@ -19,7 +19,7 @@ import {
   faThumbsUp,
   faChevronDown,
 } from "@fortawesome/free-solid-svg-icons";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { AiPromptField } from "./AiPromptField";
 
 const Landing = () => {
@@ -40,6 +40,13 @@ const Landing = () => {
     }
   };
 
+  const scrollToFaq = () => {
+    document.getElementById("landing-faq")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
   return (
     <Box>
       <Box
@@ -49,36 +56,112 @@ const Landing = () => {
         }}
       >
         <Box
-          className="flex flex-col md:flex-row items-start justify-center gap-5 px-4 pt-16"
+          component="nav"
+          aria-label="Primary"
+          sx={{
+            maxWidth: "1200px",
+            margin: "0 auto",
+            px: 2,
+            pt: 2,
+            pb: 1,
+            minHeight: 52,
+            display: "grid",
+            alignItems: "center",
+            columnGap: { xs: 1, md: 2 },
+            // xs: logo | actions (no overlap). md+: spacer | centered logo | actions
+            gridTemplateColumns: {
+              xs: "minmax(0, 1fr) max-content",
+              md: "minmax(0, 1fr) auto minmax(0, 1fr)",
+            },
+          }}
+        >
+          <Box
+            aria-hidden
+            sx={{ display: { xs: "none", md: "block" }, minWidth: 0 }}
+          />
+          <Link
+            component={RouterLink}
+            to="/"
+            tabIndex={-1}
+            underline="none"
+            sx={{
+              gridColumn: { xs: "1", md: "2" },
+              justifySelf: { xs: "start", md: "center" },
+              display: "flex",
+              alignItems: "center",
+              color: "#083a6b",
+              minWidth: 0,
+            }}
+          >
+            <Typography
+              fontSize={{ xs: 22, sm: 28, md: 32 }}
+              fontWeight="bold"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                color: "#083a6b",
+                minWidth: 0,
+              }}
+            >
+              <FontAwesomeIcon icon={faPaperPlane} style={{ marginRight: "8px", flexShrink: 0 }} />
+              <Box component="span" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                SendQuote
+              </Box>
+            </Typography>
+          </Link>
+          <Box
+            sx={{
+              gridColumn: { xs: "2", md: "3" },
+              justifySelf: "end",
+              display: "flex",
+              alignItems: "center",
+              gap: { xs: 0.5, sm: 1.5 },
+              flexShrink: 0,
+            }}
+          >
+            <Button
+              variant="text"
+              onClick={scrollToFaq}
+              aria-label="Scroll to frequently asked questions"
+              sx={{
+                color: "#083a6b",
+                fontWeight: 600,
+                fontSize: "0.9375rem",
+                textTransform: "none",
+                minWidth: "auto",
+                px: 1,
+              }}
+            >
+              FAQs
+            </Button>
+            <Button
+              variant="contained"
+              component={RouterLink}
+              to="/login"
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                bgcolor: "#083a6b",
+                "&:hover": { bgcolor: "#062d52" },
+              }}
+            >
+              Get started
+            </Button>
+          </Box>
+        </Box>
+        <Box
+          className="flex flex-col md:flex-row items-start justify-center gap-5 px-4 pt-4"
           sx={{ maxWidth: "1200px", margin: "0 auto" }}
         >
           <Box className="flex-1 md:flex-1/2" width="100%">
             <Box justifySelf="center" maxWidth="900px">
               <Box textAlign="center" display="grid">
-                <Link to="/" tabIndex={-1} style={{ textDecoration: "none" }}>
-                  <Typography
-                    fontSize={32}
-                    fontWeight="bold"
-                    sx={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "#083a6b",
-                    }}
-                  >
-                    <FontAwesomeIcon
-                      icon={faPaperPlane}
-                      style={{ marginRight: "8px" }}
-                    />
-                    SendQuote
-                  </Typography>
-                </Link>
                 <Typography
                   variant="h1"
                   className="animate-slideUp transition duration-500 delay-150"
                   fontSize={48}
                   fontWeight={900}
-                  marginTop={8}
+                  marginTop={{ xs: 2, sm: 4 }}
                   sx={{ color: "#083a6b" }}
                 >
                   Simplify your{" "}
@@ -335,10 +418,12 @@ const Landing = () => {
 
       {/* FAQ Section */}
       <Box
+        id="landing-faq"
         sx={{
           backgroundColor: "#F3F4F6",
           paddingTop: "64px",
           paddingBottom: "64px",
+          scrollMarginTop: "16px",
         }}
       >
         <Typography

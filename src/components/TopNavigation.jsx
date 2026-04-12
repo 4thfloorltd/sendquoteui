@@ -1,133 +1,155 @@
-import React, { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AppBar, Toolbar, IconButton, Typography, Badge } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faCog, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
-import { useNavigate, Link } from "react-router-dom"; // Ensure Link is imported
-import NotificationModal from "./NotificationModal"; // Import the NotificationModal component
+import { faBell, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import { Link } from "react-router-dom";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db } from "../../firebase";
+import NotificationModal from "./NotificationModal";
+
+const LS_KEY = "sq_seen_notifs";
+
+const loadSeen = () => {
+  try { return new Set(JSON.parse(localStorage.getItem(LS_KEY) ?? "[]")); }
+  catch { return new Set(); }
+};
+
+const saveSeen = (set) => {
+  try { localStorage.setItem(LS_KEY, JSON.stringify([...set])); } catch { /* ignore */ }
+};
+
+// A unique key per notification: quoteId + status so a re-opened (edited)
+// quote that gets a fresh response shows as unread again.
+const notifKey = (q) => `${q.id}_${q.status}`;
+
+const isToday = (date) => {
+  const d = date instanceof Date ? date : date?.toDate?.();
+  if (!d) return false;
+  const now = new Date();
+  return d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear();
+};
+
+const statusLabel = (status) =>
+  status === "accepted"
+    ? "<span style='color:#22C55E'>Accepted</span>"
+    : "<span style='color:#EF4444'>Declined</span>";
 
 const TopNavigation = () => {
-  const navigate = useNavigate();
-  const bellRef = useRef(null); // Reference for the bell icon
-  const [modalPosition, setModalPosition] = useState({ top: 0, right: 0 });
-  const [open, setOpen] = useState(false);
+  const bellRef = useRef(null);
+  const [anchorEl, setAnchorEl] = useState(null);
+  const open = Boolean(anchorEl);
+  const [quotes, setQuotes] = useState([]);
+  const [seen, setSeen] = useState(loadSeen);
 
-  const latestQuotes = [
-    {
-      quoteId: "Q-100001",
-      name: "John Doe",
-      dateSent: "2025-05-24T14:30:00",
-      status: "Accepted",
-    },
-    {
-      quoteId: "Q-100002",
-      name: "Charlie Carrick",
-      dateSent: "2025-05-23T10:15:00",
-      status: "Accepted",
-    },
-    {
-      quoteId: "Q-100003",
-      name: "John Smith",
-      dateSent: "2025-05-22T16:45:00",
-      status: "Declined",
-    },
-    {
-      quoteId: "Q-100004",
-      name: "Jane Smith",
-      dateSent: "2025-05-21T09:00:00",
-      status: "Pending",
-    },
-    {
-      quoteId: "Q-100005",
-      name: "Michael Brown",
-      dateSent: "2025-05-20T14:00:00",
-      status: "Declined",
-    },
-  ];
+  useEffect(() => {
+    let unsubSnap = null;
+    const unsubAuth = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      const q = query(
+        collection(db, "quotes"),
+        where("userId", "==", user.uid),
+      );
+      unsubSnap = onSnapshot(q, (snap) => {
+        const sorted = snap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0));
+        setQuotes(sorted);
+      }, (e) => console.error("TopNav quotes error", e));
+    });
+    return () => { unsubAuth(); unsubSnap?.(); };
+  }, []);
 
-  // Example grouping logic for notifications (optional)
-  const groupedNotifications = {
-    Today: [
-      "Quote <b>Q-100001</b> was <span style='color:green'>Accepted</span> by John Doe.",
-      "Quote <b>Q-100002</b> was <span style='color:green'>Accepted</span> by Charlie Carrick.",
-    ],
-    Earlier: [
-      "Quote <b>Q-100003</b> was <span style='color:red'>Declined</span> by John Smith.",
-      "Quote <b>Q-100005</b> was <span style='color:red'>Declined</span> by Michael Brown.",
-    ],
-  };
+  // Mark a single notification as read when the user clicks it.
+  const markRead = useCallback((quoteDocId, status) => {
+    setSeen((prev) => {
+      const next = new Set(prev);
+      next.add(`${quoteDocId}_${status}`);
+      saveSeen(next);
+      return next;
+    });
+  }, []);
 
-  // Handle modal open/close
-  const handleOpen = () => {
-    if (bellRef.current) {
-      const rect = bellRef.current.getBoundingClientRect();
-      setModalPosition({
-        top: rect.bottom + window.scrollY + 10, // Position below the bell icon
-        right: rect.right + window.scrollX - 400, // Center the modal (assuming modal width is ~300px)
-      });
+  // Only quotes with a customer response count as notifications.
+  const responded = quotes.filter((q) => q.status === "accepted" || q.status === "declined");
+  const unreadCount = responded.filter((q) => !seen.has(notifKey(q))).length;
+
+  // Build grouped notifications, attaching the raw status for markRead.
+  const todayItems = [];
+  const earlierItems = [];
+  responded.forEach((q) => {
+    const text = `Quote <b>QU-${q.quoteNumber ?? q.id.slice(0, 6)}</b> was ${statusLabel(q.status)} by ${q.customerName ?? "your customer"}.`;
+    const item = { message: text, quoteDocId: q.id, status: q.status, unread: !seen.has(notifKey(q)) };
+    if (isToday(q.updatedAt ?? q.createdAt)) {
+      todayItems.push(item);
+    } else {
+      earlierItems.push(item);
     }
-    setOpen(true);
-  };
+  });
+  const groupedNotifications = {};
+  if (todayItems.length) groupedNotifications["Today"] = todayItems;
+  if (earlierItems.length) groupedNotifications["Earlier"] = earlierItems;
 
-  const handleClose = () => setOpen(false);
+  // latestQuotes in the shape NotificationModal expects.
+  const latestQuotes = responded.map((q) => ({
+    quoteDocId: q.id,
+    quoteId: `QU-${q.quoteNumber ?? q.id.slice(0, 6)}`,
+    name: q.customerName ?? "—",
+    dateSent: q.updatedAt?.toDate?.()?.toISOString() ?? q.quoteDate ?? new Date().toISOString(),
+    status: q.status.charAt(0).toUpperCase() + q.status.slice(1),
+  }));
+
+  const handleOpen = (e) => setAnchorEl(e.currentTarget);
 
   return (
     <>
-      <AppBar position="static" sx={{ backgroundColor: "#083a6b" }}>
-        {" "}
-        {/* Updated background color */}
+      <AppBar
+        position="fixed"
+        elevation={0}
+        sx={{
+          backgroundColor: "#083a6b",
+          zIndex: (theme) => theme.zIndex.drawer + 1,
+          borderBottom: "1px solid rgba(255,255,255,0.08)",
+        }}
+      >
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
-          {" "}
-          {/* Flexbox for proper alignment */}
-          {/* Logo and Navigation to Home */}
-          <Link to="/secured/dashboard" style={{ textDecoration: "none" }}>
+          <Link to="/secured/quotes" style={{ textDecoration: "none" }}>
             <Typography
               fontSize={18}
               fontWeight="bold"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                color: "#fff", // White color for better contrast
-              }}
+              sx={{ display: "flex", alignItems: "center", color: "#fff" }}
             >
-              <FontAwesomeIcon
-                icon={faPaperPlane}
-                style={{ marginRight: "8px" }}
-              />
+              <FontAwesomeIcon icon={faPaperPlane} style={{ marginRight: "8px" }} />
               SendQuote
             </Typography>
           </Link>
           <Badge
-            badgeContent={
-              latestQuotes.filter(
-                (quote) =>
-                  quote.status === "Accepted" || quote.status === "Declined"
-              ).length
-            } // Number of notifications
-            color="error" // Badge color
-            overlap="circular" // Circular badge for the bell icon
-            anchorOrigin={{
-              vertical: "top",
-              horizontal: "right",
-            }}
+            badgeContent={unreadCount}
+            color="error"
+            overlap="circular"
+            anchorOrigin={{ vertical: "top", horizontal: "right" }}
           >
             <IconButton
               color="inherit"
               sx={{ borderRadius: "50%", width: "32px", height: "32px" }}
-              onClick={handleOpen} // Open modal on click
+              onClick={handleOpen}
               aria-label="Notifications"
-              ref={bellRef} // Attach the ref to the IconButton
+              ref={bellRef}
             >
-              <FontAwesomeIcon icon={faBell} style={{ color: "#fff" }} />{" "}
+              <FontAwesomeIcon icon={faBell} style={{ color: "#fff" }} />
             </IconButton>
           </Badge>
         </Toolbar>
       </AppBar>
       <NotificationModal
         open={open}
-        handleClose={handleClose}
-        modalPosition={modalPosition}
+        anchorEl={anchorEl}
+        handleClose={() => setAnchorEl(null)}
         latestQuotes={latestQuotes}
         groupedNotifications={groupedNotifications}
+        onNotificationClick={markRead}
       />
     </>
   );

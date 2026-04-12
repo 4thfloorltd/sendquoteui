@@ -1,30 +1,82 @@
-import React from "react";
+import { useEffect, useState } from "react";
+import { FREE_QUOTE_LIMIT } from "../constants/plan";
 import { Drawer } from "@mui/material";
 import { Box, List, ListItem, Typography, useMediaQuery } from "@mui/material";
 import { Link, useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faUser,
   faCog,
-  faTachometerAlt,
+  faCreditCard,
   faPaperPlane,
   faHeadphones,
-  faBell,
+  faPlus,
 } from "@fortawesome/free-solid-svg-icons";
+import { Button } from "@mui/material";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, doc, onSnapshot, query, setDoc, serverTimestamp, where } from "firebase/firestore";
+import { LinearProgress } from "@mui/material";
+import { auth, db } from "../../firebase";
+
+export const SIDEBAR_WIDTH = 260;
 
 const Sidebar = () => {
   const isMobile = useMediaQuery("(max-width:768px)");
-  const location = useLocation(); // Get the current route
+  const location = useLocation();
+  const [user, setUser]               = useState(null);
+  const [businessName, setBusinessName]   = useState("");
+  const [businessEmail, setBusinessEmail] = useState("");
+  const [quoteCount, setQuoteCount]       = useState(0);
+
+  const FREE_QUOTA = FREE_QUOTE_LIMIT;
+
+  useEffect(() => {
+    let unsubProfile = null;
+    let unsubQuotes  = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      unsubProfile?.();
+      unsubQuotes?.();
+      if (!u) { setBusinessName(""); setBusinessEmail(""); setQuoteCount(0); return; }
+      unsubProfile = onSnapshot(doc(db, "users", u.uid), (snap) => {
+        const d = snap.data();
+        setBusinessName(d?.businessName ?? "");
+        setBusinessEmail(d?.businessEmail ?? "");
+        // Backfill loginEmail for older profiles — only when the document
+        // actually exists; guards against recreating a just-deleted doc.
+        if (snap.exists() && !d?.loginEmail && u.email) {
+          setDoc(doc(db, "users", u.uid), {
+            loginEmail: u.email.toLowerCase(),
+            updatedAt: serverTimestamp(),
+          }, { merge: true });
+        }
+      });
+      unsubQuotes = onSnapshot(
+        query(collection(db, "quotes"), where("userId", "==", u.uid)),
+        (snap) => setQuoteCount(snap.docs.filter((d) => !d.data().deleted && d.data().status === "pending").length),
+        () => {},
+      );
+    });
+    return () => { unsubAuth(); unsubProfile?.(); unsubQuotes?.(); };
+  }, []);
+
+  const displayName  = businessName || user?.email?.split("@")[0] || "Account";
+  const displayEmail = businessEmail || user?.email || "";
+  const initials     = displayName.slice(0, 2).toUpperCase();
 
   const menuItems = [
-    { label: "Dashboard", icon: faTachometerAlt, path: "/secured/dashboard" },
     { label: "Quotes", icon: faPaperPlane, path: "/secured/quotes" },
+    { label: "Billing", icon: faCreditCard, path: "/secured/billing" },
     { label: "Settings", icon: faCog, path: "/secured/settings" },
+    
   ];
 
   return (
     !isMobile && (
-      <Drawer open variant="permanent">
+      <Drawer
+        open
+        variant="permanent"
+        PaperProps={{ sx: { width: SIDEBAR_WIDTH, height: "calc(100vh - 64px)", display: "flex", flexDirection: "column", overflow: "hidden", position: "fixed", top: "64px", left: 0 } }}
+      >
         {/* Logo
         <Link to="/" tabIndex={-1} style={{ textDecoration: "none" }}>
           <Typography
@@ -47,49 +99,62 @@ const Sidebar = () => {
         </Link> */}
 
         {/* Sidebar Items */}
-        <List sx={{ flexGrow: 1 }}>
+        <List sx={{ flexGrow: 1, overflowY: "auto" }}>
           {/* Avatar with User Details */}
           <ListItem
             sx={{
               display: "flex",
               flexDirection: "row",
               alignItems: "center",
-              gap: "16px",
+              gap: "12px",
               padding: "16px",
-              marginBottom: "24px",
+              marginBottom: "16px",
             }}
           >
-            <img
-              src="https://t4.ftcdn.net/jpg/02/19/63/31/360_F_219633151_BW6TD8D1EA9OqZu4JgdmeJGg4JBaiAHj.jpg"
-              alt="User Avatar"
-              style={{
-                width: "40px",
-                height: "40px",
-                borderRadius: "50%", // Make the image circular
-                objectFit: "cover", // Ensure the image fits within the circle
-              }}
-            />
-            <Box>
+            <Box sx={{
+              width: 40, height: 40, borderRadius: "50%",
+              bgcolor: "#083a6b", color: "#fff",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              fontWeight: 700, fontSize: "15px", flexShrink: 0,
+            }}>
+              {initials}
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
               <Typography
                 variant="body1"
-                sx={{
-                  fontWeight: "700", // Bold font weight for the name
-                  color: "#083a6b", // Dark blue color for the name
-                }}
+                sx={{ fontWeight: 700, color: "#083a6b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
               >
-                Noah Grey
+                {displayName}
               </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  fontSize: "14px",
-                  fontWeight: "500", // Medium font weight for the company name
-                  color: "#6B7280", // Grey color for the company name
-                }}
-              >
-                SendQuote Ltd
-              </Typography>
+              {displayEmail ? (
+                <Typography
+                  variant="body2"
+                  sx={{ fontSize: "12px", color: "#6B7280", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                >
+                  {displayEmail}
+                </Typography>
+              ) : null}
             </Box>
+          </ListItem>
+
+          {/* Create quote CTA */}
+          <ListItem sx={{ px: 2, pb: 1 }}>
+            <Button
+              component={Link}
+              to="/secured/quote"
+              variant="contained"
+              fullWidth
+              startIcon={<FontAwesomeIcon icon={faPlus} style={{ fontSize: "14px" }} />}
+              sx={{
+                textTransform: "none",
+                fontWeight: 700,
+                bgcolor: "#083a6b",
+                "&:hover": { bgcolor: "#062d52" },
+                borderRadius: 2,
+              }}
+            >
+              Create quote
+            </Button>
           </ListItem>
 
           {/* Menu Items */}
@@ -142,6 +207,53 @@ const Sidebar = () => {
           ))}
         </List>
 
+        {/* Free tier usage */}
+        <Box sx={{ px: 2, pb: 2 }}>
+          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: 0.75 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: "#374151", fontSize: "0.75rem" }}>
+              Free quotes
+            </Typography>
+            <Typography variant="caption" sx={{ color: quoteCount >= FREE_QUOTA ? "#EF4444" : "#6B7280", fontWeight: 600, fontSize: "0.75rem" }}>
+              {Math.min(quoteCount, FREE_QUOTA)}&nbsp;/&nbsp;{FREE_QUOTA}
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={Math.min((quoteCount / FREE_QUOTA) * 100, 100)}
+            sx={{
+              height: 6,
+              borderRadius: 3,
+              bgcolor: "#E5E7EB",
+              "& .MuiLinearProgress-bar": {
+                borderRadius: 3,
+                bgcolor: quoteCount >= FREE_QUOTA ? "#EF4444" : "#083a6b",
+              },
+            }}
+          />
+          {quoteCount >= FREE_QUOTA ? (
+            <Typography
+              component={Link}
+              to="/secured/billing"
+              variant="caption"
+              sx={{
+                display: "block",
+                mt: 0.75,
+                color: "#EF4444",
+                fontWeight: 600,
+                fontSize: "0.7rem",
+                textDecoration: "underline",
+                "&:hover": { textDecoration: "underline", color: "#DC2626" },
+              }}
+            >
+              Limit reached — upgrade to send more
+            </Typography>
+          ) : (
+            <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#9CA3AF", fontSize: "0.7rem" }}>
+              {FREE_QUOTA - quoteCount} free quote{FREE_QUOTA - quoteCount !== 1 ? "s" : ""} remaining
+            </Typography>
+          )}
+        </Box>
+
         {/* Support */}
         <a
           href="mailto:support@sendquote.ai"
@@ -154,36 +266,21 @@ const Sidebar = () => {
               alignItems: "center",
               gap: "10px",
               padding: "10px 16px",
-              color: "#6B7280", // Default grey color
+              color: "#6B7280",
               "&:hover": {
-                backgroundColor: "#E5E7EB", // Hover effect
-                color: "#083a6b", // Change text color on hover
-                "& .fa-icon": {
-                  color: "#083a6b", // Change icon color on hover
-                },
+                backgroundColor: "#E5E7EB",
+                color: "#083a6b",
+                "& .fa-icon": { color: "#083a6b" },
               },
             }}
           >
-            <FontAwesomeIcon
-              icon={faHeadphones}
-              className="fa-icon"
-              style={{
-                fontSize: "20px",
-                color: "#6B7280", // Default grey color
-              }}
-            />
-            <Typography
-              variant="body1"
-              sx={{
-                fontSize: "16px",
-                fontWeight: "bold",
-                marginLeft: "8px",
-              }}
-            >
+            <FontAwesomeIcon icon={faHeadphones} className="fa-icon" style={{ fontSize: "20px", color: "#6B7280" }} />
+            <Typography variant="body1" sx={{ fontSize: "16px", fontWeight: "bold", marginLeft: "8px" }}>
               Support
             </Typography>
           </ListItem>
         </a>
+
       </Drawer>
     )
   );

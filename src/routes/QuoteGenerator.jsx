@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { FREE_QUOTE_LIMIT } from "../constants/plan";
 import AddIcon from "@mui/icons-material/Add";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
+import UploadFileIcon from "@mui/icons-material/UploadFile";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import UpArrowIcon from "@mui/icons-material/ArrowUpward";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFileLines, faPaperPlane, faShare, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { faFileLines, faPaperPlane, faShare, faDownload, faEnvelope } from "@fortawesome/free-solid-svg-icons";
+import { faWhatsapp, faFacebookMessenger } from "@fortawesome/free-brands-svg-icons";
 import {
   Alert,
   Autocomplete,
@@ -16,6 +21,7 @@ import {
   DialogTitle,
   Divider,
   IconButton,
+  LinearProgress,
   ListSubheader,
   MenuItem,
   Paper,
@@ -24,13 +30,18 @@ import {
   TableBody,
   TableContainer,
   TextField,
+  Tooltip,
   Typography,
 } from "@mui/material";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
-import { collection, addDoc, doc, getDoc, setDoc, increment, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, doc, getDoc, getDocs, setDoc, increment, query, where, serverTimestamp } from "firebase/firestore";
+import { createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { getFunctions, httpsCallable } from "firebase/functions";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useLocation, Link, useNavigate } from "react-router-dom";
-import { db } from "../../firebase";
+import { auth, db } from "../../firebase";
+import { saveQuoteToFirestore, updateQuoteInFirestore, peekNextQuoteNumber } from "../utils/saveQuote";
+import SubscribeDialog from "../components/SubscribeDialog";
 import {
   useQuote,
   isoToday,
@@ -57,6 +68,7 @@ import {
 } from "../api/quoteVerification";
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
+import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
 
 const formatDateLong = (iso) => {
   if (!iso) return "—";
@@ -108,11 +120,14 @@ const quoteFormFieldDensitySx = {
 /** Below this width the line-items table would overflow; use card layout instead. */
 const LINE_ITEMS_TABLE_MIN_PX = 700;
 const RESEND_COOLDOWN_MS = 60 * 1000;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const QuoteGenerator = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { quoteData, updateQuoteData, resetQuoteData } = useQuote();
+  // Derive editId early so state initialisers can reference it.
+  const editId = location.state?.editId ?? null;
   const [formErrors, setFormErrors] = useState({});
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [usageChecking, setUsageChecking] = useState(false);
@@ -126,13 +141,37 @@ const QuoteGenerator = () => {
   const [verificationEmail, setVerificationEmail] = useState("");
   const [resendAvailableAtMs, setResendAvailableAtMs] = useState(0);
   const [resendNowMs, setResendNowMs] = useState(Date.now());
+  // Create-account step (after email verification)
+  const [createAccountOpen, setCreateAccountOpen] = useState(false);
+  const [createAccountPassword, setCreateAccountPassword] = useState("");
+  const [createAccountLoading, setCreateAccountLoading] = useState(false);
+  const [createAccountError, setCreateAccountError] = useState("");
+  // Quote success (after account creation)
+  const [quoteSuccessOpen, setQuoteSuccessOpen] = useState(false);
+  const [savedQuoteId, setSavedQuoteId] = useState(null);
+  const [savedPdfBlobUrl, setSavedPdfBlobUrl] = useState(null);
+  const [copiedLink, setCopiedLink] = useState(false);
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistEmailError, setWaitlistEmailError] = useState(false);
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
   const [waitlistFailCount, setWaitlistFailCount] = useState(0);
+  // Subscription / paywall dialog
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
   const [showRecaptcha, setShowRecaptcha] = useState(false);
+
+  // Edit mode state
+  const [editQuoteStatus, setEditQuoteStatus] = useState(null); // "pending"|"accepted"|"declined"
+  const [editLoading, setEditLoading]         = useState(!!editId);
+
+  // PDF import state
+  const pdfInputRef = useRef(null);
+  const pdfDragCounter = useRef(0);
+  const [pdfImporting, setPdfImporting]       = useState(false);
+  const [pdfImportError, setPdfImportError]   = useState("");
+  const [pdfFilled, setPdfFilled]             = useState(false); // banner shown after import
+  const [isDraggingPdf, setIsDraggingPdf]     = useState(false);
   const {
     options: addressOptions,
     loading: addressLoading,
@@ -167,6 +206,12 @@ const QuoteGenerator = () => {
   );
 
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  /** Guest `/quote`: business email already tied to an account (Auth or profile) */
+  const [businessEmailHasAccount, setBusinessEmailHasAccount] = useState(false);
+  const [businessEmailChecking, setBusinessEmailChecking] = useState(false);
+  const businessEmailLatestRef = useRef("");
+  const [businessProfile, setBusinessProfile] = useState(null);
+  const [pastCustomers, setPastCustomers] = useState([]);
 
   const resendSecondsLeft = Math.max(
     0,
@@ -181,15 +226,119 @@ const QuoteGenerator = () => {
   }, [verifyDialogOpen, resendBlocked]);
 
   // Block browser tab close / hard refresh when the form is dirty.
+  // Skipped in edit mode — the original quote is safe in Firestore.
   useEffect(() => {
-    if (!isFormDirty) return undefined;
+    if (!isFormDirty || editId) return undefined;
     const handle = (e) => { e.preventDefault(); e.returnValue = ""; };
     window.addEventListener("beforeunload", handle);
     return () => window.removeEventListener("beforeunload", handle);
-  }, [isFormDirty]);
+  }, [isFormDirty, editId]);
+
+  const isSecuredQuote = location.pathname.startsWith("/secured/quote");
+  const backPath = editId ? `/quote/${editId}` : isSecuredQuote ? "/secured/quotes" : "/";
+  const backLabel = editId
+    ? `← Back to QU-${quoteData.quoteNumber ?? "…"}`
+    : isSecuredQuote ? "← Back to quotes" : "← Back to homepage";
+
+  businessEmailLatestRef.current = quoteData.businessEmail ?? "";
+
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setBusinessEmailHasAccount(false);
+        setBusinessEmailChecking(false);
+      }
+    });
+    return () => unsub();
+  }, []);
+
+  useEffect(() => {
+    if (isSecuredQuote || auth.currentUser) {
+      setBusinessEmailHasAccount(false);
+      setBusinessEmailChecking(false);
+      return;
+    }
+    const raw = (businessEmailLatestRef.current ?? "").trim();
+    if (!EMAIL_RE.test(raw)) {
+      setBusinessEmailHasAccount(false);
+      setBusinessEmailChecking(false);
+      return;
+    }
+    let alive = true;
+    setBusinessEmailChecking(true);
+    setBusinessEmailHasAccount(false);
+    const t = window.setTimeout(async () => {
+      if (auth.currentUser) {
+        if (alive) setBusinessEmailChecking(false);
+        return;
+      }
+      try {
+        const exists = await emailHasRegisteredAccount(auth, db, raw);
+        if (!alive || auth.currentUser) return;
+        if ((businessEmailLatestRef.current ?? "").trim() !== raw) return;
+        setBusinessEmailHasAccount(exists);
+      } catch (e) {
+        console.error("Business email check failed", e);
+        if (alive && (businessEmailLatestRef.current ?? "").trim() === raw && !auth.currentUser) {
+          setBusinessEmailHasAccount(false);
+        }
+      } finally {
+        if (alive && (businessEmailLatestRef.current ?? "").trim() === raw && !auth.currentUser) {
+          setBusinessEmailChecking(false);
+        }
+      }
+    }, 450);
+    return () => {
+      alive = false;
+      window.clearTimeout(t);
+    };
+  }, [quoteData.businessEmail, isSecuredQuote]);
+
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const uid = auth.currentUser.uid;
+
+    // Load business profile
+    getDoc(doc(db, "users", uid)).then((snap) => {
+      if (snap.exists() && snap.data()?.profileComplete) {
+        const p = snap.data();
+        setBusinessProfile(p);
+        updateQuoteData({
+          businessName:    p.businessName    ?? "",
+          businessEmail:   p.businessEmail   ?? "",
+          businessAddress: p.businessAddress ?? "",
+        });
+      }
+    }).catch((e) => console.error("Failed to load business profile", e));
+
+    // Load past customers from non-deleted quotes
+    getDocs(query(collection(db, "quotes"), where("userId", "==", uid)))
+      .then((snap) => {
+        const seen = new Map();
+        snap.docs.forEach((d) => {
+          const { customerName, customerEmail, deleted } = d.data();
+          if (deleted) return;
+          if (customerName && customerEmail && !seen.has(customerEmail)) {
+            seen.set(customerEmail, { customerName, customerEmail });
+          }
+        });
+        setPastCustomers([...seen.values()]);
+      })
+      .catch((e) => console.error("Failed to load past customers", e));
+
+    // Prefetch the next sequential quote number only when creating a new quote.
+    // In edit mode the number is loaded from the existing document.
+    if (!editId) {
+      peekNextQuoteNumber(uid)
+        .then((n) => updateQuoteData({ quoteNumber: n }))
+        .catch((e) => console.error("Failed to peek quote number", e));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleHomeClick = (e) => {
-    if (isFormDirty) {
+    // In edit mode the original quote is safe in Firestore — no leave guard needed.
+    if (isFormDirty && !editId) {
       e.preventDefault();
       setLeaveDialogOpen(true);
     }
@@ -198,7 +347,7 @@ const QuoteGenerator = () => {
   const handleConfirmLeave = () => {
     resetQuoteData();
     setLeaveDialogOpen(false);
-    navigate("/");
+    navigate(backPath);
   };
 
   const handleCancelLeave = () => {
@@ -218,8 +367,37 @@ const QuoteGenerator = () => {
   }, [location.state]);
 
   useEffect(() => {
-    updateQuoteData({ quoteDate: isoToday() });
-    // Refresh to today's date whenever the quote page is opened
+    // In edit mode, load the existing quote data instead of starting fresh
+    if (!editId) {
+      updateQuoteData({ quoteDate: isoToday() });
+      return;
+    }
+    let cancelled = false;
+    setEditLoading(true);
+    getDoc(doc(db, "quotes", editId))
+      .then((snap) => {
+        if (cancelled || !snap.exists()) return;
+        const d = snap.data();
+        setEditQuoteStatus(d.status ?? "pending");
+        updateQuoteData({
+          quoteNumber:     d.quoteNumber     ?? "",
+          quoteDate:       d.quoteDate       ?? isoToday(),
+          businessName:    d.businessName    ?? "",
+          businessEmail:   d.businessEmail   ?? "",
+          businessAddress: d.businessAddress ?? "",
+          customerName:    d.customerName    ?? "",
+          email:           d.customerEmail   ?? "",
+          currency:        d.currency        ?? "GBP",
+          lineItems:       d.lineItems       ?? [],
+        });
+      })
+      .catch((e) => console.error("Failed to load quote for edit", e))
+      .finally(() => { if (!cancelled) setEditLoading(false); });
+    return () => {
+      cancelled = true;
+      // Clear context when leaving edit mode so new-quote form starts blank.
+      resetQuoteData();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -372,7 +550,11 @@ const QuoteGenerator = () => {
           // AI couldn't extract anything — fall back to adding the raw text as a plain item.
           rows = [{ id: newLineItemId(), description: text.trim(), unitPrice: 0, quantity: 1, vatPercent: getDefaultVatPercent() }];
         }
-        updateQuoteData({ lineItems: replace ? rows : [...lineItems, ...rows] });
+        // Strip empty placeholder rows before appending so AI items start at position 1
+        const existingNonEmpty = lineItems.filter(
+          (r) => r.description?.trim() || Number(r.unitPrice) > 0,
+        );
+        updateQuoteData({ lineItems: replace ? rows : [...existingNonEmpty, ...rows] });
         setNlLineChatInput("");
 
         const newIds = new Set(rows.map((r) => r.id));
@@ -459,14 +641,13 @@ const QuoteGenerator = () => {
 
   const recaptchaSiteKey = import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 
-  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
   const validateQuoteForm = () => {
     const errors = {};
     if (!quoteData.businessName?.trim()) errors.businessName = true;
     const bizEmail = quoteData.businessEmail?.trim() ?? "";
     if (!bizEmail) errors.businessEmail = "required";
     else if (!EMAIL_RE.test(bizEmail)) errors.businessEmail = "invalid";
+    else if (!auth.currentUser && businessEmailHasAccount) errors.businessEmail = "existing-account";
     if (!quoteData.customerName?.trim()) errors.customerName = true;
     const custEmail = quoteData.email?.trim() ?? "";
     if (custEmail && !EMAIL_RE.test(custEmail)) errors.email = "invalid";
@@ -475,7 +656,7 @@ const QuoteGenerator = () => {
     return errors;
   };
 
-  const FREE_USES = 3;
+  const FREE_USES = FREE_QUOTE_LIMIT;
   const USAGE_RESET_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
   const closeVerifyDialog = () => {
@@ -484,7 +665,7 @@ const QuoteGenerator = () => {
     setVerifyDialogError("");
     setVerifyCode("");
     setVerifyChallengeId("");
-    setVerificationEmail("");
+    // Keep verificationEmail so create-account dialog can still use it.
     setResendAvailableAtMs(0);
     setResendNowMs(Date.now());
   };
@@ -568,6 +749,188 @@ const QuoteGenerator = () => {
     }
   };
 
+  const getPwdStrength = (pwd) => {
+    if (!pwd) return null;
+    let pts = 0;
+    if (pwd.length >= 6) pts++;
+    if (pwd.length >= 10) pts++;
+    if (/[A-Z]/.test(pwd)) pts++;
+    if (/[0-9]/.test(pwd)) pts++;
+    if (/[^A-Za-z0-9]/.test(pwd)) pts++;
+    if (pts <= 1) return { label: "Weak", color: "#F44336", pct: 25 };
+    if (pts <= 2) return { label: "Fair", color: "#FF9800", pct: 50 };
+    if (pts <= 3) return { label: "Good", color: "#2196F3", pct: 75 };
+    return { label: "Strong", color: "#4CAF50", pct: 100 };
+  };
+
+  const openCreateAccountStep = (email) => {
+    setCreateAccountPassword("");
+    setCreateAccountError("");
+    if (email) setVerificationEmail(email);
+    setCreateAccountOpen(true);
+  };
+
+  const handleCreateAccountAndSave = async () => {
+    if (createAccountPassword.length < 6) {
+      setCreateAccountError("Password must be at least 6 characters.");
+      return;
+    }
+    const email = verificationEmail || String(quoteData.businessEmail ?? "").trim().toLowerCase();
+    setCreateAccountLoading(true);
+    setCreateAccountError("");
+    try {
+      const { user } = await createUserWithEmailAndPassword(auth, email, createAccountPassword);
+
+      // Create the user profile document so Settings pre-populates with the
+      // business name, email and address the user already filled in.
+      await setDoc(doc(db, "users", user.uid), {
+        businessName:    (quoteData.businessName    ?? "").trim(),
+        businessEmail:   email,
+        businessAddress: (quoteData.businessAddress ?? "").trim(),
+        loginEmail:      email,
+        profileComplete: true,
+        updatedAt:       serverTimestamp(),
+      }, { merge: true });
+
+      const quoteId = await saveQuoteToFirestore({
+        quoteData,
+        lineItems,
+        pricing,
+        userId: user.uid,
+      });
+      // Record usage — fire-and-forget so a rules denial never blocks the user.
+      setDoc(doc(db, "quote_usage", email), { count: increment(1) }, { merge: true })
+        .catch((e) => console.warn("Usage tracking failed (non-critical):", e));
+      // Build PDF blob URL for preview
+      const pdfDoc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong });
+      const blob = pdfDoc.output("blob");
+      const blobUrl = URL.createObjectURL(blob);
+      setSavedQuoteId(quoteId);
+      setSavedPdfBlobUrl(blobUrl);
+      setCreateAccountOpen(false);
+      setVerificationEmail("");
+      setQuoteSuccessOpen(true);
+    } catch (err) {
+      console.error("Account creation failed", err);
+      if (err?.code === "auth/email-already-in-use") {
+        setCreateAccountError(
+          "An account with this email already exists. Please log in to send your quote.",
+        );
+      } else if (err?.code === "auth/weak-password") {
+        setCreateAccountError("Password must be at least 6 characters.");
+      } else {
+        setCreateAccountError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setCreateAccountLoading(false);
+    }
+  };
+
+  const handlePdfFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset so same file can be re-selected
+    if (!file) return;
+
+    if (file.type !== "application/pdf") {
+      setPdfImportError("Please select a PDF file.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setPdfImportError("PDF must be under 10 MB.");
+      return;
+    }
+
+    setPdfImporting(true);
+    setPdfImportError("");
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          // Strip the data URL prefix ("data:application/pdf;base64,")
+          const result = reader.result;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const extractQuoteFromPdf = httpsCallable(getFunctions(), "extractQuoteFromPdf");
+      const { data: result } = await extractQuoteFromPdf({ pdfBase64: base64 });
+
+      if (!result?.ok) throw new Error("Extraction failed");
+      const d = result.data;
+
+      // Silently fill customer / business / currency fields
+      const patch = {};
+      if (d.customerName) patch.customerName = d.customerName;
+      if (d.customerEmail) patch.email = d.customerEmail;
+      if (d.currency) patch.currency = d.currency;
+      if (!auth.currentUser) {
+        if (d.businessName) patch.businessName = d.businessName;
+        if (d.businessEmail) patch.businessEmail = d.businessEmail;
+      }
+      if (Object.keys(patch).length) updateQuoteData(patch);
+
+      // Format line items as text into the AI field so user can review then click "Add to quote"
+      if (Array.isArray(d.lineItems) && d.lineItems.length > 0) {
+        const currency = d.currency ?? activeCurrency ?? "GBP";
+        const symbol = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" }[currency] ?? "";
+        const lines = d.lineItems.map((item) => {
+          const qty = Number(item.quantity) || 1;
+          const price = Number(item.unitPrice) || 0;
+          const vat = Number(item.vatRate) ?? 20;
+          return `${item.description}${qty !== 1 ? ` x${qty}` : ""} ${symbol}${price.toFixed(2)}${vat !== 20 ? ` ${vat}% VAT` : ""}`;
+        });
+        setNlLineChatInput(lines.join("\n"));
+        setShowAiLineSection(true);
+      }
+
+      setPdfFilled(true);
+      setTimeout(() => setPdfFilled(false), 6000);
+    } catch (err) {
+      console.error("PDF import failed", err);
+      setPdfImportError(err?.message?.includes("too large")
+        ? "PDF is too large. Please use a file under 10 MB."
+        : "Could not extract data from this PDF. Please try again.");
+    } finally {
+      setPdfImporting(false);
+    }
+  };
+
+  const handleCloseQuoteSuccess = () => {
+    if (savedPdfBlobUrl) {
+      URL.revokeObjectURL(savedPdfBlobUrl);
+      setSavedPdfBlobUrl(null);
+    }
+    setSavedQuoteId(null);
+    setCopiedLink(false);
+    setQuoteSuccessOpen(false);
+  };
+
+  const handleCopyShareLink = () => {
+    if (!savedQuoteId) return;
+    const url = `${window.location.origin}/quote/${savedQuoteId}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2500);
+    });
+  };
+
+  const scrollToField = (id, focusSelector = "input, textarea") => {
+    // setTimeout lets React flush the new error state before measuring.
+    // Use window.scrollTo so we control the offset explicitly — scrollIntoView
+    // can be blocked by a scrollable ancestor in complex fixed layouts.
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const TOP_OFFSET = 80; // fixed TopNav height + breathing room
+      const rect = el.getBoundingClientRect();
+      const targetY = window.scrollY + rect.top - TOP_OFFSET;
+      window.scrollTo({ top: Math.max(0, targetY), behavior: "smooth" });
+      el.querySelector?.(focusSelector)?.focus();
+    }, 50);
+  };
+
   const handleOpenWaitlist = async () => {
     const errors = validateQuoteForm();
     if (Object.keys(errors).length > 0) {
@@ -580,15 +943,69 @@ const QuoteGenerator = () => {
             : errors.email
               ? "field-email"
               : "field-lineItems";
-      requestAnimationFrame(() => {
-        const el = document.getElementById(firstId);
-        if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
-        el?.querySelector?.("input, textarea")?.focus();
-      });
+      scrollToField(firstId);
       return;
     }
 
     const email = (quoteData.businessEmail ?? "").trim().toLowerCase();
+
+    if (!auth.currentUser && EMAIL_RE.test(email)) {
+      const exists = await emailHasRegisteredAccount(auth, db, email);
+      if (exists) {
+        setBusinessEmailHasAccount(true);
+        setFormErrors((prev) => ({ ...prev, businessEmail: "existing-account" }));
+        scrollToField("field-businessEmail");
+        return;
+      }
+    }
+
+    // Already signed in → edit OR create flow.
+    if (auth.currentUser) {
+      setUsageChecking(true);
+      try {
+        const uid = auth.currentUser.uid;
+
+        // ── Edit mode: update existing quote, no quota check ──
+        if (editId) {
+          await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing });
+          resetQuoteData();
+          navigate(`/quote/${editId}`);
+          return;
+        }
+
+        // ── Create mode: check quota then save ──
+        const quotesSnap = await getDocs(
+          query(collection(db, "quotes"), where("userId", "==", uid)),
+        );
+        const quoteCount = quotesSnap.docs.filter(
+          (d) => !d.data().deleted && d.data().status === "pending",
+        ).length;
+        if (quoteCount >= FREE_USES) {
+          setSubscribeStep(1);
+          setSubscribeOpen(true);
+          return;
+        }
+        const quoteId = await saveQuoteToFirestore({
+          quoteData,
+          lineItems,
+          pricing,
+          userId: uid,
+        });
+        const pdfDoc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong });
+        const blob = pdfDoc.output("blob");
+        const blobUrl = URL.createObjectURL(blob);
+        setSavedQuoteId(quoteId);
+        setSavedPdfBlobUrl(blobUrl);
+        setQuoteSuccessOpen(true);
+      } catch (e) {
+        console.error("Save quote (signed in) failed", e);
+        allowExportAfterChecks();
+      } finally {
+        setUsageChecking(false);
+      }
+      return;
+    }
+
     setUsageChecking(true);
     try {
       // Usage gate must run before verification so users over limit
@@ -605,9 +1022,7 @@ const QuoteGenerator = () => {
           setWaitlistOpen(true);
           return;
         }
-        // Returning sender (usage doc exists): skip OTP and continue.
-        await consumeUsageAndAllowSend(email);
-        return;
+        // Returning sender with usage record but not signed in → verify first.
       }
       await openVerifyDialogWithFreshCode(email);
     } catch (e) {
@@ -644,8 +1059,9 @@ const QuoteGenerator = () => {
         email: verificationEmail,
         code,
       });
+      const confirmedEmail = verificationEmail;
       closeVerifyDialog();
-      await consumeUsageAndAllowSend(verificationEmail);
+      openCreateAccountStep(confirmedEmail);
     } catch (e) {
       console.error("Verification code check failed", e);
       setVerifyDialogError(
@@ -746,7 +1162,8 @@ const QuoteGenerator = () => {
         mx: "auto",
         boxSizing: "border-box",
         px: { xs: 1.5, sm: 2 },
-        py: { xs: 2, md: 4 },
+        pt: 0,
+        pb: { xs: 2, md: 4 },
         animation: "fadeIn 300ms ease",
         "@keyframes fadeIn": {
           from: { opacity: 0, transform: "translateY(8px)" },
@@ -754,20 +1171,40 @@ const QuoteGenerator = () => {
         },
       }}
     >
-      <Box
-        sx={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: 1,
-          mb: 2,
-        }}
-      >
-        <Button component={Link} to="/" variant="text" color="primary" size="large" onClick={handleHomeClick}>
-          ← Home
-        </Button>
-      </Box>
+      {/* Hidden PDF file input */}
+      <input
+        ref={pdfInputRef}
+        type="file"
+        accept="application/pdf"
+        style={{ display: "none" }}
+        onChange={handlePdfFileChange}
+      />
+
+      {(!isSecuredQuote || editId || location.state?.from === "quotes") && (
+        <Box sx={{ mb: 2 }}>
+          <Button component={Link} to={backPath} variant="text" color="primary" size="large" onClick={handleHomeClick}>
+            {backLabel}
+          </Button>
+        </Box>
+      )}
+
+      {editId && editQuoteStatus && (
+        <Alert
+          severity={editQuoteStatus === "pending" ? "info" : "warning"}
+          sx={{ mb: 2 }}
+        >
+          {editQuoteStatus === "pending"
+            ? <>You are editing an existing quote. Saving changes will <strong>reset the status to pending</strong> so the customer can review it again.</>
+            : <>This quote has been <strong>{editQuoteStatus}</strong> by the customer. You can still edit and save changes, but the <strong>customer will need to review it again</strong>.</>
+          }
+        </Alert>
+      )}
+
+      {editId && editLoading && (
+        <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+          <CircularProgress />
+        </Box>
+      )}
 
       <Paper
         elevation={0}
@@ -810,6 +1247,7 @@ const QuoteGenerator = () => {
               Date: {formatDateLong(quoteData.quoteDate)}
             </Typography>
           </Box>
+          {!isSecuredQuote && (
           <Box
             sx={{
               flex: "1 1 min-content",
@@ -818,182 +1256,192 @@ const QuoteGenerator = () => {
               ml: { xs: 0, md: "auto" },
             }}
           >
-            <Typography
-              variant="subtitle1"
-              fontWeight={700}
-              color="primary"
-              gutterBottom
-              sx={{ mb: 2.5 }}
-            >
-              My Business details
-            </Typography>
-            <TextField
-              id="field-businessName"
-              variant="outlined"
-              label="My business name"
-              error={!!formErrors.businessName}
-              helperText={formErrors.businessName ? "Business name is required" : undefined}
-              value={quoteData.businessName ?? ""}
-              onChange={(e) => {
-                handleInputChange("businessName")(e);
-                if (formErrors.businessName) setFormErrors((prev) => { const n = { ...prev }; delete n.businessName; return n; });
-              }}
-              onBlur={(e) => {
-                const raw = e.target.value;
-                const normalized = raw.replace(/\s+/g, " ").trim();
-                const formatted =
-                  normalized === "" ? "" : capitaliseWords(normalized);
-                if (formatted !== raw) {
-                  updateQuoteData({ businessName: formatted });
-                }
-              }}
-              fullWidth
-              slotProps={{
-                htmlInput: {
-                  autoCapitalize: "words",
-                  autoCorrect: "on",
-                },
-              }}
-              sx={{
-                mb: 1.5,
-                width: { xs: "100%", sm: "100%" }, // force full width on mobile
-                "& .MuiInputBase-input": {
-                  ...docTitleOutlinedSx["& .MuiInputBase-input"],
-                  fontWeight: "normal", // prevent bold styling
-                },
-              }}
-            />
-            <TextField
-              id="field-businessEmail"
-              variant="outlined"
-              label="My email address"
-              value={quoteData.businessEmail ?? ""}
-              onChange={(e) => {
-                handleInputChange("businessEmail")({
-                  target: { value: e.target.value.toLowerCase() },
-                });
-                if (formErrors.businessEmail) setFormErrors((prev) => { const n = { ...prev }; delete n.businessEmail; return n; });
-              }}
-              type="email"
-              name="email"
-              autoComplete="email"
-              inputProps={{ maxLength: 64 }}
-              required
-              error={!!formErrors.businessEmail}
-              helperText={
-                formErrors.businessEmail === "required"
-                  ? "Email address is required"
-                  : formErrors.businessEmail === "invalid"
-                    ? "Enter a valid email address"
-                    : undefined
-              }
-              fullWidth
-              sx={{
-                mb: 1.5,
-                width: "100%",
-                ml: { xs: 0, sm: "auto" },
-                display: { sm: "block" },
-              }}
-            />
-            <Autocomplete
-              freeSolo
-              options={addressOptions}
-              getOptionLabel={(option) =>
-                typeof option === "string" ? option : option.label
-              }
-              isOptionEqualToValue={(a, b) => {
-                if (typeof a === "string" && typeof b === "string") {
-                  return a === b;
-                }
-                return (a && b && typeof a === "object" && typeof b === "object")
-                  ? a.id === b.id
-                  : false;
-              }}
-              filterOptions={(opts) => opts}
-              inputValue={quoteData.businessAddress ?? ""}
-              onInputChange={(e, newInput, reason) => {
-                if (reason === "input" || reason === "clear") {
-                  updateQuoteData({ businessAddress: newInput });
-                  scheduleAddressSearch(newInput);
-                } else if (reason === "reset") {
-                  updateQuoteData({ businessAddress: newInput });
-                  clearAddressOptions();
-                }
-              }}
-              onChange={async (e, newValue) => {
-                clearAddressOptions();
-                const text = await finalizeAddressSelection(newValue);
-                if (text !== null) updateQuoteData({ businessAddress: text });
-              }}
-              loading={addressLoading || addressResolving}
-              loadingText={addressResolving ? "Fetching full address…" : "Searching…"}
-              fullWidth
-              renderOption={(props, option) => {
-                if (typeof option === "string") {
-                  return (
-                    <li {...props}>
-                      {option}
-                    </li>
-                  );
-                }
-                return (
-                  <li {...props}>
-                    <Box
-                      sx={{
-                        py: 0.75,
-                        display: "flex",
-                        flexDirection: "column",
-                        alignItems: "flex-start",
-                        gap: 0.25,
-                      }}
-                    >
-                      <Typography variant="body1" fontWeight={600}>
-                        {option.primary}
-                      </Typography>
-                      {option.subtitle ? (
-                        <Typography variant="body2" color="text.secondary">
-                          {option.subtitle}
-                        </Typography>
-                      ) : null}
-                    </Box>
-                  </li>
-                );
-              }}
-              renderInput={(params) => (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: businessProfile ? 1 : 2.5 }}>
+              <Typography variant="subtitle1" fontWeight={700} color="primary">
+                My Business details
+              </Typography>
+              {businessProfile && (
+                <Button
+                  size="small"
+                  component={Link}
+                  to="/secured/settings"
+                  sx={{ textTransform: "none", fontSize: "12px", color: "#6B7280", p: 0, minWidth: 0, "&:hover": { bgcolor: "transparent", color: "#083a6b" } }}
+                >
+                  Edit
+                </Button>
+              )}
+            </Box>
+
+            {businessProfile ? (
+              /* Compact read-only summary when profile is loaded */
+              <Box id="field-businessName" sx={{ bgcolor: "#F8FAFC", border: "1px solid #E5E7EB", borderRadius: 1.5, p: 1.5 }}>
+                <Typography variant="body2" fontWeight={700} color="#083a6b">
+                  {businessProfile.businessName}
+                </Typography>
+                {businessProfile.businessEmail && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                    {businessProfile.businessEmail}
+                  </Typography>
+                )}
+                {businessProfile.businessAddress && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25, whiteSpace: "pre-line" }}>
+                    {businessProfile.businessAddress}
+                  </Typography>
+                )}
+              </Box>
+            ) : (
+              /* Full editable fields for unauthenticated / no profile */
+              <>
                 <TextField
-                  {...params}
+                  id="field-businessName"
                   variant="outlined"
-                  label="Address"
-                  multiline
-                  maxRows={4}
+                  label="My business name"
+                  error={!!formErrors.businessName}
+                  helperText={formErrors.businessName ? "Business name is required" : undefined}
+                  value={quoteData.businessName ?? ""}
+                  onChange={(e) => {
+                    handleInputChange("businessName")(e);
+                    if (formErrors.businessName) setFormErrors((prev) => { const n = { ...prev }; delete n.businessName; return n; });
+                  }}
+                  onBlur={(e) => {
+                    const raw = e.target.value;
+                    const normalized = raw.replace(/\s+/g, " ").trim();
+                    const formatted = normalized === "" ? "" : capitaliseWords(normalized);
+                    if (formatted !== raw) updateQuoteData({ businessName: formatted });
+                  }}
                   fullWidth
+                  slotProps={{ htmlInput: { autoCapitalize: "words", autoCorrect: "on" } }}
                   sx={{
-                    mb: { xs: 0, sm: 1.5 },
-                    width: { xs: "100%", sm: undefined }, // force full width on mobile
-                  }}
-                  slotProps={{
-                    formHelperText: { sx: { mt: 0.5 } },
-                  }}
-                  InputProps={{
-                    ...params.InputProps,
-                    endAdornment: (
-                      <>
-                        {addressLoading || addressResolving ? (
-                          <CircularProgress color="inherit" size={22} sx={{ mr: 1 }} />
-                        ) : null}
-                        {params.InputProps.endAdornment}
-                      </>
-                    ),
+                    mb: 1.5,
+                    width: { xs: "100%", sm: "100%" },
+                    "& .MuiInputBase-input": { ...docTitleOutlinedSx["& .MuiInputBase-input"], fontWeight: "normal" },
                   }}
                 />
-              )}
-            />
-
+                <TextField
+                  id="field-businessEmail"
+                  variant="outlined"
+                  label="My email address"
+                  value={quoteData.businessEmail ?? ""}
+                  onChange={(e) => {
+                    handleInputChange("businessEmail")({ target: { value: e.target.value.toLowerCase() } });
+                    if (formErrors.businessEmail) setFormErrors((prev) => { const n = { ...prev }; delete n.businessEmail; return n; });
+                  }}
+                  type="email"
+                  name="email"
+                  autoComplete="email"
+                  inputProps={{ maxLength: 64 }}
+                  required
+                  error={!!formErrors.businessEmail}
+                  helperText={
+                    formErrors.businessEmail === "required"
+                      ? "Email address is required"
+                      : formErrors.businessEmail === "invalid"
+                        ? "Enter a valid email address"
+                        : formErrors.businessEmail === "existing-account"
+                          ? "Log in with this email to continue — or use a different address."
+                          : businessEmailChecking
+                            ? "Checking…"
+                            : undefined
+                  }
+                  fullWidth
+                  sx={{ mb: 1.5, width: "100%", ml: { xs: 0, sm: "auto" }, display: { sm: "block" } }}
+                />
+                {businessEmailHasAccount && !auth.currentUser ? (
+                  <Alert
+                    severity="info"
+                    sx={{ mb: 1.5 }}
+                    action={
+                      <Button
+                        component={Link}
+                        to="/login"
+                        state={{
+                          from: { pathname: "/secured/quote" },
+                          email: (quoteData.businessEmail ?? "").trim().toLowerCase(),
+                        }}
+                        color="inherit"
+                        size="small"
+                        sx={{ textTransform: "none", fontWeight: 600 }}
+                      >
+                        Log in
+                      </Button>
+                    }
+                  >
+                    This email already has an account. Log in to create and send your quote.
+                  </Alert>
+                ) : null}
+                <Autocomplete
+                  freeSolo
+                  options={addressOptions}
+                  getOptionLabel={(option) => typeof option === "string" ? option : option.label}
+                  isOptionEqualToValue={(a, b) => {
+                    if (typeof a === "string" && typeof b === "string") return a === b;
+                    return (a && b && typeof a === "object" && typeof b === "object") ? a.id === b.id : false;
+                  }}
+                  filterOptions={(opts) => opts}
+                  inputValue={quoteData.businessAddress ?? ""}
+                  onInputChange={(e, newInput, reason) => {
+                    if (reason === "input" || reason === "clear") {
+                      updateQuoteData({ businessAddress: newInput });
+                      scheduleAddressSearch(newInput);
+                    } else if (reason === "reset") {
+                      updateQuoteData({ businessAddress: newInput });
+                      clearAddressOptions();
+                    }
+                  }}
+                  onChange={async (e, newValue) => {
+                    clearAddressOptions();
+                    const text = await finalizeAddressSelection(newValue);
+                    if (text !== null) updateQuoteData({ businessAddress: text });
+                  }}
+                  loading={addressLoading || addressResolving}
+                  loadingText={addressResolving ? "Fetching full address…" : "Searching…"}
+                  fullWidth
+                  renderOption={(props, option) => {
+                    if (typeof option === "string") return <li {...props}>{option}</li>;
+                    return (
+                      <li {...props}>
+                        <Box sx={{ py: 0.75, display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 0.25 }}>
+                          <Typography variant="body1" fontWeight={600}>{option.primary}</Typography>
+                          {option.subtitle ? (
+                            <Typography variant="body2" color="text.secondary">{option.subtitle}</Typography>
+                          ) : null}
+                        </Box>
+                      </li>
+                    );
+                  }}
+                  renderInput={(params) => (
+                    <TextField
+                      {...params}
+                      variant="outlined"
+                      label="Address"
+                      multiline
+                      maxRows={4}
+                      fullWidth
+                      sx={{ mb: { xs: 0, sm: 1.5 }, width: { xs: "100%", sm: undefined } }}
+                      slotProps={{ formHelperText: { sx: { mt: 0.5 } } }}
+                      InputProps={{
+                        ...params.InputProps,
+                        endAdornment: (
+                          <>
+                            {addressLoading || addressResolving ? (
+                              <CircularProgress color="inherit" size={22} sx={{ mr: 1 }} />
+                            ) : null}
+                            {params.InputProps.endAdornment}
+                          </>
+                        ),
+                      }}
+                    />
+                  )}
+                />
+              </>
+            )}
           </Box>
+          )}
         </Box>
 
         <Divider sx={{ my: 2 }} />
 
+        <Box id="field-customerName">
         <Typography
           variant="subtitle1"
           fontWeight={700}
@@ -1003,19 +1451,52 @@ const QuoteGenerator = () => {
         >
           Prepared for
         </Typography>
-        <TextField
-          id="field-customerName"
-          variant="outlined"
-          fullWidth
-          label="Customer name"
-          error={!!formErrors.customerName}
-          helperText={formErrors.customerName ? "Customer name is required" : undefined}
-          value={quoteData.customerName ?? ""}
-          onChange={(e) => {
-            handleInputChange("customerName")(e);
-            if (formErrors.customerName) setFormErrors((prev) => { const n = { ...prev }; delete n.customerName; return n; });
+        <Autocomplete
+          freeSolo
+          options={pastCustomers}
+          getOptionLabel={(o) => typeof o === "string" ? o : o.customerName}
+          filterOptions={(opts, { inputValue }) =>
+            opts.filter((o) =>
+              o.customerName.toLowerCase().includes(inputValue.toLowerCase()) ||
+              o.customerEmail.toLowerCase().includes(inputValue.toLowerCase())
+            )
+          }
+          inputValue={quoteData.customerName ?? ""}
+          onInputChange={(_, newVal, reason) => {
+            if (reason === "input" || reason === "clear") {
+              handleInputChange("customerName")({ target: { value: newVal } });
+              if (formErrors.customerName) setFormErrors((prev) => { const n = { ...prev }; delete n.customerName; return n; });
+            }
           }}
-          sx={{ mb: 1.5 }}
+          onChange={(_, selected) => {
+            if (selected && typeof selected === "object") {
+              updateQuoteData({
+                customerName: selected.customerName,
+                email:        selected.customerEmail,
+              });
+              if (formErrors.customerName) setFormErrors((prev) => { const n = { ...prev }; delete n.customerName; return n; });
+              if (formErrors.email) setFormErrors((prev) => { const n = { ...prev }; delete n.email; return n; });
+            }
+          }}
+          renderOption={(props, option) => (
+            <li {...props} key={option.customerEmail}>
+              <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
+                <Typography variant="body2" fontWeight={600}>{option.customerName}</Typography>
+                <Typography variant="caption" color="text.secondary">{option.customerEmail}</Typography>
+              </Box>
+            </li>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              variant="outlined"
+              fullWidth
+              label="Customer name"
+              error={!!formErrors.customerName}
+              helperText={formErrors.customerName ? "Customer name is required" : undefined}
+              sx={{ mb: 1.5 }}
+            />
+          )}
         />
         <TextField
           id="field-email"
@@ -1041,7 +1522,6 @@ const QuoteGenerator = () => {
           }}
           onBlur={(e) => {
             const value = e.target.value.trim().toLowerCase();
-            const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             if (!value) {
               setFormErrors((prev) => ({ ...prev, email: "required" }));
             } else if (!EMAIL_RE.test(value)) {
@@ -1052,6 +1532,7 @@ const QuoteGenerator = () => {
           }}
           sx={{ mb: 1.5 }}
         />
+        </Box>
 
         <TextField
           select
@@ -1289,106 +1770,184 @@ const QuoteGenerator = () => {
                 </Alert>
               )}
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                One or more charges per message, e.g. &quot;£120 Garden landscaping&quot; or several lines. Press <b>Enter</b> to send, <b>Shift+Enter</b> for a new line.
+                Describe charges, e.g. &quot;£120 Garden landscaping&quot;. Press <b>Enter</b> to send, <b>Shift+Enter</b> for new line.
               </Typography>
-              <Stack
-                direction={{ xs: "column", sm: "row" }}
-                spacing={1}
-                alignItems={{ sm: "flex-start" }}
-                sx={{
-                  bgcolor: "primary.main",  // Use the primary button color as background
-                  borderRadius: 2,
-                  // border removed as per new instruction
-                  transition: "border-color 0.2s",
-                  px: 1,
-                  py: 1,
-                  boxShadow: aiParseLoading ? "0 0 0 2px rgb(212, 228, 241)" : "none",
+
+              {/* Drop zone wrapping the input stack */}
+              <Box
+                sx={{ position: "relative" }}
+                onDragEnter={(e) => {
+                  e.preventDefault();
+                  pdfDragCounter.current += 1;
+                  if (pdfDragCounter.current === 1) setIsDraggingPdf(true);
+                }}
+                onDragLeave={() => {
+                  pdfDragCounter.current -= 1;
+                  if (pdfDragCounter.current === 0) setIsDraggingPdf(false);
+                }}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  pdfDragCounter.current = 0;
+                  setIsDraggingPdf(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) {
+                    const syntheticEvent = { target: { files: [file], value: "" } };
+                    handlePdfFileChange(syntheticEvent);
+                  }
                 }}
               >
-                <AiPromptField
-                  value={nlLineChatInput}
-                  onChange={(val) => {
-                    setNlLineChatInput(val);
-                    if (nlChatFieldError) setNlChatFieldError(false);
-                  }}
-                  onSubmit={handleNlChatAddLines}
-                  loading={aiParseLoading}
-                  error={nlChatFieldError}
-                  inputRef={nlLineChatInputRef}
-                  minRows={3}
-                  maxRows={8}
-                  rootSx={{ flex: "1 1 auto", minWidth: 0, borderRadius: 2, bgcolor: "#fff" }}
-                  overlaySx={{ borderRadius: 2, top: "16.5px", bottom: "16.5px", left: "14px", right: "14px", overflow: "auto" }}
-                  textFieldSx={{
-                    "& .MuiOutlinedInput-root": { bgcolor: "transparent" },
-                    "& .MuiInputBase-input": {
-                      bgcolor: "transparent",
-                    },
-                    "& .MuiInputBase-input::placeholder": {
-                      padding: "12.5px 14px", // standard text field input padding (top/bottom, left/right)
-                      boxSizing: "border-box",
-                      maxWidth: "100%",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                      whiteSpace: "nowrap",
-                      display: "block",
-                    },
-                  }}
-                />
-                <Button
-                  variant="contained"
-                  color="primary"
-                  startIcon={
-                    aiParseLoading ? (
-                      <CircularProgress size={18} color="inherit" />
-                    ) : (
-                      <AutoAwesome />
-                    )
-                  }
-                  onClick={handleNlChatAddLines}
+                {/* Drag overlay */}
+                {isDraggingPdf && (
+                  <Box sx={{
+                    position: "absolute", inset: 0, zIndex: 20, borderRadius: 2,
+                    bgcolor: "rgba(8,58,107,0.85)", display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "none",
+                    border: "2px dashed rgba(255,255,255,0.7)",
+                  }}>
+                    <UploadFileIcon sx={{ fontSize: 36, color: "#fff" }} />
+                    <Typography variant="body2" fontWeight={700} sx={{ color: "#fff" }}>
+                      Drop PDF to import
+                    </Typography>
+                  </Box>
+                )}
+
+                {/* Loading overlay for PDF import */}
+                {pdfImporting && (
+                  <Box sx={{
+                    position: "absolute", inset: 0, zIndex: 20, borderRadius: 2,
+                    bgcolor: "rgba(8,58,107,0.75)", display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "none",
+                  }}>
+                    <CircularProgress size={28} sx={{ color: "#fff" }} />
+                    <Typography variant="body2" fontWeight={600} sx={{ color: "#fff" }}>
+                      Importing…
+                    </Typography>
+                  </Box>
+                )}
+
+                <Stack
+                  direction={{ xs: "column", sm: "row" }}
+                  spacing={1}
+                  alignItems={{ sm: "flex-start" }}
                   sx={{
-                    flexShrink: 0,
-                    minWidth: { sm: 140 },
-                    boxShadow: "0px 2px 8px 0px rgba(110, 188, 255, 0.09)",
-                    fontWeight: 600,
-                    letterSpacing: 0.2,
-                    bgcolor: "#fff",           // Button background is white
-                    color: "primary.main",      // Text/icon color is the primary button color
-                    "&:hover": {
-                      bgcolor: "#f3f4f6",
-                    },
+                    bgcolor: "primary.main",
+                    borderRadius: 2,
+                    border: isDraggingPdf
+                      ? "2px dashed rgba(255,255,255,0.85)"
+                      : "2px dashed rgba(255,255,255,0.25)",
+                    transition: "border-color 0.15s",
+                    px: 1,
+                    py: 1,
+                    boxShadow: aiParseLoading ? "0 0 0 2px rgb(212, 228, 241)" : "none",
                   }}
                 >
-                  Add to quote
-                </Button>
-              </Stack>
+                  <AiPromptField
+                    value={nlLineChatInput}
+                    onChange={(val) => {
+                      setNlLineChatInput(val);
+                      if (nlChatFieldError) setNlChatFieldError(false);
+                    }}
+                    onSubmit={handleNlChatAddLines}
+                    loading={aiParseLoading}
+                    error={nlChatFieldError}
+                    inputRef={nlLineChatInputRef}
+                    minRows={3}
+                    maxRows={8}
+                    rootSx={{ flex: "1 1 auto", minWidth: 0, borderRadius: 2, bgcolor: "#fff" }}
+                    overlaySx={{ borderRadius: 2, top: "16.5px", bottom: "16.5px", left: "14px", right: "14px", overflow: "auto" }}
+                    textFieldSx={{
+                      "& .MuiOutlinedInput-root": { bgcolor: "transparent" },
+                      "& .MuiInputBase-input": { bgcolor: "transparent" },
+                      "& .MuiInputBase-input::placeholder": {
+                        padding: "12.5px 14px",
+                        boxSizing: "border-box",
+                        maxWidth: "100%",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        display: "block",
+                      },
+                    }}
+                  />
+                  <Button
+                    variant="contained"
+                    color="primary"
+                    startIcon={aiParseLoading ? <CircularProgress size={18} color="inherit" /> : <AutoAwesome />}
+                    onClick={handleNlChatAddLines}
+                    sx={{
+                      flexShrink: 0,
+                      minWidth: { sm: 140 },
+                      boxShadow: "0px 2px 8px 0px rgba(110, 188, 255, 0.09)",
+                      fontWeight: 600,
+                      letterSpacing: 0.2,
+                      bgcolor: "#fff",
+                      color: "primary.main",
+                      "&:hover": { bgcolor: "#f3f4f6" },
+                    }}
+                  >
+                    Add to quote
+                  </Button>
+                </Stack>
+              </Box>
+
+              {/* PDF drop / upload strip */}
+              <Box
+                component="button"
+                type="button"
+                onClick={() => { setPdfImportError(""); pdfInputRef.current?.click(); }}
+                sx={{
+                  mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                  gap: 1, bgcolor: "transparent", border: "1px dashed #CBD5E1",
+                  borderRadius: 1.5, py: 0.9, px: 1.5, cursor: "pointer",
+                  color: "#6B7280", transition: "all 0.15s",
+                  "&:hover": { bgcolor: "#EFF6FF", borderColor: "#083a6b", color: "#083a6b" },
+                }}
+              >
+                <UploadFileIcon sx={{ fontSize: 16 }} />
+                <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
+                  Drag &amp; drop a PDF here, or click to upload
+                </Typography>
+              </Box>
+
+              {pdfFilled && (
+                <Alert severity="success" onClose={() => setPdfFilled(false)} sx={{ mt: 1 }}>
+                  Fields filled from PDF — review the items above and click <strong>Add to quote</strong>.
+                </Alert>
+              )}
+              {pdfImportError && (
+                <Alert severity="error" onClose={() => setPdfImportError("")} sx={{ mt: 1 }}>
+                  {pdfImportError}
+                </Alert>
+              )}
             </Paper>
           ) : null}
         </Stack>
         <Divider sx={{ my: 1.5 }} />
-        <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.4 }}>
-          <Typography variant="body1" color="#4B5563">
-            Subtotal (ex VAT)
-          </Typography>
-          <Typography variant="body1" color="#111827" fontWeight={600}>
-            {formatMoney(pricing.subtotal)}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", py: 0.4 }}>
-          <Typography variant="body1" color="#4B5563">
-            VAT
-          </Typography>
-          <Typography variant="body1" color="#111827" fontWeight={600}>
-            {formatMoney(pricing.tax)}
-          </Typography>
-        </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.3 }}>
-          <Typography variant="h6" component="p" color="#111827" fontWeight={800} sx={{ fontSize: "1.2rem" }}>
-            Total (inc VAT)
-          </Typography>
-          <Typography variant="h6" component="p" color="#111827" fontWeight={800} sx={{ fontSize: "1.2rem" }}>
-            {formatMoney(pricing.total)}
-          </Typography>
+        {/* Pricing summary — right-anchored, label + amount in fixed columns */}
+        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5 }}>
+          {[
+            { label: "Subtotal (ex VAT)", value: formatMoney(pricing.subtotal), bold: false },
+            { label: "VAT",               value: formatMoney(pricing.tax),      bold: false },
+          ].map(({ label, value }) => (
+            <Box key={label} sx={{ display: "flex", gap: 3 }}>
+              <Typography variant="body2" color="#6B7280" sx={{ textAlign: "right" }}>
+                {label}
+              </Typography>
+              <Typography variant="body2" color="#111827" fontWeight={600} sx={{ minWidth: 72, textAlign: "right" }}>
+                {value}
+              </Typography>
+            </Box>
+          ))}
+          <Divider sx={{ width: "100%", my: 0.5 }} />
+          <Box sx={{ display: "flex", gap: 3 }}>
+            <Typography variant="body1" color="#111827" fontWeight={800}>
+              Total (inc VAT)
+            </Typography>
+            <Typography variant="body1" color="#111827" fontWeight={800} sx={{ minWidth: 72, textAlign: "right" }}>
+              {formatMoney(pricing.total)}
+            </Typography>
+          </Box>
         </Box>
 
         <Stack direction={{ xs: "column", sm: "row" }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 3 }}>
@@ -1396,11 +1955,11 @@ const QuoteGenerator = () => {
             variant="contained"
             size="large"
             onClick={handleOpenWaitlist}
-            disabled={usageChecking || sendingVerificationCode}
+            disabled={usageChecking || sendingVerificationCode || editLoading}
             startIcon={
               usageChecking || sendingVerificationCode
                 ? <CircularProgress size={18} color="inherit" />
-                : <FontAwesomeIcon icon={faPaperPlane} />
+                : <FontAwesomeIcon icon={editId ? undefined : faPaperPlane} />
             }
             sx={{
               minHeight: 48,
@@ -1410,14 +1969,19 @@ const QuoteGenerator = () => {
               width: { xs: "100%", sm: "auto" },
               minWidth: 0,
               maxWidth: { sm: 200 },
-              bgcolor: "#10A86B", 
+              bgcolor: editId ? "#083a6b" : "#10A86B",
               color: "#fff",
-              "&:hover": {
-                bgcolor: "#13C47A",
-              },
+              "&:hover": { bgcolor: editId ? "#062d52" : "#13C47A" },
             }}
           >
-            {usageChecking || sendingVerificationCode ? "Sending…" : "Send quote"}
+            {editId
+              ? usageChecking ? "Saving…" : "Save changes"
+              : auth.currentUser
+                ? usageChecking ? "Saving…" : "Create Quote"
+                : sendingVerificationCode ? "Sending code…"
+                : usageChecking ? "Checking…"
+                : "Create Quote"
+            }
           </Button>
         </Stack>
       </Paper>
@@ -1641,7 +2205,7 @@ const QuoteGenerator = () => {
         </DialogTitle>
         <DialogContent sx={{ pt: 0 }}>
           <Typography variant="body2" color="text.secondary">
-            Your quote has been generated as a PDF, click the button to download or share it. 
+            Your quote has been generated as a PDF create an account to share and track its progress. 
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, flexDirection: "column", alignItems: "stretch", gap: 1 }}>
@@ -1660,6 +2224,293 @@ const QuoteGenerator = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      {/* Create account step — shown after email verification */}
+      <Dialog
+        open={createAccountOpen}
+        onClose={() => { if (!createAccountLoading) { setCreateAccountOpen(false); setVerificationEmail(""); } }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            color: "#083a6b",
+            fontSize: "1.2rem",
+            py: 2,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          One last step
+          <IconButton
+            aria-label="Close"
+            size="small"
+            onClick={() => { if (!createAccountLoading) { setCreateAccountOpen(false); setVerificationEmail(""); } }}
+            disabled={createAccountLoading}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ ...quoteFormFieldDensitySx, pt: 0 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Create a password for{" "}
+            <Box component="span" sx={{ fontWeight: 700 }}>{verificationEmail}</Box>{" "}
+            to create an account, so you can track your quote's progress.
+          </Typography>
+          {createAccountError ? (
+            <Alert severity="error" sx={{ mb: 1.5 }}>
+              {createAccountError}
+            </Alert>
+          ) : null}
+          <TextField
+            label="Password"
+            type="password"
+            fullWidth
+            autoFocus
+            autoComplete="new-password"
+            value={createAccountPassword}
+            onChange={(e) => {
+              setCreateAccountPassword(e.target.value);
+              if (createAccountError) setCreateAccountError("");
+            }}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreateAccountAndSave(); }}
+            disabled={createAccountLoading}
+            inputProps={{ autoComplete: "new-password" }}
+          />
+          {createAccountPassword.length > 0 ? (() => {
+            const str = getPwdStrength(createAccountPassword);
+            return str ? (
+              <Box sx={{ mt: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={str.pct}
+                  sx={{
+                    height: 5,
+                    borderRadius: 3,
+                    bgcolor: "#E5E7EB",
+                    "& .MuiLinearProgress-bar": { bgcolor: str.color, borderRadius: 3 },
+                  }}
+                />
+                <Typography variant="caption" sx={{ color: str.color, fontWeight: 600, mt: 0.5, display: "block" }}>
+                  {str.label}
+                </Typography>
+              </Box>
+            ) : null;
+          })() : null}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2.5, pt: 0 }}>
+          <Button
+            variant="contained"
+            fullWidth
+            size="large"
+            onClick={handleCreateAccountAndSave}
+            disabled={createAccountLoading}
+            sx={{
+              fontSize: "1.0625rem",
+              fontWeight: 600,
+              bgcolor: "#083a6b",
+              "&:hover": { bgcolor: "#062d52" },
+            }}
+          >
+            {createAccountLoading ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <CircularProgress size={20} color="inherit" />
+                Creating account…
+              </Box>
+            ) : (
+              "Create account"
+            )}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Quote success — shown after account creation */}
+      <Dialog
+        open={quoteSuccessOpen}
+        onClose={handleCloseQuoteSuccess}
+        fullWidth
+        maxWidth="md"
+      >
+        <DialogTitle
+          sx={{
+            fontWeight: 700,
+            color: "#083a6b",
+            fontSize: "1.2rem",
+            py: 2,
+            display: "flex",
+            alignItems: "center",
+            pr: 6,
+          }}
+        >
+          <CheckCircleOutlineIcon sx={{ color: "#4CAF50", fontSize: "1.6rem", mr: 1.5 }} />
+          Quote is ready to share!
+          <IconButton
+            onClick={handleCloseQuoteSuccess}
+            size="small"
+            sx={{ position: "absolute", right: 12, top: 12, color: "#9CA3AF", "&:hover": { color: "#111827" } }}
+          >
+            <CloseIcon fontSize="small" />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          {/* PDF preview — scrollable */}
+          {savedPdfBlobUrl ? (
+            <Box
+              sx={{
+                width: "100%",
+                height: "60vh",
+                borderRadius: 1,
+                overflow: "hidden",
+                border: "1px solid #E5E7EB",
+              }}
+            >
+              <iframe
+                src={`${savedPdfBlobUrl}#navpanes=0&view=FitH`}
+                title="Quote preview"
+                style={{ width: "100%", height: "100%", border: "none" }}
+              />
+            </Box>
+          ) : null}
+        </DialogContent>
+
+        {/* Shareable link — sticky, always visible above buttons */}
+        <Box
+          sx={{
+            px: 3,
+            py: 1.5,
+            borderTop: "1px solid #E5E7EB",
+            bgcolor: "#fff",
+          }}
+        >
+          <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25, color: "#083a6b" }}>
+            Share this link with your customer
+          </Typography>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+            Copy and share the link below, or use one of the quick share options.
+          </Typography>
+
+          {/* Quick share buttons */}
+          {(() => {
+            const quoteUrl = savedQuoteId ? `${window.location.origin}/quote/${savedQuoteId}` : "";
+            const shareText = `Here is your quote: ${quoteUrl}`;
+            return (
+              <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
+                <Tooltip title="Share via WhatsApp" arrow>
+                  <IconButton
+                    component="a"
+                    href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      bgcolor: "#25D366",
+                      color: "#fff",
+                      borderRadius: 1.5,
+                      width: 40,
+                      height: 40,
+                      "&:hover": { bgcolor: "#1ebe5d" },
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faWhatsapp} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Share via Messenger" arrow>
+                  <IconButton
+                    component="a"
+                    href={`fb-messenger://share/?link=${encodeURIComponent(quoteUrl)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    sx={{
+                      bgcolor: "#0084FF",
+                      color: "#fff",
+                      borderRadius: 1.5,
+                      width: 40,
+                      height: 40,
+                      "&:hover": { bgcolor: "#006fd4" },
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faFacebookMessenger} />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Share via Email" arrow>
+                  <IconButton
+                    component="a"
+                    href={`mailto:?subject=${encodeURIComponent("Your quote is ready")}&body=${encodeURIComponent(shareText)}`}
+                    sx={{
+                      bgcolor: "#EA4335",
+                      color: "#fff",
+                      borderRadius: 1.5,
+                      width: 40,
+                      height: 40,
+                      "&:hover": { bgcolor: "#c9342a" },
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faEnvelope} />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            );
+          })()}
+
+          {/* Copy link */}
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+            <TextField
+              fullWidth
+              size="small"
+              value={savedQuoteId ? `${window.location.origin}/quote/${savedQuoteId}` : ""}
+              InputProps={{ readOnly: true, sx: { fontSize: "0.875rem", bgcolor: "#F8FAFC" } }}
+            />
+            <Button
+              onClick={handleCopyShareLink}
+              variant="outlined"
+              size="small"
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                flexShrink: 0,
+                borderColor: copiedLink ? "success.main" : "divider",
+                color: copiedLink ? "success.main" : "text.secondary",
+                "&:hover": { borderColor: copiedLink ? "success.main" : "#083a6b", color: copiedLink ? "success.main" : "#083a6b" },
+              }}
+            >
+              {copiedLink ? "Copied!" : "Copy link"}
+            </Button>
+          </Box>
+        </Box>
+
+        {/* Dashboard CTA */}
+        <Box sx={{ px: 3, pb: 2.5, pt: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, borderTop: "1px solid #E5E7EB" }}>
+          <Typography variant="body2" color="text.secondary" sx={{ flex: 1, fontWeight: 700 }}>
+            Go to your quotes to monitor when your customer accepts or declines.
+          </Typography>
+     
+          <Button
+            variant="contained"
+            size="medium"
+            onClick={() => { handleCloseQuoteSuccess(); navigate("/secured/quotes"); }}
+            sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
+          >
+            Go to my quotes →
+          </Button>
+        </Box>
+
+      </Dialog>
+
+      {/* ── Subscription / paywall dialog ── */}
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        onSuccess={async () => {
+          const user = auth.currentUser;
+          if (user) {
+            const { doc: fsDoc, setDoc: fsSetDoc, serverTimestamp: fsST } = await import('firebase/firestore');
+            await fsSetDoc(fsDoc(db, 'users', user.uid), { plan: 'premium', updatedAt: fsST() }, { merge: true });
+          }
+        }}
+        successCta="Start creating quotes"
+      />
+
     </Box>
   );
 };

@@ -286,6 +286,244 @@ exports.sendQuoteVerificationCode = onCall(
   },
 );
 
+/**
+ * Checks whether an email address is already registered to a *different* user.
+ * Requires the caller to be authenticated.
+ *
+ * Request data: { email: string }
+ * Response:     { claimed: boolean }
+ *
+ * Uses the Admin SDK so it bypasses client-side email enumeration protection
+ * and Firestore security rules that restrict cross-user reads.
+ */
+/**
+ * Deletes all Firestore data belonging to the calling user then deletes their
+ * Firebase Auth account.  Using the Admin SDK guarantees the deletes succeed
+ * regardless of client-side security rules, and runs the whole operation
+ * server-side so a flaky client can't leave orphaned documents behind.
+ *
+ * Collections cleaned up:
+ *   users/{uid}
+ *   quote_counters/{uid}
+ *   quote_usage/{email}
+ *   quotes  — all documents where userId == uid (batched)
+ */
+/**
+ * Allows a customer (unauthenticated) to accept or decline a quote and
+ * optionally leave a comment.  Runs with the Admin SDK so it bypasses the
+ * Firestore security rule that restricts updates to the quote owner only.
+ *
+ * Safeguards:
+ *   - Quote must exist and not be deleted.
+ *   - Quote must still be in "pending" status (prevents double-response).
+ *   - status must be "accepted" or "declined".
+ *   - comment is optional, trimmed, and capped at 1000 characters.
+ */
+async function sendQuoteResponseNotification({ to, businessName, customerName, quoteNumber, status, comment, quoteUrl }) {
+  const host = smtpHost.value();
+  const port = Number.parseInt(String(smtpPort.value() || "587"), 10);
+  const user = smtpUser.value();
+  const pass = smtpPass.value();
+  const from = smtpFrom.value();
+  if (!host || !Number.isFinite(port) || !user || !pass || !from) {
+    console.warn("SMTP secrets not configured — skipping quote response notification.");
+    return;
+  }
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const statusWord = status === "accepted" ? "accepted" : "declined";
+  const statusColor = status === "accepted" ? "#22C55E" : "#EF4444";
+  const subject = `${customerName ?? "Your customer"} has ${statusWord} your quote`;
+
+  const commentHtml = comment
+    ? `<p style="margin:16px 0 0"><strong>Customer comment:</strong></p>
+       <p style="margin:4px 0 0;font-style:italic;color:#555">"${comment}"</p>`
+    : "";
+
+  const commentText = comment ? `\n\nCustomer comment:\n"${comment}"` : "";
+
+  await transporter.sendMail({
+    from,
+    to,
+    subject,
+    text: `Hi${businessName ? ` ${businessName}` : ""},\n\n${customerName ?? "Your customer"} has ${statusWord} quote QU-${quoteNumber}.${commentText}\n\nView the quote: ${quoteUrl}`,
+    html: `<p>Hi${businessName ? ` <strong>${businessName}</strong>` : ""},</p>
+<p><strong>${customerName ?? "Your customer"}</strong> has <strong style="color:${statusColor}">${statusWord}</strong> quote <strong>QU-${quoteNumber}</strong>.</p>
+${commentHtml}
+<p style="margin-top:20px"><a href="${quoteUrl}" style="background:${statusColor};color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;font-weight:600">View quote</a></p>`,
+  });
+}
+
+exports.submitQuoteResponse = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
+  },
+  async (request) => {
+    const quoteId = String(request.data?.quoteId ?? "").trim();
+    const status  = String(request.data?.status  ?? "").trim();
+    const comment = String(request.data?.comment ?? "").trim().slice(0, 1000);
+
+    if (!quoteId) {
+      throw new HttpsError("invalid-argument", "quoteId is required.");
+    }
+    if (status !== "accepted" && status !== "declined") {
+      throw new HttpsError("invalid-argument", "status must be 'accepted' or 'declined'.");
+    }
+
+    const db  = admin.firestore();
+    const ref = db.collection("quotes").doc(quoteId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Quote not found.");
+    }
+    const data = snap.data() || {};
+    if (data.deleted) {
+      throw new HttpsError("not-found", "Quote has been deleted.");
+    }
+    if (data.status !== "pending") {
+      throw new HttpsError("failed-precondition", "This quote has already been responded to.");
+    }
+
+    await ref.update({
+      status,
+      comment: comment || null,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // Send email notification to the business owner (non-fatal if it fails).
+    const businessEmail = data.businessEmail ?? "";
+    if (businessEmail) {
+      const quoteUrl = `https://sendquote.app/quote/${quoteId}`;
+      sendQuoteResponseNotification({
+        to: businessEmail,
+        businessName: data.businessName ?? "",
+        customerName: data.customerName ?? "Your customer",
+        quoteNumber:  data.quoteNumber  ?? quoteId.slice(0, 6),
+        status,
+        comment,
+        quoteUrl,
+      }).catch((e) => console.error("Failed to send quote response notification", e));
+    }
+
+    return { ok: true };
+  },
+);
+
+exports.deleteUserData = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+
+    const uid   = request.auth.uid;
+    const db    = admin.firestore();
+    const auth  = admin.auth();
+
+    // Fetch the user record so we have the email for quote_usage cleanup.
+    let email = "";
+    try {
+      const userRecord = await auth.getUser(uid);
+      email = (userRecord.email ?? "").trim().toLowerCase();
+    } catch (e) {
+      // Non-fatal — continue without email-keyed deletions.
+      console.warn("deleteUserData: could not fetch user record", e);
+    }
+
+    // Delete all quotes in batches of 500.
+    const BATCH_LIMIT = 500;
+    const quotesSnap = await db.collection("quotes").where("userId", "==", uid).get();
+    for (let i = 0; i < quotesSnap.docs.length; i += BATCH_LIMIT) {
+      const batch = db.batch();
+      quotesSnap.docs.slice(i, i + BATCH_LIMIT).forEach((d) => batch.delete(d.ref));
+      await batch.commit();
+    }
+
+    // Delete remaining per-user documents.
+    const toDelete = [
+      db.collection("users").doc(uid),
+      db.collection("quote_counters").doc(uid),
+    ];
+    if (email) toDelete.push(db.collection("quote_usage").doc(email));
+
+    await Promise.all(toDelete.map((ref) => ref.delete()));
+
+    // Finally remove the Auth account itself.
+    await auth.deleteUser(uid);
+
+    return { ok: true };
+  },
+);
+
+exports.checkEmailAvailability = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+
+    const currentUid = request.auth.uid;
+    const email = String(request.data?.email || "").trim().toLowerCase();
+    if (!validateEmailAddress(email)) {
+      throw new HttpsError("invalid-argument", "A valid email is required.");
+    }
+
+    const db = admin.firestore();
+
+    // 1. Firebase Auth — direct lookup; immune to enumeration-protection.
+    try {
+      const userRecord = await admin.auth().getUserByEmail(email);
+      if (userRecord.uid !== currentUid) {
+        return { claimed: true };
+      }
+      // Email belongs to the calling user — not a conflict.
+      return { claimed: false };
+    } catch (e) {
+      if (e.code !== "auth/user-not-found") {
+        // Unexpected error — fail safe (let the save proceed; Firebase will
+        // surface a duplicate error at the verifyBeforeUpdateEmail step).
+        console.error("checkEmailAvailability auth lookup failed", e);
+        return { claimed: false };
+      }
+      // auth/user-not-found → no Auth account with this email; still check Firestore.
+    }
+
+    // 2. Firestore — catch orphaned profile docs not yet cleaned up in Auth.
+    try {
+      const [snapBiz, snapLogin] = await Promise.all([
+        db.collection("users").where("businessEmail", "==", email).limit(1).get(),
+        db.collection("users").where("loginEmail",    "==", email).limit(1).get(),
+      ]);
+      const ids = new Set();
+      snapBiz.forEach((d)  => ids.add(d.id));
+      snapLogin.forEach((d) => ids.add(d.id));
+      const claimed = [...ids].some((id) => id !== currentUid);
+      return { claimed };
+    } catch (e) {
+      console.error("checkEmailAvailability firestore lookup failed", e);
+      return { claimed: false };
+    }
+  },
+);
+
 exports.verifyQuoteVerificationCode = onCall(
   {
     region: "us-central1",
@@ -339,5 +577,115 @@ exports.verifyQuoteVerificationCode = onCall(
     );
 
     return { ok: true };
+  },
+);
+
+/**
+ * Extract quote data from a PDF using Claude.
+ * Accepts a base64-encoded PDF and returns structured JSON.
+ */
+exports.extractQuoteFromPdf = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "512MiB",
+    secrets: [anthropicApiKey],
+  },
+  async (request) => {
+    const { pdfBase64 } = request.data ?? {};
+
+    if (!pdfBase64 || typeof pdfBase64 !== "string") {
+      throw new HttpsError("invalid-argument", "pdfBase64 is required.");
+    }
+
+    // Rough size guard: base64 of a 10 MB PDF ~= 13.3 MB string
+    if (pdfBase64.length > 14_000_000) {
+      throw new HttpsError("invalid-argument", "PDF is too large. Please use a file under 10 MB.");
+    }
+
+    const client = new Anthropic({ apiKey: anthropicApiKey.value() });
+
+    const systemPrompt = `You are a data extraction assistant. Extract quote/invoice information from the provided PDF and return ONLY a raw JSON object. Do not include markdown, code fences, backticks, or any explanation — just the JSON object starting with { and ending with }.
+
+Return this exact shape (use null for any field you cannot find):
+{
+  "businessName": string | null,
+  "businessEmail": string | null,
+  "customerName": string | null,
+  "customerEmail": string | null,
+  "currency": "GBP" | "USD" | "EUR" | "AUD" | "CAD" | null,
+  "lineItems": [
+    {
+      "description": string,
+      "quantity": number,
+      "unitPrice": number,
+      "vatRate": number
+    }
+  ]
+}
+
+Rules:
+- lineItems must always be an array (empty array if none found)
+- quantity defaults to 1 if not specified
+- vatRate should be a percentage integer (e.g. 20 for 20%), default 20 if VAT is mentioned but rate unclear, 0 if no VAT
+- unitPrice should be the per-unit price (not the line total)
+- currency: infer from symbols (£=GBP, $=USD, €=EUR) or explicit labels
+- Return null currency if ambiguous`;
+
+    const response = await client.messages.create({
+      model: MODEL,
+      max_tokens: 1024,
+      system: systemPrompt,
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "document",
+              source: {
+                type: "base64",
+                media_type: "application/pdf",
+                data: pdfBase64,
+              },
+            },
+            {
+              type: "text",
+              text: "Extract the quote/invoice data from this PDF and return the JSON.",
+            },
+          ],
+        },
+      ],
+    });
+
+    const raw = response.content?.[0]?.text ?? "";
+
+    // Strip markdown code fences if Claude wrapped the JSON (e.g. ```json ... ```)
+    const cleaned = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```\s*$/i, "")
+      .trim();
+
+    // Extract the first {...} block in case Claude added surrounding commentary
+    const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+    const jsonStr = jsonMatch ? jsonMatch[0] : cleaned;
+
+    let parsed;
+    try {
+      parsed = JSON.parse(jsonStr);
+    } catch {
+      console.error("Claude raw output:", raw);
+      throw new HttpsError("internal", "Claude returned non-JSON output. Please try again.");
+    }
+
+    // Sanitise line items
+    if (!Array.isArray(parsed.lineItems)) parsed.lineItems = [];
+    parsed.lineItems = parsed.lineItems.map((item) => ({
+      description: String(item.description ?? ""),
+      quantity:    Number(item.quantity)  || 1,
+      unitPrice:   Number(item.unitPrice) || 0,
+      vatRate:     Number(item.vatRate)   ?? 20,
+    }));
+
+    return { ok: true, data: parsed };
   },
 );
