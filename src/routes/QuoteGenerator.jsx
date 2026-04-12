@@ -125,7 +125,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const QuoteGenerator = () => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { quoteData, updateQuoteData, resetQuoteData } = useQuote();
+  const { quoteData, updateQuoteData: _updateQuoteData, resetQuoteData } = useQuote();
+  const updateQuoteData = (...args) => {
+    if (editId) setEditNoChangesError(false);
+    _updateQuoteData(...args);
+  };
   // Derive editId early so state initialisers can reference it.
   const editId = location.state?.editId ?? null;
   const [formErrors, setFormErrors] = useState({});
@@ -164,6 +168,17 @@ const QuoteGenerator = () => {
   // Edit mode state
   const [editQuoteStatus, setEditQuoteStatus] = useState(null); // "pending"|"accepted"|"declined"
   const [editLoading, setEditLoading]         = useState(!!editId);
+  const [editNoChangesError, setEditNoChangesError] = useState(false);
+  const [editNoChangesFlash, setEditNoChangesFlash] = useState(0);
+  const editNoChangesRef = useRef(null);
+  useEffect(() => {
+    if (!editNoChangesFlash || !editNoChangesRef.current) return;
+    const el = editNoChangesRef.current;
+    const TOP_OFFSET = 80;
+    const rect = el.getBoundingClientRect();
+    window.scrollTo({ top: Math.max(0, window.scrollY + rect.top - TOP_OFFSET), behavior: "smooth" });
+  }, [editNoChangesFlash]);
+  const editOriginalSnapshot = useRef(null); // JSON snapshot of data as loaded
 
   // PDF import state
   const pdfInputRef = useRef(null);
@@ -379,8 +394,7 @@ const QuoteGenerator = () => {
         if (cancelled || !snap.exists()) return;
         const d = snap.data();
         setEditQuoteStatus(d.status ?? "pending");
-        updateQuoteData({
-          quoteNumber:     d.quoteNumber     ?? "",
+        const loaded = {
           quoteDate:       d.quoteDate       ?? isoToday(),
           businessName:    d.businessName    ?? "",
           businessEmail:   d.businessEmail   ?? "",
@@ -388,7 +402,19 @@ const QuoteGenerator = () => {
           customerName:    d.customerName    ?? "",
           email:           d.customerEmail   ?? "",
           currency:        d.currency        ?? "GBP",
-          lineItems:       d.lineItems       ?? [],
+          lineItems:       JSON.stringify(d.lineItems ?? []),
+        };
+        editOriginalSnapshot.current = loaded;
+        updateQuoteData({
+          quoteNumber:     d.quoteNumber     ?? "",
+          quoteDate:       loaded.quoteDate,
+          businessName:    loaded.businessName,
+          businessEmail:   loaded.businessEmail,
+          businessAddress: loaded.businessAddress,
+          customerName:    loaded.customerName,
+          email:           loaded.email,
+          currency:        loaded.currency,
+          lineItems:       d.lineItems ?? [],
         });
       })
       .catch((e) => console.error("Failed to load quote for edit", e))
@@ -967,6 +993,27 @@ const QuoteGenerator = () => {
 
         // ── Edit mode: update existing quote, no quota check ──
         if (editId) {
+          const snap = editOriginalSnapshot.current;
+          if (snap) {
+            const current = {
+              quoteDate:       quoteData.quoteDate       ?? "",
+              businessName:    quoteData.businessName    ?? "",
+              businessEmail:   quoteData.businessEmail   ?? "",
+              businessAddress: quoteData.businessAddress ?? "",
+              customerName:    quoteData.customerName    ?? "",
+              email:           quoteData.email           ?? "",
+              currency:        quoteData.currency        ?? "GBP",
+              lineItems:       JSON.stringify(lineItems  ?? []),
+            };
+            const unchanged = Object.keys(snap).every((k) => snap[k] === current[k]);
+            if (unchanged) {
+              setEditNoChangesError(true);
+              setEditNoChangesFlash((n) => n + 1);
+              setUsageChecking(false);
+              return;
+            }
+          }
+          setEditNoChangesError(false);
           await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing });
           resetQuoteData();
           navigate(`/quote/${editId}`);
@@ -1197,6 +1244,12 @@ const QuoteGenerator = () => {
             ? <>You are editing an existing quote. Saving changes will <strong>reset the status to pending</strong> so the customer can review it again.</>
             : <>This quote has been <strong>{editQuoteStatus}</strong> by the customer. You can still edit and save changes, but the <strong>customer will need to review it again</strong>.</>
           }
+        </Alert>
+      )}
+
+      {editId && editNoChangesError && (
+        <Alert ref={editNoChangesRef} severity="error" sx={{ mb: 2 }} onClose={() => setEditNoChangesError(false)}>
+          Nothing to save — the quote hasn't been changed yet.
         </Alert>
       )}
 

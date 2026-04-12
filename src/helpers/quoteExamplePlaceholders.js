@@ -64,15 +64,25 @@ export const QUOTE_EXAMPLE_CATEGORIES = [
 
 export const QUOTE_EXAMPLES_GROUP_SIZE = 3;
 
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
 export function buildExamplePlaceholderSequence(
   categories = QUOTE_EXAMPLE_CATEGORIES,
   groupSize = QUOTE_EXAMPLES_GROUP_SIZE,
 ) {
   const sequence = [];
   for (const cat of categories) {
-    for (let i = 0; i < cat.length; i += groupSize) {
-      sequence.push(cat.slice(i, i + groupSize).join("\n"));
+    const items = shuffle(cat);
+    for (let i = 0; i < items.length; i += groupSize) {
+      sequence.push(items.slice(i, i + groupSize).join("\n"));
     }
   }
-  return sequence;
+  return shuffle(sequence);
 }
