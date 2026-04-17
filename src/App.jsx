@@ -25,6 +25,7 @@ import Pricing from "./routes/Pricing";
 import QuoteView from "./routes/QuoteView";
 import Privacy from "./routes/Privacy";
 import Terms from "./routes/Terms";
+import NotFound from "./routes/NotFound";
 
 // Kick off the EU VAT rate fetch as early as possible; result is cached in
 // memory and used by getDefaultVatPercent() throughout the app.
@@ -69,6 +70,7 @@ const router = createBrowserRouter([
       { path: "secured/settings", element: <Settings /> },
       { path: "secured/billing", element: <Billing /> },
       { path: "secured/support", element: <Support /> },
+      { path: "*", element: <NotFound /> },
     ],
   },
 ]);

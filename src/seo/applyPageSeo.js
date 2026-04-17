@@ -113,10 +113,23 @@ const ORG_JSON_LD = {
   ],
 };
 
+/** Matches routes defined under Layout for /secured/* (see App.jsx). */
+const KNOWN_SECURED_PATH =
+  /^\/secured\/(dashboard|quotes|quote(?:\/[^/]+)?|quoteReview|settings|billing|support)$/;
+
 export function resolveSeoForPath(pathname) {
   const path = pathname || "/";
 
   if (path.startsWith("/secured")) {
+    if (!KNOWN_SECURED_PATH.test(path)) {
+      return {
+        title: `Page not found — ${SITE_NAME}`,
+        description: "This page does not exist.",
+        path,
+        noindex: true,
+        jsonLd: null,
+      };
+    }
     return {
       title: `${SITE_NAME} — Account`,
       description: "Manage your SendQuote account, quotes, billing, and settings.",
@@ -213,10 +226,10 @@ export function resolveSeoForPath(pathname) {
       };
     default:
       return {
-        title: SITE_NAME,
-        description: DEFAULT_DESCRIPTION,
+        title: `Page not found — ${SITE_NAME}`,
+        description: "The page you are looking for does not exist.",
         path,
-        noindex: false,
+        noindex: true,
         jsonLd: null,
       };
   }

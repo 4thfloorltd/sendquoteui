@@ -172,10 +172,10 @@ export default function Billing() {
               {openQuoteCount}
             </Box>
             {isPremium ? (
-              <> open quotes &mdash; <Box component="span" sx={{ color: "#10A86B", fontWeight: 700 }}>unlimited</Box></>
+              <> quotes &mdash; <Box component="span" sx={{ color: "#10A86B", fontWeight: 700 }}>unlimited</Box></>
             ) : (
               <>
-                {" "}of <Box component="span" sx={{ fontWeight: 700 }}>{FREE_QUOTA}</Box> open quotes used
+                {" "}of <Box component="span" sx={{ fontWeight: 700 }}>{FREE_QUOTA}</Box> quotes used
                 {openQuoteCount >= FREE_QUOTA && (
                   <Box component="span" sx={{ color: "#EF4444", fontWeight: 600 }}> - limit reached</Box>
                 )}

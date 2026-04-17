@@ -53,7 +53,7 @@ export default function PricingPlanComparison({
         </Typography>
         <Divider sx={{ mb: 2.5 }} />
 
-        <PlanFeature text={`Up to ${FREE_QUOTE_LIMIT} open quotes at a time`} />
+        <PlanFeature text={`Up to ${FREE_QUOTE_LIMIT} quotes at a time`} />
         <PlanFeature text="Customer accept / decline tracking" />
         <PlanFeature text="PDF download for every quote" />
         <PlanFeature text="Delete quotes to free up space" />
@@ -78,7 +78,7 @@ export default function PricingPlanComparison({
         </Typography>
         <Divider sx={{ mb: 2.5 }} />
 
-        <PlanFeature text="Unlimited open quotes" />
+        <PlanFeature text="Unlimited quotes" />
         <PlanFeature text="Customer accept / decline tracking" />
         <PlanFeature text="PDF download for every quote" />
         <PlanFeature text="Edit sent quotes" />

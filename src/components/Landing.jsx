@@ -736,7 +736,7 @@ const Landing = () => {
               q: "How do I get started?",
               a: (
                 <>
-                  Click the <strong>Start your quote</strong> button below to get started. Sending your first quote takes just minutes.
+                  Click the <strong>Start your quote</strong> button below to get started. Sending your first quote takes seconds.
              
              
                 </>

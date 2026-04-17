@@ -231,6 +231,8 @@ const QuoteView = () => {
   };
 
   const formatMoney = createFormatMoney(quote.currency);
+  const pricing = quote.pricing ?? { subtotal: 0, tax: 0, total: 0 };
+  const vatRegistered = quote.vatRegistered ?? true;
   const isMobile = isMobileDevice();
 
   const effectiveStatus = submitted ? decision : quote.status;
@@ -374,6 +376,31 @@ const QuoteView = () => {
                     </Typography>
                   </Box>
                 ))}
+
+                <Box sx={{ mt: 1.5, pt: 1.5 }}>
+                  {vatRegistered ? (
+                    <>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", py: 0.5 }}>
+                        <Typography variant="body2" color="text.secondary">Subtotal (ex VAT)</Typography>
+                        <Typography variant="body2" fontWeight={600}>{formatMoney(pricing.subtotal)}</Typography>
+                      </Box>
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", py: 0.5 }}>
+                        <Typography variant="body2" color="text.secondary">VAT</Typography>
+                        <Typography variant="body2" fontWeight={600}>{formatMoney(pricing.tax)}</Typography>
+                      </Box>
+                      <Divider sx={{ my: 1 }} />
+                      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", pt: 0.25 }}>
+                        <Typography variant="body2" fontWeight={700} color="#083a6b">Total (inc VAT)</Typography>
+                        <Typography variant="body1" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Typography>
+                      </Box>
+                    </>
+                  ) : (
+                    <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+                      <Typography variant="body2" fontWeight={700} color="#083a6b">Total</Typography>
+                      <Typography variant="body1" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Typography>
+                    </Box>
+                  )}
+                </Box>
 
                 {pdfBlobUrl && (
                   <Button
