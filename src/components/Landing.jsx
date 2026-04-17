@@ -402,7 +402,7 @@ const Landing = () => {
                     sx={{
                       color: "#fff",
                       backgroundColor: "#083a6b",
-                      borderRadius: "25px",
+                      borderRadius: "10px",
                       height: 48,
                       px: 3,
                       display: "flex",
@@ -674,6 +674,7 @@ const Landing = () => {
                 fontWeight: 700,
                 borderColor: "#083a6b",
                 color: "#083a6b",
+                borderRadius: "10px", // More square, but still lightly rounded
                 "&:hover": { borderColor: "#062d52", bgcolor: "rgba(8,58,107,0.04)" },
               }}
             >
@@ -694,6 +695,7 @@ const Landing = () => {
                   fontWeight: 700,
                   fontSize: "1rem",
                   bgcolor: "#083a6b",
+                  borderRadius: "10px", 
                   "&:hover": { bgcolor: "#062d52" },
                 }}
               >
