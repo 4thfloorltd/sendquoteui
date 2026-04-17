@@ -56,7 +56,6 @@ export default function PricingPlanComparison({
         <PlanFeature text="Delete quotes to free up space" />
         <PlanFeatureMissing text="Edit sent quotes" />
         <PlanFeatureMissing text="PDF import to pre-fill quotes" />
-        <PlanFeatureMissing text="Ad-free experience" />
         <Box sx={{ flex: 1 }} />
         {freeFooter}
       </Paper>
@@ -81,7 +80,6 @@ export default function PricingPlanComparison({
         <PlanFeature text="PDF download for every quote" />
         <PlanFeature text="Edit sent quotes" />
         <PlanFeature text="PDF import to pre-fill quotes" />
-        <PlanFeature text="Ad-free experience" />
         <PlanFeature text="Priority support" />
         <Box sx={{ flex: 1 }} />
         {premiumFooter}

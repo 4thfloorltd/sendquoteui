@@ -32,7 +32,6 @@ const FEATURES = [
   "Edit sent quotes",
   "Search by name, email or quote ID",
   "PDF import to pre-fill quotes",
-  "Ad-free experience",
   "Priority support",
 ];
 
