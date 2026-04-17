@@ -4,16 +4,17 @@ import AddIcon from "@mui/icons-material/Add";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
-import UpArrowIcon from "@mui/icons-material/ArrowUpward";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faFileLines, faPaperPlane, faShare, faDownload, faEnvelope } from "@fortawesome/free-solid-svg-icons";
-import { faWhatsapp, faFacebookMessenger } from "@fortawesome/free-brands-svg-icons";
+import { faPaperPlane, faShare, faDownload } from "@fortawesome/free-solid-svg-icons";
 import {
   Alert,
   Autocomplete,
   Box,
   Button,
+  Chip,
   CircularProgress,
   Dialog,
   DialogActions,
@@ -35,7 +36,7 @@ import {
 } from "@mui/material";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import { collection, addDoc, doc, getDoc, getDocs, setDoc, increment, query, where, serverTimestamp } from "firebase/firestore";
-import { createUserWithEmailAndPassword, onAuthStateChanged } from "firebase/auth";
+import { createUserWithEmailAndPassword, onAuthStateChanged, signInWithEmailAndPassword } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import ReCAPTCHA from "react-google-recaptcha";
 import { useLocation, Link, useNavigate } from "react-router-dom";
@@ -60,6 +61,8 @@ import { useAddressAutocomplete } from "../hooks/useAddressAutocomplete";
 import { AiPromptField } from "../components/AiPromptField";
 import { QuoteLineItemRow } from "../components/QuoteLineItemRow";
 import { buildQuotePdfDocument, getQuotePdfFilename } from "../utils/buildQuotePdfDocument";
+import { formatDateLong } from "../utils/quoteDisplay";
+import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 import { lineNet, lineVatAmount } from "../utils/quoteLineCalculations";
 import { parseQuoteLinesWithAi } from "../api/parseQuoteLines";
 import {
@@ -69,16 +72,6 @@ import {
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
 import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
-
-const formatDateLong = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-};
 
 const currencyMenuRow = (opt) => (
   <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "1.0625rem" }}>
@@ -150,6 +143,8 @@ const QuoteGenerator = () => {
   const [createAccountPassword, setCreateAccountPassword] = useState("");
   const [createAccountLoading, setCreateAccountLoading] = useState(false);
   const [createAccountError, setCreateAccountError] = useState("");
+  // When the email already has an account, switch the dialog to login mode.
+  const [createAccountIsLoginMode, setCreateAccountIsLoginMode] = useState(false);
   // Quote success (after account creation)
   const [quoteSuccessOpen, setQuoteSuccessOpen] = useState(false);
   const [savedQuoteId, setSavedQuoteId] = useState(null);
@@ -187,6 +182,9 @@ const QuoteGenerator = () => {
   const [pdfImportError, setPdfImportError]   = useState("");
   const [pdfFilled, setPdfFilled]             = useState(false); // banner shown after import
   const [isDraggingPdf, setIsDraggingPdf]     = useState(false);
+
+  const [isPremium, setIsPremium] = useState(false);
+  const [isVatRegistered, setIsVatRegistered] = useState(true);
   const {
     options: addressOptions,
     loading: addressLoading,
@@ -250,10 +248,10 @@ const QuoteGenerator = () => {
   }, [isFormDirty, editId]);
 
   const isSecuredQuote = location.pathname.startsWith("/secured/quote");
-  const backPath = editId ? `/quote/${editId}` : isSecuredQuote ? "/secured/quotes" : "/";
+  const backPath = editId ? `/secured/quote/${editId}` : isSecuredQuote ? "/secured/quotes" : "/";
   const backLabel = editId
-    ? `← Back to QU-${quoteData.quoteNumber ?? "…"}`
-    : isSecuredQuote ? "← Back to quotes" : "← Back to homepage";
+    ? `Back to QU-${quoteData.quoteNumber ?? "…"}`
+    : isSecuredQuote ? "Back to quotes" : "Back to homepage";
 
   businessEmailLatestRef.current = quoteData.businessEmail ?? "";
 
@@ -310,13 +308,20 @@ const QuoteGenerator = () => {
   }, [quoteData.businessEmail, isSecuredQuote]);
 
   useEffect(() => {
-    if (!auth.currentUser) return;
+    if (!auth.currentUser) {
+      // Public path — default to QU-0001 since there's no account sequence to peek.
+      if (!editId) updateQuoteData({ quoteNumber: "0001" });
+      return;
+    }
     const uid = auth.currentUser.uid;
 
-    // Load business profile
+    // Load business profile and plan
     getDoc(doc(db, "users", uid)).then((snap) => {
-      if (snap.exists() && snap.data()?.profileComplete) {
-        const p = snap.data();
+      if (!snap.exists()) return;
+      const p = snap.data();
+      setIsPremium(p?.plan === "premium");
+      setIsVatRegistered(p?.vatRegistered ?? true);
+      if (p?.profileComplete) {
         setBusinessProfile(p);
         updateQuoteData({
           businessName:    p.businessName    ?? "",
@@ -478,13 +483,13 @@ const QuoteGenerator = () => {
     let vatTotal = 0;
     for (const row of lineItems) {
       netSubtotal += lineNet(row);
-      vatTotal += lineVatAmount(row);
+      if (isVatRegistered) vatTotal += lineVatAmount(row);
     }
     const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100;
     const tax = round2(vatTotal);
     const subtotal = round2(netSubtotal);
     return { subtotal, tax, total: round2(subtotal + tax) };
-  }, [lineItems]);
+  }, [lineItems, isVatRegistered]);
 
   const allowedCurrencyCodes = useMemo(
     () => new Set(CURRENCY_OPTIONS.map((o) => o.code)),
@@ -554,7 +559,7 @@ const QuoteGenerator = () => {
           description: "",
           unitPrice: 0,
           quantity: 1,
-          vatPercent: getDefaultVatPercent(),
+          vatPercent: isVatRegistered ? getDefaultVatPercent() : 0,
         },
       ],
     });
@@ -792,6 +797,7 @@ const QuoteGenerator = () => {
   const openCreateAccountStep = (email) => {
     setCreateAccountPassword("");
     setCreateAccountError("");
+    setCreateAccountIsLoginMode(false);
     if (email) setVerificationEmail(email);
     setCreateAccountOpen(true);
   };
@@ -823,27 +829,62 @@ const QuoteGenerator = () => {
         lineItems,
         pricing,
         userId: user.uid,
+        vatRegistered: isVatRegistered,
       });
       // Record usage — fire-and-forget so a rules denial never blocks the user.
       setDoc(doc(db, "quote_usage", email), { count: increment(1) }, { merge: true })
         .catch((e) => console.warn("Usage tracking failed (non-critical):", e));
-      // Build PDF blob URL for preview
-      const pdfDoc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong });
-      const blob = pdfDoc.output("blob");
-      const blobUrl = URL.createObjectURL(blob);
       setSavedQuoteId(quoteId);
-      setSavedPdfBlobUrl(blobUrl);
       setCreateAccountOpen(false);
       setVerificationEmail("");
       setQuoteSuccessOpen(true);
     } catch (err) {
       console.error("Account creation failed", err);
       if (err?.code === "auth/email-already-in-use") {
-        setCreateAccountError(
-          "An account with this email already exists. Please log in to send your quote.",
-        );
+        // Switch to login mode so the user can sign in and save immediately.
+        setCreateAccountPassword("");
+        setCreateAccountError("");
+        setCreateAccountIsLoginMode(true);
       } else if (err?.code === "auth/weak-password") {
         setCreateAccountError("Password must be at least 6 characters.");
+      } else {
+        setCreateAccountError("Something went wrong. Please try again.");
+      }
+    } finally {
+      setCreateAccountLoading(false);
+    }
+  };
+
+  const handleLoginAndSave = async () => {
+    if (!createAccountPassword) {
+      setCreateAccountError("Please enter your password.");
+      return;
+    }
+    const email = verificationEmail || String(quoteData.businessEmail ?? "").trim().toLowerCase();
+    setCreateAccountLoading(true);
+    setCreateAccountError("");
+    try {
+      const { user } = await signInWithEmailAndPassword(auth, email, createAccountPassword);
+      const quoteId = await saveQuoteToFirestore({
+        quoteData,
+        lineItems,
+        pricing,
+        userId: user.uid,
+        vatRegistered: isVatRegistered,
+      });
+      setDoc(doc(db, "quote_usage", email), { count: increment(1) }, { merge: true })
+        .catch((e) => console.warn("Usage tracking failed (non-critical):", e));
+      setSavedQuoteId(quoteId);
+      setCreateAccountOpen(false);
+      setCreateAccountIsLoginMode(false);
+      setVerificationEmail("");
+      setQuoteSuccessOpen(true);
+    } catch (err) {
+      console.error("Login and save failed", err);
+      if (err?.code === "auth/wrong-password" || err?.code === "auth/invalid-credential") {
+        setCreateAccountError("Incorrect password. Please try again.");
+      } else if (err?.code === "auth/too-many-requests") {
+        setCreateAccountError("Too many attempts. Please try again later.");
       } else {
         setCreateAccountError("Something went wrong. Please try again.");
       }
@@ -921,6 +962,11 @@ const QuoteGenerator = () => {
     } finally {
       setPdfImporting(false);
     }
+  };
+
+  const handleDownloadSuccessPdf = () => {
+    const doc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong, vatRegistered: isVatRegistered });
+    doc.save(getQuotePdfFilename(quoteData));
   };
 
   const handleCloseQuoteSuccess = () => {
@@ -1014,35 +1060,34 @@ const QuoteGenerator = () => {
             }
           }
           setEditNoChangesError(false);
-          await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing });
+          await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing, vatRegistered: isVatRegistered });
           resetQuoteData();
-          navigate(`/quote/${editId}`);
+          navigate(`/secured/quote/${editId}`);
           return;
         }
 
         // ── Create mode: check quota then save ──
-        const quotesSnap = await getDocs(
-          query(collection(db, "quotes"), where("userId", "==", uid)),
-        );
-        const quoteCount = quotesSnap.docs.filter(
-          (d) => !d.data().deleted && d.data().status === "pending",
-        ).length;
-        if (quoteCount >= FREE_USES) {
-          setSubscribeStep(1);
-          setSubscribeOpen(true);
-          return;
+        if (!isPremium) {
+          const quotesSnap = await getDocs(
+            query(collection(db, "quotes"), where("userId", "==", uid)),
+          );
+          const quoteCount = quotesSnap.docs.filter(
+            (d) => !d.data().deleted && d.data().status === "pending",
+          ).length;
+          if (quoteCount >= FREE_USES) {
+            setSubscribeOpen(true);
+            setUsageChecking(false);
+            return;
+          }
         }
         const quoteId = await saveQuoteToFirestore({
           quoteData,
           lineItems,
           pricing,
           userId: uid,
+          vatRegistered: isVatRegistered,
         });
-        const pdfDoc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong });
-        const blob = pdfDoc.output("blob");
-        const blobUrl = URL.createObjectURL(blob);
         setSavedQuoteId(quoteId);
-        setSavedPdfBlobUrl(blobUrl);
         setQuoteSuccessOpen(true);
       } catch (e) {
         console.error("Save quote (signed in) failed", e);
@@ -1177,6 +1222,7 @@ const QuoteGenerator = () => {
       pricing,
       formatMoney,
       formatDateLong,
+      vatRegistered: isVatRegistered,
     });
 
     // Web Share API with file support — mobile only.
@@ -1208,8 +1254,7 @@ const QuoteGenerator = () => {
         minWidth: 0,
         mx: "auto",
         boxSizing: "border-box",
-        px: { xs: 1.5, sm: 2 },
-        pt: 0,
+        px: isSecuredQuote ? 0 : { xs: 2, sm: 3 },
         pb: { xs: 2, md: 4 },
         animation: "fadeIn 300ms ease",
         "@keyframes fadeIn": {
@@ -1227,18 +1272,16 @@ const QuoteGenerator = () => {
         onChange={handlePdfFileChange}
       />
 
-      {(!isSecuredQuote || editId || location.state?.from === "quotes") && (
-        <Box sx={{ mb: 2 }}>
-          <Button component={Link} to={backPath} variant="text" color="primary" size="large" onClick={handleHomeClick}>
-            {backLabel}
-          </Button>
-        </Box>
+      {!isSecuredQuote && (
+        <Button component={Link} to={backPath} startIcon={<ArrowBackIcon />} variant="text" color="primary" size="large" onClick={handleHomeClick} sx={{ pl: 0, mt: 2, mb: 2 }}>
+          {backLabel}
+        </Button>
       )}
 
       {editId && editQuoteStatus && (
         <Alert
           severity={editQuoteStatus === "pending" ? "info" : "warning"}
-          sx={{ mb: 2 }}
+          sx={{ mt: 2,mb: 2 }}
         >
           {editQuoteStatus === "pending"
             ? <>You are editing an existing quote. Saving changes will <strong>reset the status to pending</strong> so the customer can review it again.</>
@@ -1284,7 +1327,7 @@ const QuoteGenerator = () => {
             mb: 1,
           }}
         >
-          <Box sx={{ flex: "0 1 auto", textAlign: "left" }}>
+          <Box sx={{ flex: "0 1 auto", textAlign: "left",  }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
               <Typography
                 variant="h5"
@@ -1649,7 +1692,7 @@ const QuoteGenerator = () => {
             Quote items
           </Typography>
           <Typography variant="body2" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
-            Add or remove rows. Amount is calculated from price, quantity, and VAT %.
+            Add or remove rows. Amount is calculated from price{isVatRegistered ? ", quantity, and VAT %" : " and quantity"}.
           </Typography>
           {formErrors.lineItems && (
             <Alert
@@ -1720,6 +1763,7 @@ const QuoteGenerator = () => {
                     formatMoney={formatMoney}
                     updateLineField={updateLineField}
                     removeLineItem={removeLineItem}
+                    showVat={isVatRegistered}
                   />
                 </Box>
               ))}
@@ -1754,6 +1798,7 @@ const QuoteGenerator = () => {
                       updateLineField={updateLineField}
                       removeLineItem={removeLineItem}
                       flash={flashedRowIds.has(row.id)}
+                      showVat={isVatRegistered}
                     />
                   ))}
                 </TableBody>
@@ -1830,16 +1875,19 @@ const QuoteGenerator = () => {
               <Box
                 sx={{ position: "relative" }}
                 onDragEnter={(e) => {
+                  if (!isPremium || !isSecuredQuote) return;
                   e.preventDefault();
                   pdfDragCounter.current += 1;
                   if (pdfDragCounter.current === 1) setIsDraggingPdf(true);
                 }}
                 onDragLeave={() => {
+                  if (!isPremium || !isSecuredQuote) return;
                   pdfDragCounter.current -= 1;
                   if (pdfDragCounter.current === 0) setIsDraggingPdf(false);
                 }}
-                onDragOver={(e) => e.preventDefault()}
+                onDragOver={(e) => { if (isPremium && isSecuredQuote) e.preventDefault(); }}
                 onDrop={(e) => {
+                  if (!isPremium || !isSecuredQuote) return;
                   e.preventDefault();
                   pdfDragCounter.current = 0;
                   setIsDraggingPdf(false);
@@ -1850,13 +1898,12 @@ const QuoteGenerator = () => {
                   }
                 }}
               >
-                {/* Drag overlay */}
-                {isDraggingPdf && (
+                {/* Drag overlay — premium + secured only */}
+                {isDraggingPdf && isPremium && isSecuredQuote && (
                   <Box sx={{
                     position: "absolute", inset: 0, zIndex: 20, borderRadius: 2,
                     bgcolor: "rgba(8,58,107,0.85)", display: "flex", flexDirection: "column",
                     alignItems: "center", justifyContent: "center", gap: 1, pointerEvents: "none",
-                    border: "2px dashed rgba(255,255,255,0.7)",
                   }}>
                     <UploadFileIcon sx={{ fontSize: 36, color: "#fff" }} />
                     <Typography variant="body2" fontWeight={700} sx={{ color: "#fff" }}>
@@ -1886,9 +1933,9 @@ const QuoteGenerator = () => {
                   sx={{
                     bgcolor: "primary.main",
                     borderRadius: 2,
-                    border: isDraggingPdf
+                    border: isDraggingPdf && isPremium && isSecuredQuote
                       ? "2px dashed rgba(255,255,255,0.85)"
-                      : "2px dashed rgba(255,255,255,0.25)",
+                      : "none",
                     transition: "border-color 0.15s",
                     px: 1,
                     py: 1,
@@ -1944,24 +1991,52 @@ const QuoteGenerator = () => {
                 </Stack>
               </Box>
 
-              {/* PDF drop / upload strip */}
-              <Box
-                component="button"
-                type="button"
-                onClick={() => { setPdfImportError(""); pdfInputRef.current?.click(); }}
-                sx={{
-                  mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
-                  gap: 1, bgcolor: "transparent", border: "1px dashed #CBD5E1",
-                  borderRadius: 1.5, py: 0.9, px: 1.5, cursor: "pointer",
-                  color: "#6B7280", transition: "all 0.15s",
-                  "&:hover": { bgcolor: "#EFF6FF", borderColor: "#083a6b", color: "#083a6b" },
-                }}
-              >
-                <UploadFileIcon sx={{ fontSize: 16 }} />
-                <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
-                  Drag &amp; drop a PDF here, or click to upload
-                </Typography>
-              </Box>
+              {/* PDF drop / upload — Premium + secured only; else locked teaser (public: non-interactive) */}
+              {isSecuredQuote && isPremium ? (
+                <Box
+                  component="button"
+                  type="button"
+                  onClick={() => { setPdfImportError(""); pdfInputRef.current?.click(); }}
+                  sx={{
+                    mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: 1, bgcolor: "transparent", border: "1px dashed #CBD5E1",
+                    borderRadius: 1.5, py: 0.9, px: 1.5, cursor: "pointer",
+                    color: "#6B7280", transition: "all 0.15s",
+                    "&:hover": { bgcolor: "#EFF6FF", borderColor: "#083a6b", color: "#083a6b" },
+                  }}
+                >
+                  <UploadFileIcon sx={{ fontSize: 16 }} />
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
+                    Drag &amp; drop a PDF here, or click to upload
+                  </Typography>
+                </Box>
+              ) : (
+                <Box
+                  component={isSecuredQuote ? "button" : "div"}
+                  type={isSecuredQuote ? "button" : undefined}
+                  onClick={isSecuredQuote ? () => navigate("/secured/billing") : undefined}
+                  aria-disabled={!isSecuredQuote}
+                  sx={{
+                    mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
+                    gap: 1, bgcolor: "#F8FAFC", border: "1px dashed #E5E7EB",
+                    borderRadius: 1.5, py: 0.9, px: 1.5, cursor: isSecuredQuote ? "pointer" : "default",
+                    color: "#9CA3AF", transition: "all 0.15s", position: "relative",
+                    ...(!isSecuredQuote
+                      ? { pointerEvents: "none" }
+                      : { "&:hover": { bgcolor: "#F0F4FF", borderColor: "#083a6b", color: "#6B7280" } }),
+                  }}
+                >
+                  <LockOutlinedIcon sx={{ fontSize: 15 }} />
+                  <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
+                    PDF import — Premium feature
+                  </Typography>
+                  <Chip
+                    label="Upgrade"
+                    size="small"
+                    sx={{ ml: 0.5, fontSize: "0.6rem", height: 16, bgcolor: "#083a6b", color: "#fff", fontWeight: 700, "& .MuiChip-label": { px: 0.75 } }}
+                  />
+                </Box>
+              )}
 
               {pdfFilled && (
                 <Alert severity="success" onClose={() => setPdfFilled(false)} sx={{ mt: 1 }}>
@@ -1979,9 +2054,9 @@ const QuoteGenerator = () => {
         <Divider sx={{ my: 1.5 }} />
         {/* Pricing summary — right-anchored, label + amount in fixed columns */}
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5 }}>
-          {[
-            { label: "Subtotal (ex VAT)", value: formatMoney(pricing.subtotal), bold: false },
-            { label: "VAT",               value: formatMoney(pricing.tax),      bold: false },
+          {isVatRegistered && [
+            { label: "Subtotal (ex VAT)", value: formatMoney(pricing.subtotal) },
+            { label: "VAT",               value: formatMoney(pricing.tax)      },
           ].map(({ label, value }) => (
             <Box key={label} sx={{ display: "flex", gap: 3 }}>
               <Typography variant="body2" color="#6B7280" sx={{ textAlign: "right" }}>
@@ -1992,10 +2067,10 @@ const QuoteGenerator = () => {
               </Typography>
             </Box>
           ))}
-          <Divider sx={{ width: "100%", my: 0.5 }} />
+          {isVatRegistered && <Divider sx={{ width: "100%", my: 0.5 }} />}
           <Box sx={{ display: "flex", gap: 3 }}>
             <Typography variant="body1" color="#111827" fontWeight={800}>
-              Total (inc VAT)
+              {isVatRegistered ? "Total (inc VAT)" : "Total"}
             </Typography>
             <Typography variant="body1" color="#111827" fontWeight={800} sx={{ minWidth: 72, textAlign: "right" }}>
               {formatMoney(pricing.total)}
@@ -2278,10 +2353,16 @@ const QuoteGenerator = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Create account step — shown after email verification */}
+      {/* Create account / log in step — shown after email verification */}
       <Dialog
         open={createAccountOpen}
-        onClose={() => { if (!createAccountLoading) { setCreateAccountOpen(false); setVerificationEmail(""); } }}
+        onClose={() => {
+          if (!createAccountLoading) {
+            setCreateAccountOpen(false);
+            setCreateAccountIsLoginMode(false);
+            setVerificationEmail("");
+          }
+        }}
         fullWidth
         maxWidth="xs"
       >
@@ -2296,25 +2377,44 @@ const QuoteGenerator = () => {
             justifyContent: "space-between",
           }}
         >
-          One last step
+          {createAccountIsLoginMode ? "Welcome back" : "One last step"}
           <IconButton
             aria-label="Close"
             size="small"
-            onClick={() => { if (!createAccountLoading) { setCreateAccountOpen(false); setVerificationEmail(""); } }}
+            onClick={() => {
+              if (!createAccountLoading) {
+                setCreateAccountOpen(false);
+                setCreateAccountIsLoginMode(false);
+                setVerificationEmail("");
+              }
+            }}
             disabled={createAccountLoading}
           >
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
         <DialogContent sx={{ ...quoteFormFieldDensitySx, pt: 0 }}>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Create a password for{" "}
-            <Box component="span" sx={{ fontWeight: 700 }}>{verificationEmail}</Box>{" "}
-            to create an account, so you can track your quote's progress.
-          </Typography>
+          {createAccountIsLoginMode ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              <strong>{verificationEmail}</strong> already has an account. Enter your password to log in and save your quote.
+            </Alert>
+          ) : (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Create a password for{" "}
+              <Box component="span" sx={{ fontWeight: 700 }}>{verificationEmail}</Box>{" "}
+              to create an account, so you can track your quote&apos;s progress.
+            </Typography>
+          )}
           {createAccountError ? (
             <Alert severity="error" sx={{ mb: 1.5 }}>
               {createAccountError}
+              {createAccountIsLoginMode && (
+                <Box sx={{ mt: 0.5 }}>
+                  <Link to="/forgot-password" style={{ color: "inherit", fontWeight: 700 }}>
+                    Forgot password?
+                  </Link>
+                </Box>
+              )}
             </Alert>
           ) : null}
           <TextField
@@ -2322,17 +2422,21 @@ const QuoteGenerator = () => {
             type="password"
             fullWidth
             autoFocus
-            autoComplete="new-password"
+            autoComplete={createAccountIsLoginMode ? "current-password" : "new-password"}
             value={createAccountPassword}
             onChange={(e) => {
               setCreateAccountPassword(e.target.value);
               if (createAccountError) setCreateAccountError("");
             }}
-            onKeyDown={(e) => { if (e.key === "Enter") handleCreateAccountAndSave(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                createAccountIsLoginMode ? handleLoginAndSave() : handleCreateAccountAndSave();
+              }
+            }}
             disabled={createAccountLoading}
-            inputProps={{ autoComplete: "new-password" }}
+            inputProps={{ autoComplete: createAccountIsLoginMode ? "current-password" : "new-password" }}
           />
-          {createAccountPassword.length > 0 ? (() => {
+          {!createAccountIsLoginMode && createAccountPassword.length > 0 ? (() => {
             const str = getPwdStrength(createAccountPassword);
             return str ? (
               <Box sx={{ mt: 1 }}>
@@ -2352,13 +2456,20 @@ const QuoteGenerator = () => {
               </Box>
             ) : null;
           })() : null}
+          {createAccountIsLoginMode && !createAccountError && (
+            <Typography variant="caption" sx={{ mt: 1.5, display: "block", color: "text.secondary" }}>
+              <Link to="/forgot-password" style={{ color: "#083a6b", fontWeight: 600 }}>
+                Forgot password?
+              </Link>
+            </Typography>
+          )}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2.5, pt: 0 }}>
           <Button
             variant="contained"
             fullWidth
             size="large"
-            onClick={handleCreateAccountAndSave}
+            onClick={createAccountIsLoginMode ? handleLoginAndSave : handleCreateAccountAndSave}
             disabled={createAccountLoading}
             sx={{
               fontSize: "1.0625rem",
@@ -2370,10 +2481,10 @@ const QuoteGenerator = () => {
             {createAccountLoading ? (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <CircularProgress size={20} color="inherit" />
-                Creating account…
+                {createAccountIsLoginMode ? "Logging in…" : "Creating account…"}
               </Box>
             ) : (
-              "Create account"
+              createAccountIsLoginMode ? "Log in & save quote" : "Create account"
             )}
           </Button>
         </DialogActions>
@@ -2384,7 +2495,7 @@ const QuoteGenerator = () => {
         open={quoteSuccessOpen}
         onClose={handleCloseQuoteSuccess}
         fullWidth
-        maxWidth="md"
+        maxWidth="sm"
       >
         <DialogTitle
           sx={{
@@ -2407,26 +2518,7 @@ const QuoteGenerator = () => {
             <CloseIcon fontSize="small" />
           </IconButton>
         </DialogTitle>
-        <DialogContent sx={{ pt: 0 }}>
-          {/* PDF preview — scrollable */}
-          {savedPdfBlobUrl ? (
-            <Box
-              sx={{
-                width: "100%",
-                height: "60vh",
-                borderRadius: 1,
-                overflow: "hidden",
-                border: "1px solid #E5E7EB",
-              }}
-            >
-              <iframe
-                src={`${savedPdfBlobUrl}#navpanes=0&view=FitH`}
-                title="Quote preview"
-                style={{ width: "100%", height: "100%", border: "none" }}
-              />
-            </Box>
-          ) : null}
-        </DialogContent>
+        <DialogContent sx={{ pt: 1.5, pb: 0 }} />
 
         {/* Shareable link — sticky, always visible above buttons */}
         <Box
@@ -2444,67 +2536,7 @@ const QuoteGenerator = () => {
             Copy and share the link below, or use one of the quick share options.
           </Typography>
 
-          {/* Quick share buttons */}
-          {(() => {
-            const quoteUrl = savedQuoteId ? `${window.location.origin}/quote/${savedQuoteId}` : "";
-            const shareText = `Here is your quote: ${quoteUrl}`;
-            return (
-              <Box sx={{ display: "flex", gap: 1, mb: 1, flexWrap: "wrap" }}>
-                <Tooltip title="Share via WhatsApp" arrow>
-                  <IconButton
-                    component="a"
-                    href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      bgcolor: "#25D366",
-                      color: "#fff",
-                      borderRadius: 1.5,
-                      width: 40,
-                      height: 40,
-                      "&:hover": { bgcolor: "#1ebe5d" },
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faWhatsapp} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Share via Messenger" arrow>
-                  <IconButton
-                    component="a"
-                    href={`fb-messenger://share/?link=${encodeURIComponent(quoteUrl)}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    sx={{
-                      bgcolor: "#0084FF",
-                      color: "#fff",
-                      borderRadius: 1.5,
-                      width: 40,
-                      height: 40,
-                      "&:hover": { bgcolor: "#006fd4" },
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faFacebookMessenger} />
-                  </IconButton>
-                </Tooltip>
-                <Tooltip title="Share via Email" arrow>
-                  <IconButton
-                    component="a"
-                    href={`mailto:?subject=${encodeURIComponent("Your quote is ready")}&body=${encodeURIComponent(shareText)}`}
-                    sx={{
-                      bgcolor: "#EA4335",
-                      color: "#fff",
-                      borderRadius: 1.5,
-                      width: 40,
-                      height: 40,
-                      "&:hover": { bgcolor: "#c9342a" },
-                    }}
-                  >
-                    <FontAwesomeIcon icon={faEnvelope} />
-                  </IconButton>
-                </Tooltip>
-              </Box>
-            );
-          })()}
+          <QuoteShareQuickButtons quoteDocId={savedQuoteId} sx={{ mb: 1 }} />
 
           {/* Copy link */}
           <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
@@ -2537,15 +2569,26 @@ const QuoteGenerator = () => {
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1, fontWeight: 700 }}>
             Go to your quotes to monitor when your customer accepts or declines.
           </Typography>
-     
-          <Button
-            variant="contained"
-            size="medium"
-            onClick={() => { handleCloseQuoteSuccess(); navigate("/secured/quotes"); }}
-            sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
-          >
-            Go to my quotes →
-          </Button>
+
+          <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+            <Button
+              variant="outlined"
+              size="medium"
+              onClick={handleDownloadSuccessPdf}
+              startIcon={<FontAwesomeIcon icon={faDownload} style={{ fontSize: 14 }} />}
+              sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", "&:hover": { bgcolor: "#EFF6FF" } }}
+            >
+              Download PDF
+            </Button>
+            <Button
+              variant="contained"
+              size="medium"
+              onClick={() => { handleCloseQuoteSuccess(); navigate("/secured/quotes"); }}
+              sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
+            >
+              Go to my quotes →
+            </Button>
+          </Box>
         </Box>
 
       </Dialog>
@@ -2554,12 +2597,14 @@ const QuoteGenerator = () => {
       <SubscribeDialog
         open={subscribeOpen}
         onClose={() => setSubscribeOpen(false)}
+        quotaExhausted
         onSuccess={async () => {
           const user = auth.currentUser;
           if (user) {
             const { doc: fsDoc, setDoc: fsSetDoc, serverTimestamp: fsST } = await import('firebase/firestore');
             await fsSetDoc(fsDoc(db, 'users', user.uid), { plan: 'premium', updatedAt: fsST() }, { merge: true });
           }
+          setIsPremium(true);
         }}
         successCta="Start creating quotes"
       />

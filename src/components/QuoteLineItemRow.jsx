@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
@@ -40,8 +41,46 @@ function removeLineButtonSx(canRemove) {
 }
 
 /**
- * One line item: shared fields; `variant` only changes the outer shell (card stack vs table row).
+ * Numeric text field that keeps a local draft while the user is typing,
+ * syncs from the external value when the field is not focused, and commits
+ * the parsed number to the parent only on blur.  This avoids the "1." → "1"
+ * snap-back that plagues controlled <input type="number"> / naive text fields.
  */
+function NumericTextField({ value: externalValue, onChange, parse, format, inputProps, ...rest }) {
+  const [draft, setDraft] = useState(() => format(externalValue));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(format(externalValue));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalValue]);
+
+  return (
+    <TextField
+      {...rest}
+      type="text"
+      value={draft}
+      inputProps={inputProps}
+      onFocus={() => { focused.current = true; }}
+      onChange={(e) => {
+        const raw = e.target.value;
+        // Allow digits, a single leading minus, and a single decimal point.
+        if (raw !== "" && !/^-?\d*\.?\d*$/.test(raw)) return;
+        setDraft(raw);
+        // Notify parent immediately so Amount column stays in sync.
+        const parsed = parse(raw);
+        onChange({ target: { value: String(parsed) } });
+      }}
+      onBlur={() => {
+        focused.current = false;
+        const parsed = parse(draft);
+        setDraft(format(parsed));
+        onChange({ target: { value: String(parsed) } });
+      }}
+    />
+  );
+}
+
 export function QuoteLineItemRow({
   variant,
   row,
@@ -53,6 +92,7 @@ export function QuoteLineItemRow({
   removeLineItem,
   id,
   flash,
+  showVat = true,
 }) {
   const canRemove = lineItems.length > 1;
   const priceNum =
@@ -91,35 +131,16 @@ export function QuoteLineItemRow({
   );
 
   const priceField = (
-    <TextField
+    <NumericTextField
       variant="outlined"
       size="medium"
-      type="number"
       label={priceLabel}
       value={priceNum}
       onChange={updateLineField(row.id, "unitPrice")}
+      parse={(raw) => { const n = parseFloat(raw); return Number.isFinite(n) ? Math.max(0, n) : 0; }}
+      format={(n) => (n === 0 ? "0" : String(n))}
       fullWidth
-      inputProps={{ min: 0, step: 0.01, inputMode: "decimal", pattern: "[0-9]*" }}
-      sx={{
-        minWidth: 0,
-        "& input": {
-          textAlign: "right",
-          fontVariantNumeric: "tabular-nums",
-        },
-      }}
-    />
-  );
-
-  const qtyField = (
-    <TextField
-      variant="outlined"
-      size="medium"
-      type="number"
-      label="Qty"
-      value={lineQuantityDisplay(row)}
-      onChange={updateLineField(row.id, "quantity")}
-      fullWidth
-      inputProps={{ min: 0, step: 1, inputMode: "numeric" }}
+      inputProps={{ inputMode: "decimal" }}
       sx={{
         minWidth: 0,
         "& input": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
@@ -127,16 +148,36 @@ export function QuoteLineItemRow({
     />
   );
 
-  const vatField = (
-    <TextField
+  const qtyField = (
+    <NumericTextField
       variant="outlined"
       size="medium"
-      type="number"
-      label="VAT %"
-      value={row.vatPercent === undefined || row.vatPercent === null ? 20 : row.vatPercent}
-      onChange={updateLineField(row.id, "vatPercent")}
+      label="Qty"
+      value={lineQuantityDisplay(row)}
+      onChange={updateLineField(row.id, "quantity")}
+      parse={(raw) => { const n = parseInt(raw, 10); return Number.isFinite(n) ? Math.max(0, n) : 0; }}
+      format={(n) => String(n)}
       fullWidth
-      inputProps={{ min: 0, max: 100, step: 1, inputMode: "numeric" }}
+      inputProps={{ inputMode: "numeric" }}
+      sx={{
+        minWidth: 0,
+        "& input": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
+      }}
+    />
+  );
+
+  const vatPercent = row.vatPercent === undefined || row.vatPercent === null ? 20 : row.vatPercent;
+  const vatField = (
+    <NumericTextField
+      variant="outlined"
+      size="medium"
+      label="VAT %"
+      value={vatPercent}
+      onChange={updateLineField(row.id, "vatPercent")}
+      parse={(raw) => { const n = parseInt(raw, 10); return Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : 0; }}
+      format={(n) => String(n)}
+      fullWidth
+      inputProps={{ inputMode: "numeric" }}
       sx={{
         minWidth: 0,
         "& input": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
@@ -239,7 +280,7 @@ export function QuoteLineItemRow({
         >
           {priceField}
           {qtyField}
-          {vatField}
+          {showVat && vatField}
           {amountField}
         </Box>
       </Paper>
@@ -272,12 +313,14 @@ export function QuoteLineItemRow({
       >
         {qtyField}
       </TableCell>
-      <TableCell
-        align="right"
-        sx={{ verticalAlign: "top", border: 0, py: 1.5, ...TABLE_COL.vat }}
-      >
-        {vatField}
-      </TableCell>
+      {showVat && (
+        <TableCell
+          align="right"
+          sx={{ verticalAlign: "top", border: 0, py: 1.5, ...TABLE_COL.vat }}
+        >
+          {vatField}
+        </TableCell>
+      )}
       <TableCell
         align="right"
         sx={{ verticalAlign: "top", border: 0, py: 1.5, ...TABLE_COL.amount }}

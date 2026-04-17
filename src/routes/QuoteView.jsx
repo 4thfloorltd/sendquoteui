@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, updateDoc, serverTimestamp } from "firebase/firestore";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { db, auth } from "../../firebase";
 import {
@@ -25,27 +24,11 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPaperPlane, faDownload, faEnvelope } from "@fortawesome/free-solid-svg-icons";
-import { faWhatsapp, faFacebookMessenger } from "@fortawesome/free-brands-svg-icons";
-import { IconButton, Tooltip } from "@mui/material";
+import { faDownload } from "@fortawesome/free-solid-svg-icons";
+import { Tooltip } from "@mui/material";
 import { buildQuotePdfDocument, getQuotePdfFilename } from "../utils/buildQuotePdfDocument";
-
-const formatDateLong = (iso) => {
-  if (!iso) return "—";
-  const d = new Date(`${iso}T12:00:00`);
-  return d.toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-};
-
-const createFormatMoney = (currency = "GBP") => (amount) =>
-  new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency,
-    currencyDisplay: "narrowSymbol",
-  }).format(amount);
+import { formatDateLong, createFormatMoney } from "../utils/quoteDisplay";
+import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 
 const isMobileDevice = () =>
   typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
@@ -54,6 +37,7 @@ const QuoteView = () => {
   const { quoteId } = useParams();
   const navigate = useNavigate();
   const isOwner = !!auth.currentUser;
+  const [isPremium, setIsPremium] = useState(false);
   const [quote, setQuote] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -72,10 +56,18 @@ const QuoteView = () => {
 
   useEffect(() => {
     let cancelled = false;
+    const pdfGenerated = { current: false };
 
-    const load = async () => {
-      try {
-        const snap = await getDoc(doc(db, "quotes", quoteId));
+    // Load plan for the owner (to gate premium features).
+    if (auth.currentUser) {
+      getDoc(doc(db, "users", auth.currentUser.uid))
+        .then((s) => { if (!cancelled) setIsPremium(s.data()?.plan === "premium"); })
+        .catch(() => {});
+    }
+
+    const unsub = onSnapshot(
+      doc(db, "quotes", quoteId),
+      (snap) => {
         if (cancelled) return;
         if (!snap.exists()) {
           setError("This quote could not be found.");
@@ -91,42 +83,51 @@ const QuoteView = () => {
           setComment(data.comment ?? "");
         }
 
-        try {
-          const formatMoney = createFormatMoney(data.currency);
-          const pdfDoc = buildQuotePdfDocument({
-            quoteData: {
-              quoteNumber: data.quoteNumber,
-              quoteDate: data.quoteDate,
-              businessName: data.businessName,
-              businessEmail: data.businessEmail,
-              businessAddress: data.businessAddress,
-              customerName: data.customerName,
-              email: data.customerEmail,
-              currency: data.currency,
-            },
-            lineItems: data.lineItems ?? [],
-            pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },
-            formatMoney,
-            formatDateLong,
-          });
-          const blob = pdfDoc.output("blob");
-          const url = URL.createObjectURL(blob);
-          pdfBlobUrlRef.current = url;
-          if (!cancelled) setPdfBlobUrl(url);
-        } catch (pdfErr) {
-          console.warn("PDF generation failed in QuoteView", pdfErr);
+        // Generate PDF only once on first load — status changes don't affect PDF content.
+        if (!pdfGenerated.current) {
+          pdfGenerated.current = true;
+          try {
+            const formatMoney = createFormatMoney(data.currency);
+            const pdfDoc = buildQuotePdfDocument({
+              quoteData: {
+                quoteNumber: data.quoteNumber,
+                quoteDate: data.quoteDate,
+                businessName: data.businessName,
+                businessEmail: data.businessEmail,
+                businessAddress: data.businessAddress,
+                customerName: data.customerName,
+                email: data.customerEmail,
+                currency: data.currency,
+              },
+              lineItems: data.lineItems ?? [],
+              pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },
+              formatMoney,
+              formatDateLong,
+              vatRegistered: data.vatRegistered ?? true,
+            });
+            const blob = pdfDoc.output("blob");
+            const url = URL.createObjectURL(blob);
+            pdfBlobUrlRef.current = url;
+            if (!cancelled) setPdfBlobUrl(url);
+          } catch (pdfErr) {
+            console.warn("PDF generation failed in QuoteView", pdfErr);
+          }
         }
-      } catch (e) {
-        if (!cancelled) setError("Could not load this quote. Please try again later.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    };
 
-    load();
+        setLoading(false);
+      },
+      (e) => {
+        if (!cancelled) {
+          console.error("QuoteView snapshot error", e);
+          setError("Could not load this quote. Please try again later.");
+          setLoading(false);
+        }
+      },
+    );
 
     return () => {
       cancelled = true;
+      unsub();
       if (pdfBlobUrlRef.current) {
         URL.revokeObjectURL(pdfBlobUrlRef.current);
         pdfBlobUrlRef.current = null;
@@ -152,6 +153,7 @@ const QuoteView = () => {
       pricing: quote.pricing ?? { subtotal: 0, tax: 0, total: 0 },
       formatMoney,
       formatDateLong,
+      vatRegistered: quote.vatRegistered ?? true,
     });
     const filename = getQuotePdfFilename({
       quoteNumber: quote.quoteNumber,
@@ -240,17 +242,6 @@ const QuoteView = () => {
 
   return (
     <Box sx={{ maxWidth: 1280, mx: "auto", px: { xs: 2, sm: 3 }, pt: 1, pb: { xs: isOwner ? 14 : 3, md: 5 } }}>
-      {/* Back button — owner only */}
-      {isOwner && (
-        <Button
-          startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/secured/quotes")}
-          sx={{ textTransform: "none", color: "text.secondary", mb: 2, pl: 0, "&:hover": { bgcolor: "transparent", color: "text.primary" } }}
-        >
-          Back to quotes
-        </Button>
-      )}
-
       {/* Brand header */}
       <Box sx={{ mb: 3 }}>
         {auth.currentUser?.uid === quote.userId ? (
@@ -453,53 +444,7 @@ const QuoteView = () => {
                   Copy and share the link below, or use a quick share option.
                 </Typography>
 
-                {/* Quick share icons */}
-                {(() => {
-                  const quoteUrl = `${window.location.origin}/quote/${quoteId}`;
-                  const shareText = `Here is your quote: ${quoteUrl}`;
-                  return (
-                    <Box sx={{ display: "flex", gap: 1, mb: 1.5, flexWrap: "wrap" }}>
-                      <Tooltip title="Share via WhatsApp" arrow>
-                        <IconButton
-                          component="a"
-                          href={`https://wa.me/?text=${encodeURIComponent(shareText)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{ bgcolor: "#25D366", color: "#fff", borderRadius: 1.5, width: 40, height: 40, "&:hover": { bgcolor: "#1ebe5d" } }}
-                          aria-label="Share via WhatsApp"
-                        >
-                          {/* Modern WhatsApp Icon */}
-                          <FontAwesomeIcon icon={faWhatsapp} style={{ fontSize: 24 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Share via Messenger" arrow>
-                        <IconButton
-                          component="a"
-                          href={`fb-messenger://share/?link=${encodeURIComponent(quoteUrl)}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          sx={{ bgcolor: "#0084FF", color: "#fff", borderRadius: 1.5, width: 40, height: 40, "&:hover": { bgcolor: "#006fd4" } }}
-                          aria-label="Share via Messenger"
-                        >
-                          {/* Modern Messenger Icon */}
-                          <FontAwesomeIcon icon={faFacebookMessenger} style={{ fontSize: 24 }} />
-                        </IconButton>
-                      </Tooltip>
-                      <Tooltip title="Share via Email" arrow>
-                        <IconButton
-                          component="a"
-                          href={`mailto:?subject=${encodeURIComponent("Your quote is ready")}&body=${encodeURIComponent(shareText)}`}
-                          sx={{ bgcolor: "#EA4335", color: "#fff", borderRadius: 1.5, width: 40, height: 40, "&:hover": { bgcolor: "#c9342a" } }}
-                          aria-label="Share via Email"
-                        >
-                          {/* Modern Envelope Icon */}
-                          <FontAwesomeIcon icon={faEnvelope} style={{ fontSize: 23 }} />
-                        </IconButton>
-                      </Tooltip>
-                 
-                    </Box>
-                  );
-                })()}
+                <QuoteShareQuickButtons quoteDocId={quoteId} sx={{ mb: 1.5 }} />
 
                 {/* Copy link */}
                 <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
@@ -532,15 +477,36 @@ const QuoteView = () => {
                 {/* Edit / Delete quote */}
                 <Divider sx={{ mt: 3, mb: 2 }} />
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-                  <Button
-                    startIcon={<EditIcon />}
-                    size="small"
-                    variant="outlined"
-                    onClick={() => navigate("/secured/quote", { state: { editId: quoteId, from: "quoteView" } })}
-                    sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", "&:hover": { bgcolor: "#EFF6FF" } }}
-                  >
-                    Edit quote
-                  </Button>
+                  {isPremium ? (
+                    <Button
+                      startIcon={<EditIcon />}
+                      size="small"
+                      variant="outlined"
+                      onClick={() => navigate("/secured/quote", { state: { editId: quoteId, from: "quoteView" } })}
+                      sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", "&:hover": { bgcolor: "#EFF6FF" } }}
+                    >
+                      Edit quote
+                    </Button>
+                  ) : (
+                    <Tooltip title="Upgrade to Premium to edit sent quotes" placement="left">
+                      <Box sx={{ position: "relative", display: "inline-flex" }}>
+                        <Button
+                          startIcon={<LockOutlinedIcon />}
+                          size="small"
+                          variant="outlined"
+                          onClick={() => navigate("/secured/billing")}
+                          sx={{ textTransform: "none", fontWeight: 600, borderColor: "#CBD5E1", color: "#9CA3AF", width: "100%", "&:hover": { bgcolor: "#F8FAFC", borderColor: "#9CA3AF" } }}
+                        >
+                          Edit quote
+                        </Button>
+                        <Chip
+                          label="Premium"
+                          size="small"
+                          sx={{ position: "absolute", top: -8, right: -8, fontSize: "0.6rem", height: 16, bgcolor: "#083a6b", color: "#fff", fontWeight: 700, "& .MuiChip-label": { px: 0.75 } }}
+                        />
+                      </Box>
+                    </Tooltip>
+                  )}
                   <Button
                     startIcon={<DeleteOutlineIcon />}
                     onClick={() => setDeleteDialogOpen(true)}

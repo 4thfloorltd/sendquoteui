@@ -11,7 +11,7 @@ import { db } from "../../firebase";
  * that was already used on an old quote, but from this point forward every
  * new quote gets a strictly incrementing, collision-free number.
  */
-export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, userId }) {
+export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, userId, vatRegistered = true }) {
   const quoteRef    = doc(collection(db, "quotes"));
   const counterRef  = doc(db, "quote_counters", userId);
 
@@ -32,6 +32,7 @@ export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, user
       currency:        quoteData.currency        ?? "GBP",
       lineItems:       lineItems                 ?? [],
       pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },
+      vatRegistered:   vatRegistered,
       status:          "pending",
       comment:         null,
       userId,
@@ -49,7 +50,7 @@ export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, user
  * Updates an existing quote document. Preserves quoteNumber, status,
  * comment, userId, and createdAt — only content fields are overwritten.
  */
-export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pricing }) {
+export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pricing, vatRegistered = true }) {
   await updateDoc(doc(db, "quotes", quoteId), {
     quoteDate:       quoteData.quoteDate       ?? null,
     businessName:    quoteData.businessName    ?? "",
@@ -60,6 +61,7 @@ export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pr
     currency:        quoteData.currency        ?? "GBP",
     lineItems:       lineItems                 ?? [],
     pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },
+    vatRegistered:   vatRegistered,
     // Reset to pending so the customer can respond to the revised quote.
     status:          "pending",
     comment:         null,

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Autocomplete,
@@ -41,27 +41,38 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { collection, query, where, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../../firebase";
 import { useAddressAutocomplete } from "../../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../../utils/userEmailAvailability";
 
 const STATUS_CONFIG = {
   accepted: { label: "Accepted", color: "#22C55E", icon: faCheckCircle },
-  pending:  { label: "Pending",  color: "#FBBF24", icon: faClock },
+  pending: { label: "Pending", color: "#FBBF24", icon: faClock },
   declined: { label: "Declined", color: "#EF4444", icon: faTimesCircle },
 };
+
+/** Allowed post-onboarding redirects from registration flow (no open redirect). */
+const ALLOWED_REDIRECT_AFTER_PROFILE = new Set(["/secured/billing", "/secured/settings"]);
+
+const sanitizeProfileRedirect = (path) =>
+  typeof path === "string" && ALLOWED_REDIRECT_AFTER_PROFILE.has(path) ? path : null;
 
 const Quotes = () => {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
+  const location = useLocation();
+  /** Fresh each render — read inside onAuthStateChanged without resubscribing. */
+  const redirectAfterProfileRef = useRef(null);
+  redirectAfterProfileRef.current = sanitizeProfileRedirect(location.state?.redirectAfterProfile);
+  const consumedBillingRedirectRef = useRef(false);
 
-  const [quotes, setQuotes]   = useState([]);
+  const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
   /** `null` = show all; otherwise filter by quote status */
   const [statusFilter, setStatusFilter] = useState(null);
-  const [searchQuery, setSearchQuery]   = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const PAGE_SIZE = 10;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -76,24 +87,24 @@ const Quotes = () => {
 
   // Onboarding profile state
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [onboardingUid, setOnboardingUid]   = useState(null);
-  const [bizName, setBizName]               = useState("");
-  const [bizEmail, setBizEmail]             = useState("");
-  const [bizAddress, setBizAddress]         = useState("");
-  const [saving, setSaving]                 = useState(false);
-  const [saveError, setSaveError]           = useState("");
+  const [onboardingUid, setOnboardingUid] = useState(null);
+  const [bizName, setBizName] = useState("");
+  const [bizEmail, setBizEmail] = useState("");
+  const [bizAddress, setBizAddress] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    let unsubByUid          = null;
-    let unsubByAuthEmail    = null;
+    let unsubByUid = null;
+    let unsubByAuthEmail = null;
     let unsubByProfileEmail = null;
 
     // Each subscription owns its own Map so that when a snapshot fires with
     // fewer documents (e.g. after a deletion), the callback can replace its
     // slice entirely rather than only adding.  Accumulate-only maps never
     // remove stale entries, causing deleted quotes to persist until reload.
-    const byUid          = new Map();
-    const byAuthEmail    = new Map();
+    const byUid = new Map();
+    const byAuthEmail = new Map();
     const byProfileEmail = new Map();
 
     const merge = () => {
@@ -132,8 +143,8 @@ const Quotes = () => {
       unsubByUid?.();
       unsubByAuthEmail?.();
       unsubByProfileEmail?.();
-      unsubByUid          = null;
-      unsubByAuthEmail    = null;
+      unsubByUid = null;
+      unsubByAuthEmail = null;
       unsubByProfileEmail = null;
       byUid.clear();
       byAuthEmail.clear();
@@ -154,10 +165,10 @@ const Quotes = () => {
       // link (fallback in case Layout.jsx's commit didn't run).
       if (profileData?.pendingEmailChange?.toLowerCase() === user.email?.toLowerCase()) {
         setDoc(doc(db, "users", user.uid), {
-          businessEmail:      user.email,
-          loginEmail:         user.email,
+          businessEmail: user.email,
+          loginEmail: user.email,
           pendingEmailChange: deleteField(),
-          updatedAt:          serverTimestamp(),
+          updatedAt: serverTimestamp(),
         }, { merge: true }).catch((e) => console.error("Quotes email commit failed", e));
       }
 
@@ -165,10 +176,18 @@ const Quotes = () => {
         // Profile doc exists but setup was never completed — pre-fill all fields
         // from whatever is already stored so the user doesn't lose data.
         setOnboardingUid(user.uid);
-        setBizName(profileData.businessName   ?? "");
+        setBizName(profileData.businessName ?? "");
         setBizEmail(profileData.businessEmail ?? user.email ?? "");
         setBizAddress(profileData.businessAddress ?? "");
         setShowOnboarding(true);
+      } else if (
+        profileData?.profileComplete &&
+        redirectAfterProfileRef.current &&
+        !consumedBillingRedirectRef.current
+      ) {
+        consumedBillingRedirectRef.current = true;
+        navigate(redirectAfterProfileRef.current, { replace: true });
+        return;
       }
       // If profileData is null (read failed or doc missing), skip onboarding —
       // the profile likely exists but is temporarily unreadable (e.g. mid email
@@ -220,14 +239,19 @@ const Quotes = () => {
         return;
       }
       await setDoc(doc(db, "users", onboardingUid), {
-        businessName:    bizName.trim(),
-        businessEmail:   normalized,
+        businessName: bizName.trim(),
+        businessEmail: normalized,
         businessAddress: bizAddress.trim(),
         profileComplete: true,
-        loginEmail:      auth.currentUser?.email?.toLowerCase() ?? normalized,
-        updatedAt:       serverTimestamp(),
+        loginEmail: auth.currentUser?.email?.toLowerCase() ?? normalized,
+        updatedAt: serverTimestamp(),
       }, { merge: true });
       setShowOnboarding(false);
+      const billingRedirect = sanitizeProfileRedirect(location.state?.redirectAfterProfile);
+      if (billingRedirect) {
+        navigate(billingRedirect, { replace: true });
+        return;
+      }
     } catch (e) {
       console.error("Profile save failed", e);
       setSaveError("Something went wrong. Please try again.");
@@ -236,9 +260,9 @@ const Quotes = () => {
     }
   };
 
-  const total    = quotes.length;
+  const total = quotes.length;
   const accepted = quotes.filter((q) => q.status === "accepted").length;
-  const pending  = quotes.filter((q) => q.status === "pending").length;
+  const pending = quotes.filter((q) => q.status === "pending").length;
   const declined = quotes.filter((q) => q.status === "declined").length;
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
@@ -270,9 +294,9 @@ const Quotes = () => {
   };
 
   const metrics = [
-    { title: "Total",    value: total,    icon: faFileInvoice, color: "#083a6b", bg: "#F0F4F8", filterKey: null },
+    { title: "Total", value: total, icon: faFileInvoice, color: "#083a6b", bg: "#F0F4F8", filterKey: null },
     { title: "Accepted", value: accepted, icon: faCheckCircle, color: "#22C55E", bg: "#ECFDF5", filterKey: "accepted" },
-    { title: "Pending",  value: pending,  icon: faClock,       color: "#FBBF24", bg: "#FFFAF0", filterKey: "pending" },
+    { title: "Pending", value: pending, icon: faClock, color: "#FBBF24", bg: "#FFFAF0", filterKey: "pending" },
     { title: "Declined", value: declined, icon: faTimesCircle, color: "#EF4444", bg: "#FEF2F2", filterKey: "declined" },
   ];
 
@@ -298,7 +322,7 @@ const Quotes = () => {
 
           {saveError && <Alert severity="error" sx={{ py: 0 }}>{saveError}</Alert>}
 
-              <TextField
+          <TextField
             label="Business name"
             value={bizName}
             onChange={(e) => { setBizName(e.target.value); setSaveError(""); }}
@@ -306,7 +330,7 @@ const Quotes = () => {
             autoFocus
             required
           />
-              <TextField
+          <TextField
             label="Email address"
             type="email"
             value={bizEmail}
@@ -424,55 +448,55 @@ const Quotes = () => {
             (m.filterKey === null && statusFilter === null) ||
             (m.filterKey !== null && statusFilter === m.filterKey);
           return (
-          <Grid item xs={6} sm={3} key={i}>
-            <Card
-              onClick={() => handleMetricClick(m.filterKey)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                  handleMetricClick(m.filterKey);
-                        }
-                    }}
-                    sx={{
-                backgroundColor: m.bg,
-                borderRadius: "14px",
-                boxShadow: selected
-                  ? "0px 2px 8px rgba(0,0,0,0.04), 0 0 0 2px #083a6b"
-                  : "0px 2px 8px rgba(0,0,0,0.04)",
-                transition: "transform 0.2s ease, box-shadow 0.2s ease",
-                cursor: "pointer",
-                "&:hover": { transform: "translateY(-3px)", boxShadow: selected ? "0px 4px 14px rgba(0,0,0,0.08), 0 0 0 2px #083a6b" : "0px 4px 14px rgba(0,0,0,0.08)" },
-              }}
-            >
-              <CardContent sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 1.5 }, p: { xs: 1.25, sm: 2 }, "&:last-child": { pb: { xs: 1.25, sm: 2 } }, overflow: "hidden" }}>
-                <Box sx={{
-                  bgcolor: "#fff", borderRadius: "50%",
-                  width: { xs: 32, sm: 48 }, height: { xs: 32, sm: 48 },
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  boxShadow: "0px 2px 6px rgba(0,0,0,0.05)", flexShrink: 0,
-                }}>
-                  <FontAwesomeIcon icon={m.icon} style={{ fontSize: "14px", color: m.color }} />
-                </Box>
-                <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
-                  <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: { xs: "0.7rem", sm: "0.75rem" } }}>
-                    {m.title}
-                  </Typography>
-                  {loading ? (
-                    <CircularProgress size={16} sx={{ mt: 0.5 }} />
-                  ) : (
-                    <Typography sx={{ fontWeight: 700, color: "#083a6b", lineHeight: 1.2, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
-                      {m.value}
+            <Grid item xs={6} sm={3} key={i}>
+              <Card
+                onClick={() => handleMetricClick(m.filterKey)}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    handleMetricClick(m.filterKey);
+                  }
+                }}
+                sx={{
+                  backgroundColor: m.bg,
+                  borderRadius: "14px",
+                  boxShadow: selected
+                    ? "0px 2px 8px rgba(0,0,0,0.04), 0 0 0 2px #083a6b"
+                    : "0px 2px 8px rgba(0,0,0,0.04)",
+                  transition: "transform 0.2s ease, box-shadow 0.2s ease",
+                  cursor: "pointer",
+                  "&:hover": { transform: "translateY(-3px)", boxShadow: selected ? "0px 4px 14px rgba(0,0,0,0.08), 0 0 0 2px #083a6b" : "0px 4px 14px rgba(0,0,0,0.08)" },
+                }}
+              >
+                <CardContent sx={{ display: "flex", alignItems: "center", gap: { xs: 1, sm: 1.5 }, p: { xs: 1.25, sm: 2 }, "&:last-child": { pb: { xs: 1.25, sm: 2 } }, overflow: "hidden" }}>
+                  <Box sx={{
+                    bgcolor: "#fff", borderRadius: "50%",
+                    width: { xs: 32, sm: 48 }, height: { xs: 32, sm: 48 },
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    boxShadow: "0px 2px 6px rgba(0,0,0,0.05)", flexShrink: 0,
+                  }}>
+                    <FontAwesomeIcon icon={m.icon} style={{ fontSize: "14px", color: m.color }} />
+                  </Box>
+                  <Box sx={{ minWidth: 0, flex: 1, overflow: "hidden" }}>
+                    <Typography variant="caption" sx={{ color: "#64748B", fontWeight: 600, display: "block", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: { xs: "0.7rem", sm: "0.75rem" } }}>
+                      {m.title}
                     </Typography>
-                  )}
-                </Box>
-              </CardContent>
-            </Card>
-                </Grid>
+                    {loading ? (
+                      <CircularProgress size={16} sx={{ mt: 0.5 }} />
+                    ) : (
+                      <Typography sx={{ fontWeight: 700, color: "#083a6b", lineHeight: 1.2, fontSize: { xs: "1.1rem", sm: "1.25rem" } }}>
+                        {m.value}
+                      </Typography>
+                    )}
+                  </Box>
+                </CardContent>
+              </Card>
+            </Grid>
           );
         })}
-              </Grid>
+      </Grid>
 
       {/* Quotes table */}
       {loading ? (
@@ -523,7 +547,7 @@ const Quotes = () => {
               <Paper
                 key={quote.id}
                 elevation={0}
-                onClick={() => navigate(`/quote/${quote.id}`)}
+                onClick={() => navigate(`/secured/quote/${quote.id}`)}
                 sx={{
                   border: "1px solid #E5E7EB",
                   borderRadius: 2,
@@ -562,12 +586,12 @@ const Quotes = () => {
             <TableHead>
               <TableRow sx={{ bgcolor: "#F8FAFC" }}>
                 {[
-                  { label: "Customer",  align: "left"  },
-                  { label: "Quote ID",  align: "left"  },
-                  { label: "Date",      align: "left"  },
-                  { label: "Total",     align: "right" },
-                  { label: "Status",    align: "left"  },
-                  { label: "",          align: "right" },
+                  { label: "Customer", align: "left" },
+                  { label: "Quote ID", align: "left" },
+                  { label: "Date", align: "left" },
+                  { label: "Total", align: "right" },
+                  { label: "Status", align: "left" },
+                  { label: "", align: "right" },
                 ].map((h) => (
                   <TableCell
                     key={h.label}
@@ -591,7 +615,7 @@ const Quotes = () => {
                 return (
                   <TableRow
                     key={quote.id}
-                    onClick={() => navigate(`/quote/${quote.id}`)}
+                    onClick={() => navigate(`/secured/quote/${quote.id}`)}
                     sx={{
                       cursor: "pointer",
                       bgcolor: "#fff",

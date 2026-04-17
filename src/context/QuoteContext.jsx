@@ -19,7 +19,7 @@ export const createInitialQuoteData = () => ({
   businessName: "",
   businessPhone: "",
   businessAddress: "",
-  quoteNumber: "0001",
+  quoteNumber: "",
   quoteDate: isoToday(),
   customerName: "",
   email: "",
