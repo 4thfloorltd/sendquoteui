@@ -104,19 +104,29 @@ const Register = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
-    const trimmedEmail = email.trim().toLowerCase();
+
+    // Read directly from the form so browser autofill (which doesn't always
+    // dispatch React-observable change events) still reaches submit.
+    const data = new FormData(e.currentTarget);
+    const trimmedEmail = String(data.get("email") ?? "").trim().toLowerCase();
+    const passwordValue = String(data.get("password") ?? "");
+
     if (!EMAIL_RE.test(trimmedEmail)) {
       setError("Enter a valid email address.");
       return;
     }
-    if (password.length < 6) {
+    if (passwordValue.length < 6) {
       setError("Password must be at least 6 characters.");
       return;
     }
 
+    // Keep React state in sync so the UI reflects the autofilled values.
+    if (trimmedEmail !== email) setEmail(trimmedEmail);
+    if (passwordValue !== password) setPassword(passwordValue);
+
     setSubmitting(true);
     try {
-      const { user } = await createUserWithEmailAndPassword(auth, trimmedEmail, password);
+      const { user } = await createUserWithEmailAndPassword(auth, trimmedEmail, passwordValue);
       await setDoc(doc(db, "users", user.uid), {
         loginEmail: trimmedEmail,
         updatedAt: serverTimestamp(),
@@ -125,7 +135,7 @@ const Register = () => {
     } catch (err) {
       if (err?.code === "auth/email-already-in-use") {
         try {
-          const { user: existing } = await signInWithEmailAndPassword(auth, trimmedEmail, password);
+          const { user: existing } = await signInWithEmailAndPassword(auth, trimmedEmail, passwordValue);
           await setDoc(doc(db, "users", existing.uid), {
             loginEmail: trimmedEmail,
             updatedAt: serverTimestamp(),
@@ -209,6 +219,7 @@ const Register = () => {
             required
             margin="normal"
             disabled={submitting}
+            InputLabelProps={{ shrink: true }}
           />
           <TextField
             label="Password"
@@ -224,6 +235,7 @@ const Register = () => {
             required
             margin="normal"
             disabled={submitting}
+            InputLabelProps={{ shrink: true }}
           />
           {password.length > 0 ? (
             <Box sx={{ mt: 0.5, mb: 0.5 }}>

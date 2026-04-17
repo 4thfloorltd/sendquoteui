@@ -51,9 +51,25 @@ const Login = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+
+    // Read directly from the form so browser autofill (which doesn't always
+    // dispatch React-observable change events) still reaches submit.
+    const data = new FormData(e.currentTarget);
+    const emailValue = String(data.get("email") ?? "").trim().toLowerCase();
+    const passwordValue = String(data.get("password") ?? "");
+
+    if (!emailValue || !passwordValue) {
+      setError("Enter your email and password.");
+      return;
+    }
+
+    // Keep React state in sync so the UI reflects the autofilled values.
+    if (emailValue !== email) setEmail(emailValue);
+    if (passwordValue !== password) setPassword(passwordValue);
+
     setSubmitting(true);
     try {
-      await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), password);
+      await signInWithEmailAndPassword(auth, emailValue, passwordValue);
       const dest = location.state?.from?.pathname;
       const safe =
         typeof dest === "string" && dest.startsWith("/") && !dest.startsWith("//");
@@ -116,6 +132,7 @@ const Login = () => {
             required
             margin="normal"
             disabled={submitting}
+            InputLabelProps={{ shrink: true }}
           />
           <TextField
             label="Password"
@@ -128,6 +145,7 @@ const Login = () => {
             required
             margin="normal"
             disabled={submitting}
+            InputLabelProps={{ shrink: true }}
           />
           <Box sx={{ textAlign: "right", mt: 0.5, mb: 0.5 }}>
             <Link
