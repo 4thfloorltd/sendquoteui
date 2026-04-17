@@ -55,6 +55,9 @@ export async function isEmailClaimedByAnotherUser(auth, db, normalizedEmail, cur
 /**
  * True if `normalizedEmail` is already used by *any* active Firebase Auth
  * account (used for the guest quote flow where there is no currentUid).
+ *
+ * Uses the Admin SDK Cloud Function as primary check so that Firebase's
+ * email-enumeration protection doesn't cause false negatives.
  */
 export async function emailHasRegisteredAccount(auth, db, normalizedEmail) {
   const e = normalizedEmail.trim().toLowerCase();
@@ -63,12 +66,26 @@ export async function emailHasRegisteredAccount(auth, db, normalizedEmail) {
   // Signed-in user's own email is never treated as "another account".
   if (auth.currentUser?.email?.toLowerCase() === e) return false;
 
+  // Primary: guest-safe Cloud Function (Admin SDK — bypasses enumeration protection,
+  // no auth required so works in the unauthenticated quote flow).
+  try {
+    const fns = getFunctions();
+    const check = httpsCallable(fns, "checkEmailRegistered");
+    const result = await check({ email: e });
+    if (result.data?.registered) return true;
+    // Cloud Function says not registered — trust it.
+    return false;
+  } catch {
+    // Function unavailable — fall through to client-side checks.
+  }
+
+  // Fallback: fetchSignInMethodsForEmail (may return [] when enumeration protection is on).
   try {
     const methods = await fetchSignInMethodsForEmail(auth, e);
     if (methods?.length > 0) return true;
-    return false;
   } catch {
-    // Enumeration protection — fall back to Firestore.
+    // Enumeration protection active — fall back to Firestore.
   }
+
   return isEmailClaimedByAnotherUser(auth, db, e, "");
 }

@@ -1,4 +1,4 @@
-const { onCall, HttpsError } = require("firebase-functions/v2/https");
+const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
 const { defineSecret } = require("firebase-functions/params");
 const { Anthropic } = require("@anthropic-ai/sdk");
 const admin = require("firebase-admin");
@@ -11,7 +11,10 @@ const smtpPort = defineSecret("SMTP_PORT");
 const smtpUser = defineSecret("SMTP_USER");
 const smtpPass = defineSecret("SMTP_PASS");
 const smtpFrom = defineSecret("SMTP_FROM");
-const verificationPepper = defineSecret("QUOTE_VERIFY_PEPPER");
+const verificationPepper  = defineSecret("QUOTE_VERIFY_PEPPER");
+const stripeSecretKey     = defineSecret("STRIPE_SECRET_KEY");
+const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
+const stripePriceId       = defineSecret("STRIPE_PRICE_ID");
 
 const MODEL = "claude-haiku-4-5-20251001";
 const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
@@ -418,7 +421,7 @@ async function sendQuoteResponseNotification({
 
         <!-- Header -->
         <tr><td style="background:#083a6b;border-radius:12px 12px 0 0;padding:24px 32px;text-align:center">
-          <p style="margin:0;font-size:20px;font-weight:700;color:#fff;letter-spacing:0.02em">✈ SendQuote</p>
+          <p style="margin:0;font-size:20px;font-weight:700;color:#fff;letter-spacing:0.02em">SendQuote</p>
         </td></tr>
 
         <!-- Status banner -->
@@ -604,6 +607,28 @@ exports.deleteUserData = onCall(
     await auth.deleteUser(uid);
 
     return { ok: true };
+  },
+);
+
+// Lightweight guest-safe check: returns { registered: true } if an Auth
+// account exists for the given email. No authentication required — the
+// response only confirms presence, not identity, so enumeration risk is
+// equivalent to the standard registration flow.
+exports.checkEmailRegistered = onCall(
+  { region: "us-central1", timeoutSeconds: 15, memory: "256MiB" },
+  async (request) => {
+    const email = String(request.data?.email || "").trim().toLowerCase();
+    if (!validateEmailAddress(email)) {
+      throw new HttpsError("invalid-argument", "A valid email is required.");
+    }
+    try {
+      await admin.auth().getUserByEmail(email);
+      return { registered: true };
+    } catch (e) {
+      if (e.code === "auth/user-not-found") return { registered: false };
+      console.error("checkEmailRegistered error", e);
+      return { registered: false };
+    }
   },
 );
 
@@ -825,5 +850,320 @@ Rules:
     }));
 
     return { ok: true, data: parsed };
+  },
+);
+
+// ─── Stripe: create Subscription + return PaymentIntent client_secret ─────────
+exports.createSubscriptionIntent = onCall(
+  {
+    region:         "us-central1",
+    timeoutSeconds: 30,
+    memory:         "256MiB",
+    secrets:        [stripeSecretKey, stripePriceId],
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "Must be logged in.");
+    }
+    const uid      = request.auth.uid;
+    const db       = admin.firestore();
+    const userRef  = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() || {};
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+
+    // Reuse or create Stripe customer.
+    let customerId = userData.stripeCustomerId || null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email:    request.auth.token.email || userData.bizEmail || undefined,
+        metadata: { firebaseUid: uid },
+      });
+      customerId = customer.id;
+      await userRef.set({ stripeCustomerId: customerId }, { merge: true });
+    }
+
+    // Cancel any existing incomplete subscriptions to avoid duplicates.
+    const existing = await stripe.subscriptions.list({
+      customer: customerId,
+      status:   "incomplete",
+      limit:    5,
+    });
+    await Promise.all(
+      existing.data.map((s) => stripe.subscriptions.cancel(s.id).catch(() => {})),
+    );
+
+    // Create subscription without nested expand — we'll fetch the invoice separately.
+    // Restrict to 'card' only (covers regular cards, Apple Pay, Google Pay) via
+    // payment_settings.payment_method_types, which excludes Link, Klarna, Revolut Pay, etc.
+    const subscription = await stripe.subscriptions.create({
+      customer:         customerId,
+      items:            [{ price: stripePriceId.value() }],
+      payment_behavior: "default_incomplete",
+      payment_settings: {
+        save_default_payment_method: "on_subscription",
+        payment_method_types:        ["card"],
+      },
+      metadata: { firebaseUid: uid },
+    });
+
+    console.log("Subscription created:", subscription.id, "status:", subscription.status);
+
+    // Get the invoice ID from the subscription.
+    const invoiceId = typeof subscription.latest_invoice === "string"
+      ? subscription.latest_invoice
+      : subscription.latest_invoice?.id;
+
+    if (!invoiceId) {
+      throw new HttpsError("internal", "No invoice found on subscription.");
+    }
+
+    // Fetch the invoice with payments expanded (Stripe 2026-03-25.dahlia).
+    // In this API version invoice.payment_intent is gone; the PI id lives in
+    // invoice.payments.data[0].payment_intent (a string — NOT further expandable).
+    const invoice = await stripe.invoices.retrieve(invoiceId, {
+      expand: ["payment_intent", "payments"],
+    });
+
+    console.log("Invoice keys:", Object.keys(invoice).join(", "));
+    console.log("Invoice payment_intent field:", invoice.payment_intent, "| payments count:", invoice.payments?.data?.length);
+
+    let paymentIntent = null;
+
+    // 1) Legacy path: invoice.payment_intent directly (pre-2024-09-30)
+    const legacyPi = invoice.payment_intent;
+    if (legacyPi && typeof legacyPi === "object") {
+      paymentIntent = legacyPi;
+    } else if (typeof legacyPi === "string") {
+      paymentIntent = await stripe.paymentIntents.retrieve(legacyPi);
+    }
+
+    // 2) New path: invoice.payments.data[0].payment_intent (2024-09-30 / dahlia)
+    //    The PI is returned as a string id — retrieve it separately.
+    if (!paymentIntent) {
+      const piId = invoice.payments?.data?.[0]?.payment_intent;
+      console.log("payments[0].payment_intent:", piId);
+      if (piId && typeof piId === "string") {
+        paymentIntent = await stripe.paymentIntents.retrieve(piId);
+      } else if (piId && typeof piId === "object") {
+        paymentIntent = piId;
+      }
+    }
+
+    // 3) Absolute fallback: list PIs for the customer
+    if (!paymentIntent) {
+      const list = await stripe.paymentIntents.list({ customer: customerId, limit: 5 });
+      paymentIntent = list.data.find(
+        (pi) => pi.status === "requires_payment_method" || pi.status === "requires_confirmation",
+      ) || null;
+      if (paymentIntent) console.log("Found PI via list fallback:", paymentIntent.id);
+    }
+
+    console.log("PaymentIntent id:", paymentIntent?.id, "client_secret present:", !!paymentIntent?.client_secret);
+
+    if (!paymentIntent?.client_secret) {
+      throw new HttpsError("internal", "Could not create payment intent. Please try again.");
+    }
+
+    // Store the subscription ID so the webhook can look up the user.
+    await userRef.set({ stripeSubscriptionId: subscription.id }, { merge: true });
+
+    return {
+      clientSecret:   paymentIntent.client_secret,
+      subscriptionId: subscription.id,
+    };
+  },
+);
+
+// ─── Stripe: create Checkout session (hosted page) ────────────────────────────
+exports.createCheckoutSession = onCall(
+  {
+    region:         "us-central1",
+    timeoutSeconds: 30,
+    memory:         "256MiB",
+    secrets:        [stripeSecretKey, stripePriceId],
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
+    const uid      = request.auth.uid;
+    const db       = admin.firestore();
+    const userRef  = db.collection("users").doc(uid);
+    const userSnap = await userRef.get();
+    const userData = userSnap.data() || {};
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+    let customerId = userData.stripeCustomerId || null;
+    if (!customerId) {
+      const customer = await stripe.customers.create({
+        email:    request.auth.token.email || userData.bizEmail || undefined,
+        metadata: { firebaseUid: uid },
+      });
+      customerId = customer.id;
+      await userRef.set({ stripeCustomerId: customerId }, { merge: true });
+    }
+
+    const appUrl = "https://sendquote.ai";
+    const session = await stripe.checkout.sessions.create({
+      customer:                    customerId,
+      client_reference_id:         uid,
+      mode:                        "subscription",
+      line_items:                  [{ price: stripePriceId.value(), quantity: 1 }],
+      success_url:                 `${appUrl}/secured/billing?checkout=success`,
+      cancel_url:                  `${appUrl}/secured/billing?checkout=cancel`,
+      allow_promotion_codes:       true,
+      billing_address_collection:  "auto",
+      subscription_data:           { metadata: { firebaseUid: uid } },
+    });
+    return { url: session.url };
+  },
+);
+
+// ─── Stripe: create Customer Portal session ───────────────────────────────────
+exports.createPortalSession = onCall(
+  {
+    region:         "us-central1",
+    timeoutSeconds: 30,
+    memory:         "256MiB",
+    secrets:        [stripeSecretKey],
+  },
+  async (request) => {
+    if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
+    const uid      = request.auth.uid;
+    const userSnap = await admin.firestore().collection("users").doc(uid).get();
+    const customerId = (userSnap.data() || {}).stripeCustomerId;
+    if (!customerId) throw new HttpsError("not-found", "No billing account found. Please upgrade first.");
+
+    const stripe  = require("stripe")(stripeSecretKey.value());
+    const session = await stripe.billingPortal.sessions.create({
+      customer:   customerId,
+      return_url: "https://sendquote.ai/secured/billing",
+    });
+    return { url: session.url };
+  },
+);
+
+// ─── Stripe: webhook handler ───────────────────────────────────────────────────
+exports.stripeWebhook = onRequest(
+  {
+    region:         "us-central1",
+    timeoutSeconds: 60,
+    memory:         "256MiB",
+    secrets:        [stripeSecretKey, stripeWebhookSecret],
+  },
+  async (req, res) => {
+    if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+    const sig    = req.headers["stripe-signature"];
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret.value());
+    } catch (err) {
+      console.error("Stripe webhook signature error:", err.message);
+      res.status(400).send(`Webhook Error: ${err.message}`);
+      return;
+    }
+
+    const db = admin.firestore();
+
+    async function refByCustomerId(customerId) {
+      const snap = await db.collection("users").where("stripeCustomerId", "==", customerId).limit(1).get();
+      return snap.empty ? null : snap.docs[0].ref;
+    }
+
+    async function refBySubscriptionId(subscriptionId) {
+      const snap = await db.collection("users").where("stripeSubscriptionId", "==", subscriptionId).limit(1).get();
+      return snap.empty ? null : snap.docs[0].ref;
+    }
+
+    try {
+      switch (event.type) {
+
+        // ── Hosted Checkout completed ──────────────────────────────────────
+        case "checkout.session.completed": {
+          const session = event.data.object;
+          const uid = session.client_reference_id;
+          if (!uid) break;
+          await db.collection("users").doc(uid).set({
+            plan:                 "premium",
+            planStatus:           "active",
+            stripeCustomerId:     session.customer,
+            stripeSubscriptionId: session.subscription,
+            planUpdatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          break;
+        }
+
+        // ── Invoice paid (covers both Checkout and Elements first payment) ─
+        case "invoice.payment_succeeded": {
+          const invoice = event.data.object;
+          // Look up user via subscriptionId (set before payment in Elements flow)
+          // or fall back to customerId.
+          let ref = invoice.subscription
+            ? await refBySubscriptionId(invoice.subscription)
+            : null;
+          if (!ref) ref = await refByCustomerId(invoice.customer);
+          if (!ref) break;
+          await ref.set({
+            plan:          "premium",
+            planStatus:    "active",
+            planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          break;
+        }
+
+        // ── Subscription changed ───────────────────────────────────────────
+        case "customer.subscription.updated": {
+          const sub = event.data.object;
+          const ref = await refByCustomerId(sub.customer);
+          if (!ref) break;
+          const active = sub.status === "active" || sub.status === "trialing";
+          await ref.set({
+            plan:                 active ? "premium" : "free",
+            planStatus:           sub.status,
+            planPeriodEnd:        sub.current_period_end
+                                    ? new Date(sub.current_period_end * 1000) : null,
+            stripeSubscriptionId: sub.id,
+            planUpdatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          break;
+        }
+
+        // ── Subscription cancelled ─────────────────────────────────────────
+        case "customer.subscription.deleted": {
+          const sub = event.data.object;
+          const ref = await refByCustomerId(sub.customer);
+          if (!ref) break;
+          await ref.set({
+            plan:          "free",
+            planStatus:    "canceled",
+            planPeriodEnd: null,
+            planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          break;
+        }
+
+        // ── Payment failed ─────────────────────────────────────────────────
+        case "invoice.payment_failed": {
+          const invoice = event.data.object;
+          const ref = await refByCustomerId(invoice.customer);
+          if (!ref) break;
+          await ref.set({
+            planStatus:    "past_due",
+            planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          }, { merge: true });
+          break;
+        }
+
+        default: break;
+      }
+    } catch (err) {
+      console.error("Error processing Stripe webhook:", event.type, err);
+      res.status(500).send("Internal error");
+      return;
+    }
+
+    res.status(200).json({ received: true });
   },
 );
