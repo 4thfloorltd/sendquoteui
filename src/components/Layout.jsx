@@ -11,9 +11,13 @@ import { ScrollToTopFab } from "./ScrollToTopFab";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../firebase";
+import { usePageSeo } from "../seo/usePageSeo";
+import { useGoogleAnalytics } from "../analytics/useGoogleAnalytics";
 
 function Layout() {
   const location = useLocation();
+  usePageSeo(location.pathname);
+  useGoogleAnalytics(location);
   const isSecuredPath = location.pathname.startsWith("/secured");
   const isQuoteViewPath = /^\/quote\/[^/]+/.test(location.pathname);
   const isAuthPath = ["/login", "/register", "/forgot-password", "/reset-password"].includes(location.pathname);
