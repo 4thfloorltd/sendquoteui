@@ -26,6 +26,7 @@ const Sidebar = () => {
   const [businessName, setBusinessName]   = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
   const [quoteCount, setQuoteCount]       = useState(0);
+  const [plan, setPlan]                   = useState("free");
 
   const FREE_QUOTA = FREE_QUOTE_LIMIT;
 
@@ -41,6 +42,7 @@ const Sidebar = () => {
         const d = snap.data();
         setBusinessName(d?.businessName ?? "");
         setBusinessEmail(d?.businessEmail ?? "");
+        setPlan(d?.plan ?? "free");
         // Backfill loginEmail for older profiles — only when the document
         // actually exists; guards against recreating a just-deleted doc.
         if (snap.exists() && !d?.loginEmail && u.email) {
@@ -61,14 +63,29 @@ const Sidebar = () => {
 
   const displayName  = businessName || user?.email?.split("@")[0] || "Account";
   const displayEmail = businessEmail || user?.email || "";
-  const initials     = displayName.slice(0, 2).toUpperCase();
+  const words    = displayName.split(/\s+/).filter(Boolean);
+  const initials = (words.length >= 2
+    ? words.slice(0, 2).map((w) => w[0]).join("")
+    : displayName.slice(0, 2)
+  ).toUpperCase();
 
   const menuItems = [
     { label: "Quotes", icon: faPaperPlane, path: "/secured/quotes" },
     { label: "Billing", icon: faCreditCard, path: "/secured/billing" },
     { label: "Settings", icon: faCog, path: "/secured/settings" },
-    
   ];
+
+  const isItemActive = (item) => {
+    if (item.path === "/secured/quotes") {
+      return (
+        location.pathname === "/secured/quotes" ||
+        location.pathname === "/secured/quote" ||
+        /^\/secured\/quote\/[^/]+/.test(location.pathname) ||
+        /^\/quote\/[^/]+/.test(location.pathname)
+      );
+    }
+    return location.pathname === item.path;
+  };
 
   return (
     !isMobile && (
@@ -172,9 +189,8 @@ const Sidebar = () => {
                   alignItems: "center",
                   gap: "10px",
                   padding: "10px 16px",
-                  color: location.pathname === item.path ? "#fff" : "#6B7280", // White text for active item
-                  backgroundColor:
-                    location.pathname === item.path ? "#083a6b" : "inherit", // Active background color
+                  color: isItemActive(item) ? "#fff" : "#6B7280",
+                  backgroundColor: isItemActive(item) ? "#083a6b" : "inherit",
                   "&:hover": {
                     backgroundColor: "#E5E7EB", // Hover effect for background
                     color: "#083a6b", // Change text color on hover
@@ -207,52 +223,60 @@ const Sidebar = () => {
           ))}
         </List>
 
-        {/* Free tier usage */}
-        <Box sx={{ px: 2, pb: 2 }}>
-          <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: 0.75 }}>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: "#374151", fontSize: "0.75rem" }}>
-              Free quotes
-            </Typography>
-            <Typography variant="caption" sx={{ color: quoteCount >= FREE_QUOTA ? "#EF4444" : "#6B7280", fontWeight: 600, fontSize: "0.75rem" }}>
-              {Math.min(quoteCount, FREE_QUOTA)}&nbsp;/&nbsp;{FREE_QUOTA}
+        {/* Quota widget — hidden for Premium users */}
+        {plan !== "premium" ? (
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: 0.75 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: "#374151", fontSize: "0.75rem" }}>
+                Free quotes
+              </Typography>
+              <Typography variant="caption" sx={{ color: quoteCount >= FREE_QUOTA ? "#EF4444" : "#6B7280", fontWeight: 600, fontSize: "0.75rem" }}>
+                {Math.min(quoteCount, FREE_QUOTA)}&nbsp;/&nbsp;{FREE_QUOTA}
+              </Typography>
+            </Box>
+            <LinearProgress
+              variant="determinate"
+              value={Math.min((quoteCount / FREE_QUOTA) * 100, 100)}
+              sx={{
+                height: 6,
+                borderRadius: 3,
+                bgcolor: "#E5E7EB",
+                "& .MuiLinearProgress-bar": {
+                  borderRadius: 3,
+                  bgcolor: quoteCount >= FREE_QUOTA ? "#EF4444" : "#083a6b",
+                },
+              }}
+            />
+            {quoteCount >= FREE_QUOTA ? (
+              <Typography
+                component={Link}
+                to="/secured/billing"
+                variant="caption"
+                sx={{
+                  display: "block",
+                  mt: 0.75,
+                  color: "#EF4444",
+                  fontWeight: 600,
+                  fontSize: "0.7rem",
+                  textDecoration: "underline",
+                  "&:hover": { textDecoration: "underline", color: "#DC2626" },
+                }}
+              >
+                Limit reached — upgrade to send more
+              </Typography>
+            ) : (
+              <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#9CA3AF", fontSize: "0.7rem" }}>
+                {FREE_QUOTA - quoteCount} free quote{FREE_QUOTA - quoteCount !== 1 ? "s" : ""} remaining
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Box sx={{ px: 2, pb: 2 }}>
+            <Typography variant="caption" sx={{ color: "#10A86B", fontWeight: 700, fontSize: "0.75rem" }}>
+              ✓ Premium - unlimited quotes
             </Typography>
           </Box>
-          <LinearProgress
-            variant="determinate"
-            value={Math.min((quoteCount / FREE_QUOTA) * 100, 100)}
-            sx={{
-              height: 6,
-              borderRadius: 3,
-              bgcolor: "#E5E7EB",
-              "& .MuiLinearProgress-bar": {
-                borderRadius: 3,
-                bgcolor: quoteCount >= FREE_QUOTA ? "#EF4444" : "#083a6b",
-              },
-            }}
-          />
-          {quoteCount >= FREE_QUOTA ? (
-            <Typography
-              component={Link}
-              to="/secured/billing"
-              variant="caption"
-              sx={{
-                display: "block",
-                mt: 0.75,
-                color: "#EF4444",
-                fontWeight: 600,
-                fontSize: "0.7rem",
-                textDecoration: "underline",
-                "&:hover": { textDecoration: "underline", color: "#DC2626" },
-              }}
-            >
-              Limit reached — upgrade to send more
-            </Typography>
-          ) : (
-            <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#9CA3AF", fontSize: "0.7rem" }}>
-              {FREE_QUOTA - quoteCount} free quote{FREE_QUOTA - quoteCount !== 1 ? "s" : ""} remaining
-            </Typography>
-          )}
-        </Box>
+        )}
 
         {/* Support */}
         <a

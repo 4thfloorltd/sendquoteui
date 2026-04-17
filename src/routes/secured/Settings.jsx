@@ -11,8 +11,10 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   Grid,
   Snackbar,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
@@ -79,6 +81,10 @@ const Settings = () => {
     setDeleteOpen(false);
   };
 
+  // Tax settings
+  const [vatRegistered, setVatRegistered] = useState(true);
+  const [vatSaving, setVatSaving] = useState(false);
+
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
   const showSnack = (message, severity = "success") => setSnackbar({ open: true, message, severity });
@@ -104,6 +110,7 @@ const Settings = () => {
           const d = snap.data();
           setBizName(d.businessName    ?? "");
           setBizAddress(d.businessAddress ?? "");
+          setVatRegistered(d.vatRegistered ?? true);
 
           const authLower  = authUserEmail.toLowerCase();
           const pending    = d.pendingEmailChange?.toLowerCase();
@@ -182,8 +189,12 @@ const Settings = () => {
       return;
     }
 
+    // Guard: if this email is already awaiting verification, don't let it be
+    // written directly — treat it as a new email change requiring reauth.
+    const isPendingEmail = pendingVerification?.email && normalizedEmail === pendingVerification.email;
+
     try {
-      if (emailChanged) {
+      if (emailChanged || isPendingEmail) {
         // Save name & address immediately; email update is handled via Firebase
         // verification link in the reauth step.
         await setDoc(doc(db, "users", uid), {
@@ -243,11 +254,16 @@ const Settings = () => {
         updatedAt: serverTimestamp(),
       }, { merge: true });
 
-      // Update local state so emailChanged becomes false and the banner is visible.
-      setOriginalBizEmail(nextEmail);
+      // Close the edit form and revert the displayed email to the verified one.
+      // Do NOT update originalBizEmail to the pending address — keeping it at
+      // the verified value ensures emailChanged stays true if the user tries to
+      // save the pending email again, preventing it from being written without
+      // completing verification.
       setReauthOpen(false);
       setReauthPassword("");
       setPendingEmailSave(null);
+      setEditingProfile(false);
+      setBizEmail(originalBizEmail);
       setPendingVerification({ email: nextEmail, resending: false });
       startResendCooldown();
     } catch (e) {
@@ -363,6 +379,21 @@ const Settings = () => {
       }
     } finally {
       setDeleteLoading(false);
+    }
+  };
+
+  const handleToggleVatRegistered = async (checked) => {
+    setVatRegistered(checked);
+    if (!uid) return;
+    setVatSaving(true);
+    try {
+      await setDoc(doc(db, "users", uid), { vatRegistered: checked, updatedAt: serverTimestamp() }, { merge: true });
+    } catch (e) {
+      console.error("Failed to save VAT setting", e);
+      setVatRegistered(!checked);
+      showSnack("Failed to save tax setting. Please try again.", "error");
+    } finally {
+      setVatSaving(false);
     }
   };
 
@@ -570,6 +601,36 @@ const Settings = () => {
         </Grid>
       </Grid>
       )}
+
+      <Divider sx={{ my: 4 }} />
+
+      {/* ── Tax settings ── */}
+      <Typography variant="h6" fontWeight={700} color="#083a6b" sx={{ mb: 2 }}>
+        Tax settings
+      </Typography>
+      <Box sx={{ border: "1px solid #E5E7EB", borderRadius: 2, bgcolor: "#F8FAFC", px: 2.5, py: 2, mb: 0 }}>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={vatRegistered}
+              onChange={(e) => handleToggleVatRegistered(e.target.checked)}
+              disabled={profileLoading || vatSaving}
+            />
+          }
+          label={
+            <Box sx={{ ml: 0.5 }}>
+              <Typography variant="body2" fontWeight={600} color="#111827">
+                VAT registered
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                When enabled, a VAT % field appears on each line item and VAT is shown in totals.
+              </Typography>
+            </Box>
+          }
+          labelPlacement="end"
+          sx={{ m: 0, alignItems: "flex-start" }}
+        />
+      </Box>
 
       <Divider sx={{ my: 4 }} />
 

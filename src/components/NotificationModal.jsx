@@ -6,6 +6,23 @@ import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
 import NotificationsNoneIcon from "@mui/icons-material/NotificationsNone";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
+const ordinal = (n) => {
+  const v = n % 100;
+  return n + (["th", "st", "nd", "rd"][(v - 20) % 10] || ["th", "st", "nd", "rd"][v] || "th");
+};
+
+const getNotifDateLabel = (date) => {
+  const d = new Date(date);
+  if (isNaN(d)) return "Earlier";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day   = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff  = Math.round((today - day) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff <= 3)  return `${diff} days ago`;
+  return `${ordinal(d.getDate())} ${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}`;
+};
+
 const normalizeItem = (item) => {
   if (typeof item === "string") return { message: item, quoteDocId: null, status: null, unread: false };
   if (item && typeof item.message === "string") {
@@ -40,8 +57,7 @@ const NotificationModal = ({
       ? groupedNotifications
       : latestQuotes.reduce((acc, quote) => {
           if (quote.status === "Accepted" || quote.status === "Declined") {
-            const diff = Math.floor((Date.now() - new Date(quote.dateSent)) / 86400000);
-            const label = diff === 0 ? "Today" : diff === 1 ? "Yesterday" : `${diff} days ago`;
+          const label = getNotifDateLabel(quote.dateSent);
             if (!acc[label]) acc[label] = [];
             acc[label].push({
               message: `<strong>${quote.name}</strong> has <strong>${quote.status.toLowerCase()}</strong> your quote <strong>${quote.quoteId}</strong>`,
@@ -145,7 +161,7 @@ const NotificationModal = ({
                         if (quoteDocId) {
                           onNotificationClick?.(quoteDocId, status);
                           handleClose();
-                          navigate(`/quote/${quoteDocId}`);
+                          navigate(`/secured/quote/${quoteDocId}`);
                         }
                       }}
                       sx={{
