@@ -529,7 +529,7 @@ const QuoteView = () => {
                   {decision === "accepted" ? "Quote accepted" : "Quote declined"}
                 </Typography>
                 <Typography color="text.secondary" sx={{ mt: 0.5 }}>
-                  Thank you — your response has been sent to{" "}
+                  Thank you - your response has been sent to{" "}
                   <Box component="span" fontWeight={700}>{quote.businessName}</Box>.
                 </Typography>
                 {comment ? (
