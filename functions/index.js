@@ -480,7 +480,7 @@ async function sendQuoteResponseNotification({
 </html>`;
 
   const text = [
-    `SendQuote — Quote ${statusWord.toUpperCase()}`,
+    `SendQuote - Quote ${statusWord.toUpperCase()}`,
     ``,
     `Hi${businessName ? ` ${businessName}` : ""},`,
     ``,
