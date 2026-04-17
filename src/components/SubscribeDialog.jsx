@@ -30,6 +30,7 @@ const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 const FEATURES = [
   "Unlimited quotes",
   "Edit sent quotes",
+  "Delete sent quotes",
   "Search by name, email or quote ID",
   "PDF import to pre-fill quotes",
   "Priority support",

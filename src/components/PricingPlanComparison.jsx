@@ -79,6 +79,7 @@ export default function PricingPlanComparison({
         <PlanFeature text="Customer accept / decline tracking" />
         <PlanFeature text="PDF download for every quote" />
         <PlanFeature text="Edit sent quotes" />
+        <PlanFeature text="Delete sent quotes" />
         <PlanFeature text="PDF import to pre-fill quotes" />
         <PlanFeature text="Priority support" />
         <Box sx={{ flex: 1 }} />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Box,
   Button,
@@ -11,6 +11,7 @@ import {
   AccordionDetails,
   Divider,
 } from "@mui/material";
+import { keyframes } from "@mui/system";
 import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -24,9 +25,47 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { AiPromptField } from "./AiPromptField";
 import PricingPlanComparison from "./PricingPlanComparison";
 
+const annotationInLeft = keyframes`
+  0%   { opacity: 0; transform: translate(-14px, -10px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0); }
+`;
+
+const annotationInRight = keyframes`
+  0%   { opacity: 0; transform: translate(14px, 10px); }
+  60%  { opacity: 1; }
+  100% { opacity: 1; transform: translate(0, 0); }
+`;
+
 const Landing = () => {
   const [projectMessage, setProjectMessage] = useState("");
   const navigate = useNavigate();
+
+  // Only animate the "customer reviews quote…" annotation once it scrolls into view.
+  const rightAnnotationRef = useRef(null);
+  const [rightAnnotationVisible, setRightAnnotationVisible] = useState(false);
+
+  useEffect(() => {
+    const node = rightAnnotationRef.current;
+    if (!node) return undefined;
+    if (typeof IntersectionObserver === "undefined") {
+      setRightAnnotationVisible(true);
+      return undefined;
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setRightAnnotationVisible(true);
+            io.disconnect();
+          }
+        });
+      },
+      { threshold: 0.3, rootMargin: "0px 0px -10% 0px" },
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, []);
 
   const handleSendMessage = () => {
     const trimmedMessage = projectMessage.trim();
@@ -410,6 +449,12 @@ const Landing = () => {
                 alignItems: "flex-start",
                 pointerEvents: "none",
                 zIndex: 2,
+                opacity: 0,
+                animation: `${annotationInLeft} 1400ms cubic-bezier(0.22, 1, 0.36, 1) 400ms forwards`,
+                "@media (prefers-reduced-motion: reduce)": {
+                  opacity: 1,
+                  animation: "none",
+                },
               }}
             >
               <Box
@@ -434,6 +479,7 @@ const Landing = () => {
 
             {/* Right annotation — bottom-right */}
             <Box
+              ref={rightAnnotationRef}
               aria-hidden
               sx={{
                 position: "absolute",
@@ -446,6 +492,14 @@ const Landing = () => {
                 textAlign: "right",
                 pointerEvents: "none",
                 zIndex: 2,
+                opacity: 0,
+                animation: rightAnnotationVisible
+                  ? `${annotationInRight} 1400ms cubic-bezier(0.22, 1, 0.36, 1) 200ms forwards`
+                  : "none",
+                "@media (prefers-reduced-motion: reduce)": {
+                  opacity: 1,
+                  animation: "none",
+                },
               }}
             >
               <Box
