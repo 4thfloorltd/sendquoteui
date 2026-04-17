@@ -507,12 +507,12 @@ const Landing = () => {
             {
               icon: faUser,
               title: "Draft a Quote in Seconds",
-              text: "Describe the project and let AI draft a professional quote — or build it yourself with line items, pricing, and terms.",
+              text: "Describe the project and let AI draft a professional quote - or build it yourself with line items, pricing, and terms.",
             },
             {
               icon: faPaperPlane,
               title: "Share with Your Customer",
-              text: "Send the quote via a secure link, email, or WhatsApp. Customers open it on any device — no sign-in required.",
+              text: "Send the quote via a secure link, email, or WhatsApp. Customers open it on any device - no sign-in required.",
             },
             {
               icon: faThumbsUp,
