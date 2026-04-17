@@ -193,6 +193,8 @@ const QuoteGenerator = () => {
   const [nlLineChatInput, setNlLineChatInput] = useState("");
   const [nlChatFieldError, setNlChatFieldError] = useState(false);
   const [showAiLineSection, setShowAiLineSection] = useState(false);
+  /** Lets the Address label animate when empty; shrink when focused or filled (Chrome notch). */
+  const [addressFieldFocused, setAddressFieldFocused] = useState(false);
 
   // The form is considered dirty when the user has entered any meaningful data.
   const isFormDirty = !!(
@@ -1467,7 +1469,9 @@ const QuoteGenerator = () => {
                       </li>
                     );
                   }}
-                  renderInput={(params) => (
+                  renderInput={(params) => {
+                    const addrFilled = Boolean((quoteData.businessAddress ?? "").trim());
+                    return (
                     <TextField
                       {...params}
                       variant="outlined"
@@ -1475,10 +1479,22 @@ const QuoteGenerator = () => {
                       multiline
                       maxRows={4}
                       fullWidth
+                      InputLabelProps={{
+                        shrink: addressFieldFocused || addrFilled,
+                        ...params.InputLabelProps,
+                      }}
                       sx={{ mb: { xs: 0, sm: 1.5 }, width: { xs: "100%", sm: undefined } }}
                       slotProps={{ formHelperText: { sx: { mt: 0.5 } } }}
                       InputProps={{
                         ...params.InputProps,
+                        onFocus: (e) => {
+                          setAddressFieldFocused(true);
+                          params.InputProps?.onFocus?.(e);
+                        },
+                        onBlur: (e) => {
+                          setAddressFieldFocused(false);
+                          params.InputProps?.onBlur?.(e);
+                        },
                         endAdornment: (
                           <>
                             {addressLoading || addressResolving ? (
@@ -1489,7 +1505,8 @@ const QuoteGenerator = () => {
                         ),
                       }}
                     />
-                  )}
+                    );
+                  }}
                 />
               </>
             )}

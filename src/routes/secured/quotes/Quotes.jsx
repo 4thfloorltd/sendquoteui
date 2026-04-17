@@ -95,6 +95,7 @@ const Quotes = () => {
   const [bizName, setBizName] = useState("");
   const [bizEmail, setBizEmail] = useState("");
   const [bizAddress, setBizAddress] = useState("");
+  const [onboardingAddressFocused, setOnboardingAddressFocused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
 
@@ -395,7 +396,9 @@ const Quotes = () => {
                 </li>
               );
             }}
-            renderInput={(params) => (
+            renderInput={(params) => {
+              const addrFilled = Boolean(bizAddress.trim());
+              return (
               <TextField
                 {...params}
                 label="Business address"
@@ -403,8 +406,20 @@ const Quotes = () => {
                 maxRows={3}
                 fullWidth
                 placeholder="e.g. 123 Main St, London, E1 1AA"
+                InputLabelProps={{
+                  shrink: onboardingAddressFocused || addrFilled,
+                  ...params.InputLabelProps,
+                }}
                 InputProps={{
                   ...params.InputProps,
+                  onFocus: (e) => {
+                    setOnboardingAddressFocused(true);
+                    params.InputProps?.onFocus?.(e);
+                  },
+                  onBlur: (e) => {
+                    setOnboardingAddressFocused(false);
+                    params.InputProps?.onBlur?.(e);
+                  },
                   endAdornment: (
                     <>
                       {addressLoading || addressResolving ? (
@@ -415,7 +430,8 @@ const Quotes = () => {
                   ),
                 }}
               />
-            )}
+              );
+            }}
           />
 
           <Button

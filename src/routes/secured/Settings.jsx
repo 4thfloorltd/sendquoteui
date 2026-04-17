@@ -37,6 +37,7 @@ const Settings = () => {
   const [bizName, setBizName]                 = useState("");
   const [bizEmail, setBizEmail]               = useState("");
   const [bizAddress, setBizAddress]           = useState("");
+  const [addressFieldFocused, setAddressFieldFocused] = useState(false);
   const [profileLoading, setProfileLoading]   = useState(true);
   const [profileSaving, setProfileSaving]     = useState(false);
   const [profileErrors, setProfileErrors]     = useState({});
@@ -549,7 +550,9 @@ const Settings = () => {
                   </li>
                 );
               }}
-              renderInput={(params) => (
+              renderInput={(params) => {
+                const addrFilled = Boolean(bizAddress.trim());
+                return (
                 <TextField
                   {...params}
                   label="Business address"
@@ -557,8 +560,20 @@ const Settings = () => {
                   maxRows={4}
                   fullWidth
                   placeholder="Start typing your address…"
+                  InputLabelProps={{
+                    shrink: addressFieldFocused || addrFilled,
+                    ...params.InputLabelProps,
+                  }}
                   InputProps={{
                     ...params.InputProps,
+                    onFocus: (e) => {
+                      setAddressFieldFocused(true);
+                      params.InputProps?.onFocus?.(e);
+                    },
+                    onBlur: (e) => {
+                      setAddressFieldFocused(false);
+                      params.InputProps?.onBlur?.(e);
+                    },
                     endAdornment: (
                       <>
                         {(addressLoading || addressResolving) && (
@@ -569,7 +584,8 @@ const Settings = () => {
                     ),
                   }}
                 />
-              )}
+                );
+              }}
           />
         </Grid>
         <Grid item xs={12}>

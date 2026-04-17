@@ -104,6 +104,9 @@ export function QuoteLineItemRow({
         ? row.amount
         : 0;
   const priceLabel = `Price (${activeCurrency})`;
+  const descriptionText = row.description ?? row.label ?? "";
+  const descriptionFilled = Boolean(descriptionText.trim());
+  const [descriptionFocused, setDescriptionFocused] = useState(false);
 
   const removeButton = (
     <IconButton
@@ -123,12 +126,14 @@ export function QuoteLineItemRow({
       size="medium"
       fullWidth
       label="Description"
-      value={row.description ?? row.label ?? ""}
+      value={descriptionText}
       onChange={updateLineField(row.id, "description")}
       multiline
       minRows={1}
       maxRows={6}
-      InputLabelProps={{ shrink: true }}
+      InputLabelProps={{ shrink: descriptionFocused || descriptionFilled }}
+      onFocus={() => setDescriptionFocused(true)}
+      onBlur={() => setDescriptionFocused(false)}
       sx={variant === "card" ? { mb: 1.5, minWidth: 0 } : undefined}
     />
   );
