@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Box,
@@ -22,7 +22,9 @@ import {
   useElements,
 } from "@stripe/react-stripe-js";
 import { httpsCallable } from "firebase/functions";
-import { functions } from "../../firebase";
+import { onSnapshot, doc } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+import { auth, db, functions } from "../../firebase";
 import { FREE_QUOTE_LIMIT } from "../constants/plan";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
@@ -159,6 +161,8 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
   const [clientSecret, setClientSecret] = useState("");
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentError, setIntentError]   = useState("");
+  const [planConfirmed, setPlanConfirmed] = useState(false);
+  const unsubPlanRef = useRef(null);
 
   // Reset when dialog closes.
   useEffect(() => {
@@ -167,6 +171,9 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
         setStep(skipOverview ? 2 : 1);
         setClientSecret("");
         setIntentError("");
+        setPlanConfirmed(false);
+        unsubPlanRef.current?.();
+        unsubPlanRef.current = null;
       }, 300);
     }
   }, [open, skipOverview]);
@@ -202,6 +209,22 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
   const handlePaymentSuccess = async () => {
     setStep(3);
     try { await onSuccess?.(); } catch (_) {}
+
+    // Listen for Firestore to confirm plan === "premium" (set by Stripe webhook).
+    // This ensures all quota checks have updated before the user can dismiss.
+    const unsub = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      unsubPlanRef.current?.();
+      unsubPlanRef.current = onSnapshot(doc(db, "users", user.uid), (snap) => {
+        if (snap.data()?.plan === "premium") {
+          setPlanConfirmed(true);
+          unsubPlanRef.current?.();
+          unsubPlanRef.current = null;
+        }
+      });
+    });
+    // Clean up the auth listener immediately after getting the user.
+    setTimeout(unsub, 0);
   };
 
   return (
@@ -299,17 +322,36 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
       {step === 3 && (
         <>
           <DialogContent sx={{ pt: 4, pb: 2, textAlign: "center" }}>
-            <CheckCircleOutlineIcon sx={{ fontSize: 56, color: "#10A86B", mb: 1.5 }} />
-            <Typography variant="h6" fontWeight={800} color="#083a6b">
-              You&apos;re on Premium!
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Your subscription is now active. Enjoy unlimited quotes and all Premium features.
-            </Typography>
+            {planConfirmed ? (
+              <>
+                <CheckCircleOutlineIcon sx={{ fontSize: 56, color: "#10A86B", mb: 1.5 }} />
+                <Typography variant="h6" fontWeight={800} color="#083a6b">
+                  You&apos;re on Premium!
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  Your subscription is now active. Enjoy unlimited quotes and all Premium features.
+                </Typography>
+              </>
+            ) : (
+              <>
+                <CircularProgress size={40} sx={{ color: "#083a6b", mb: 2 }} />
+                <Typography variant="h6" fontWeight={700} color="#083a6b">
+                  Activating your subscription…
+                </Typography>
+                <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                  This usually takes a few seconds.
+                </Typography>
+              </>
+            )}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5 }}>
-            <Button variant="contained" fullWidth onClick={handleClose}
-              sx={{ textTransform: "none", fontWeight: 700, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
+            <Button
+              variant="contained"
+              fullWidth
+              disabled={!planConfirmed}
+              onClick={handleClose}
+              sx={{ textTransform: "none", fontWeight: 700, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
+            >
               Get started
             </Button>
           </DialogActions>
