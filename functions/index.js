@@ -1167,3 +1167,100 @@ exports.stripeWebhook = onRequest(
     res.status(200).json({ received: true });
   },
 );
+
+/**
+ * Persists a bug report to Firestore and emails support@sendquote.ai.
+ *
+ * Request data:
+ *   description  – string (required)
+ *   screenshotUrl – string | null — download URL from Firebase Storage (optional)
+ *   screenshotName – string | null
+ *
+ * Response: { reportId: string }
+ */
+exports.submitBugReport = onCall(
+  {
+    region: "us-central1",
+    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
+    timeoutSeconds: 60,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth) {
+      throw new HttpsError("unauthenticated", "You must be signed in to submit a bug report.");
+    }
+
+    const uid  = request.auth.uid;
+    const description   = String(request.data?.description  ?? "").trim();
+    const screenshotUrl  = request.data?.screenshotUrl  ?? null;
+    const screenshotName = request.data?.screenshotName ?? null;
+
+    if (!description) {
+      throw new HttpsError("invalid-argument", "Description is required.");
+    }
+
+    // Look up the reporter's email from Auth.
+    let reporterEmail = "";
+    try {
+      const userRecord = await admin.auth().getUser(uid);
+      reporterEmail = userRecord.email ?? "";
+    } catch (_) {}
+
+    const db  = admin.firestore();
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    const docRef = await db.collection("bug_reports").add({
+      uid,
+      email: reporterEmail,
+      description,
+      screenshotUrl:  screenshotUrl  ?? null,
+      screenshotName: screenshotName ?? null,
+      status: "open",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Best-effort email to support — never fail the whole request if SMTP is down.
+    try {
+      const host = smtpHost.value();
+      const port = Number.parseInt(String(smtpPort.value() || "587"), 10);
+      const user = smtpUser.value();
+      const pass = smtpPass.value();
+      const from = smtpFrom.value();
+
+      if (host && Number.isFinite(port) && user && pass && from) {
+        const transporter = nodemailer.createTransport({
+          host, port, secure: port === 465, auth: { user, pass },
+        });
+
+        const screenshotLine = screenshotUrl
+          ? `\nScreenshot: ${screenshotUrl}`
+          : "";
+
+        await transporter.sendMail({
+          from,
+          to: from,
+          subject: `[Bug Report] from ${reporterEmail || uid}`,
+          text: [
+            `Reporter: ${reporterEmail || uid}`,
+            `Report ID: ${docRef.id}`,
+            ``,
+            description,
+            screenshotLine,
+          ].join("\n"),
+          html: `
+            <p><strong>Reporter:</strong> ${reporterEmail || uid}</p>
+            <p><strong>Report ID:</strong> ${docRef.id}</p>
+            <hr/>
+            <p style="white-space:pre-wrap">${description.replace(/</g, "&lt;")}</p>
+            ${screenshotUrl ? `<p><a href="${screenshotUrl}">View screenshot</a></p>` : ""}
+          `,
+        });
+      }
+    } catch (emailErr) {
+      console.warn("submitBugReport: email notify failed (non-fatal)", emailErr?.message);
+    }
+
+    return { reportId: docRef.id };
+  },
+);

@@ -45,6 +45,8 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../../firebase";
 import { useAddressAutocomplete } from "../../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../../utils/userEmailAvailability";
+import { FREE_QUOTE_LIMIT } from "../../../constants/plan";
+import SubscribeDialog from "../../../components/SubscribeDialog";
 
 const STATUS_CONFIG = {
   accepted: { label: "Accepted", color: "#22C55E", icon: faCheckCircle },
@@ -70,6 +72,8 @@ const Quotes = () => {
 
   const [quotes, setQuotes] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [plan, setPlan] = useState("free");
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
   /** `null` = show all; otherwise filter by quote status */
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -157,6 +161,7 @@ const Quotes = () => {
       try {
         const profileSnap = await getDoc(doc(db, "users", user.uid));
         profileData = profileSnap.exists() ? profileSnap.data() : null;
+        setPlan(profileData?.plan ?? "free");
       } catch (e) {
         console.error("Profile read failed (skipping onboarding check)", e);
       }
@@ -257,6 +262,18 @@ const Quotes = () => {
       setSaveError("Something went wrong. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openQuoteCount  = quotes.filter((q) => q.status === "pending").length;
+  const isPremium       = plan === "premium";
+  const isQuotaExhausted = !isPremium && openQuoteCount >= FREE_QUOTE_LIMIT;
+
+  const handleCreateQuote = () => {
+    if (isQuotaExhausted) {
+      setSubscribeOpen(true);
+    } else {
+      navigate("/secured/quote", { state: { from: "quotes" } });
     }
   };
 
@@ -511,7 +528,7 @@ const Quotes = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate("/secured/quote", { state: { from: "quotes" } })}
+            onClick={handleCreateQuote}
             sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
           >
             Create your first quote
@@ -700,7 +717,7 @@ const Quotes = () => {
           <Button
             variant="contained"
             startIcon={<AddIcon />}
-            onClick={() => navigate("/secured/quote", { state: { from: "quotes" } })}
+            onClick={handleCreateQuote}
             sx={{
               textTransform: "none",
               fontWeight: 600,
@@ -708,13 +725,19 @@ const Quotes = () => {
               "&:hover": { bgcolor: "#062d52" },
               borderRadius: 2,
               px: 3,
-              display: { xs: "inline-flex", sm: "none" },
+              display: "inline-flex",
             }}
           >
             Create a quote
           </Button>
         </Box>
       )}
+
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        quotaExhausted
+      />
     </Box>
   );
 };

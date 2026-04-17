@@ -1,4 +1,4 @@
-import React from "react";
+import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Box, Typography } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -9,6 +9,11 @@ import {
   faPlus,
   faCreditCard,
 } from "@fortawesome/free-solid-svg-icons";
+import { onAuthStateChanged } from "firebase/auth";
+import { collection, onSnapshot, query, doc, where } from "firebase/firestore";
+import { auth, db } from "../../firebase";
+import { FREE_QUOTE_LIMIT } from "../constants/plan";
+import SubscribeDialog from "./SubscribeDialog";
 
 const ICON_SIZE = 18;
 const LABEL_SIZE = "0.68rem";
@@ -50,6 +55,44 @@ const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const [plan, setPlan]             = useState("free");
+  const [quoteCount, setQuoteCount] = useState(0);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
+
+  useEffect(() => {
+    let unsubProfile = null;
+    let unsubQuotes  = null;
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      unsubProfile?.();
+      unsubQuotes?.();
+      if (!u) { setPlan("free"); setQuoteCount(0); return; }
+
+      unsubProfile = onSnapshot(doc(db, "users", u.uid), (snap) => {
+        setPlan(snap.data()?.plan ?? "free");
+      });
+
+      unsubQuotes = onSnapshot(
+        query(collection(db, "quotes"), where("userId", "==", u.uid)),
+        (snap) => setQuoteCount(
+          snap.docs.filter((d) => !d.data().deleted && d.data().status === "pending").length,
+        ),
+        () => {},
+      );
+    });
+    return () => { unsubAuth(); unsubProfile?.(); unsubQuotes?.(); };
+  }, []);
+
+  const isPremium       = plan === "premium";
+  const isQuotaExhausted = !isPremium && quoteCount >= FREE_QUOTE_LIMIT;
+
+  const handleCreateQuote = () => {
+    if (isQuotaExhausted) {
+      setSubscribeOpen(true);
+    } else {
+      navigate("/secured/quote");
+    }
+  };
+
   const isQuotes   = location.pathname.startsWith("/secured/quotes");
   const isBilling  = location.pathname.startsWith("/secured/billing");
   const isCreate   = location.pathname === "/secured/quote";
@@ -59,7 +102,7 @@ const BottomNav = () => {
     <>
       {/* FAB — Create */}
       <Box
-        onClick={() => navigate("/secured/quote")}
+        onClick={handleCreateQuote}
         sx={{
           position: "fixed",
           bottom: 10,
@@ -120,8 +163,14 @@ const BottomNav = () => {
         <Box sx={{ flex: 1 }} />
 
         <NavItem icon={faCog}        label="Settings" active={isSettings} onClick={() => navigate("/secured/settings")} />
-        <NavItem icon={faHeadphones} label="Support"  active={false}      onClick={() => { window.location.href = "mailto:support@sendquote.ai"; }} />
+        <NavItem icon={faHeadphones} label="Support"  active={location.pathname.startsWith("/secured/support")} onClick={() => navigate("/secured/support")} />
       </Box>
+
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        quotaExhausted
+      />
     </>
   );
 };

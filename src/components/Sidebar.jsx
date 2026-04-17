@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FREE_QUOTE_LIMIT } from "../constants/plan";
 import { Drawer } from "@mui/material";
 import { Box, List, ListItem, Typography, useMediaQuery } from "@mui/material";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCog,
@@ -16,17 +16,20 @@ import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, onSnapshot, query, setDoc, serverTimestamp, where } from "firebase/firestore";
 import { LinearProgress } from "@mui/material";
 import { auth, db } from "../../firebase";
+import SubscribeDialog from "./SubscribeDialog";
 
 export const SIDEBAR_WIDTH = 260;
 
 const Sidebar = () => {
   const isMobile = useMediaQuery("(max-width:768px)");
   const location = useLocation();
+  const navigate = useNavigate();
   const [user, setUser]               = useState(null);
   const [businessName, setBusinessName]   = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
   const [quoteCount, setQuoteCount]       = useState(0);
   const [plan, setPlan]                   = useState("free");
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
 
   const FREE_QUOTA = FREE_QUOTE_LIMIT;
 
@@ -61,6 +64,17 @@ const Sidebar = () => {
     return () => { unsubAuth(); unsubProfile?.(); unsubQuotes?.(); };
   }, []);
 
+  const isPremium = plan === "premium";
+  const isQuotaExhausted = !isPremium && quoteCount >= FREE_QUOTA;
+
+  const handleCreateQuote = () => {
+    if (isQuotaExhausted) {
+      setSubscribeOpen(true);
+    } else {
+      navigate("/secured/quote");
+    }
+  };
+
   const displayName  = businessName || user?.email?.split("@")[0] || "Account";
   const displayEmail = businessEmail || user?.email || "";
   const words    = displayName.split(/\s+/).filter(Boolean);
@@ -89,6 +103,7 @@ const Sidebar = () => {
 
   return (
     !isMobile && (
+      <>
       <Drawer
         open
         variant="permanent"
@@ -157,8 +172,7 @@ const Sidebar = () => {
           {/* Create quote CTA */}
           <ListItem sx={{ px: 2, pb: 1 }}>
             <Button
-              component={Link}
-              to="/secured/quote"
+              onClick={handleCreateQuote}
               variant="contained"
               fullWidth
               startIcon={<FontAwesomeIcon icon={faPlus} style={{ fontSize: "14px" }} />}
@@ -262,7 +276,7 @@ const Sidebar = () => {
                   "&:hover": { textDecoration: "underline", color: "#DC2626" },
                 }}
               >
-                Limit reached — upgrade to send more
+                Limit reached - upgrade to send more
               </Typography>
             ) : (
               <Typography variant="caption" sx={{ display: "block", mt: 0.75, color: "#9CA3AF", fontSize: "0.7rem" }}>
@@ -279,10 +293,7 @@ const Sidebar = () => {
         )}
 
         {/* Support */}
-        <a
-          href="mailto:support@sendquote.ai"
-          style={{ textDecoration: "none" }}
-        >
+        <Link to="/secured/support" style={{ textDecoration: "none" }}>
           <ListItem
             sx={{
               display: "flex",
@@ -290,22 +301,30 @@ const Sidebar = () => {
               alignItems: "center",
               gap: "10px",
               padding: "10px 16px",
-              color: "#6B7280",
+              color: location.pathname.startsWith("/secured/support") ? "#fff" : "#6B7280",
+              backgroundColor: location.pathname.startsWith("/secured/support") ? "#083a6b" : "inherit",
               "&:hover": {
-                backgroundColor: "#E5E7EB",
-                color: "#083a6b",
-                "& .fa-icon": { color: "#083a6b" },
+                backgroundColor: location.pathname.startsWith("/secured/support") ? "#083a6b" : "#E5E7EB",
+                color: location.pathname.startsWith("/secured/support") ? "#fff" : "#083a6b",
+                "& .fa-icon": { color: location.pathname.startsWith("/secured/support") ? "#fff" : "#083a6b" },
               },
             }}
           >
-            <FontAwesomeIcon icon={faHeadphones} className="fa-icon" style={{ fontSize: "20px", color: "#6B7280" }} />
+            <FontAwesomeIcon icon={faHeadphones} className="fa-icon" style={{ fontSize: "20px", color: "inherit" }} />
             <Typography variant="body1" sx={{ fontSize: "16px", fontWeight: "bold", marginLeft: "8px" }}>
               Support
             </Typography>
           </ListItem>
-        </a>
+        </Link>
 
       </Drawer>
+
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        quotaExhausted
+      />
+      </>
     )
   );
 };

@@ -19,6 +19,7 @@ import Quotes from "./routes/secured/quotes/Quotes";
 import QuoteReview from "./routes/secured/quotes/QuoteReview";
 import Settings from "./routes/secured/Settings";
 import Billing from "./routes/secured/Billing";
+import Support from "./routes/secured/Support";
 import theme from "./theme";
 import Pricing from "./routes/Pricing";
 import QuoteView from "./routes/QuoteView";
@@ -67,6 +68,7 @@ const router = createBrowserRouter([
       { path: "secured/quoteReview", element: <QuoteReview /> },
       { path: "secured/settings", element: <Settings /> },
       { path: "secured/billing", element: <Billing /> },
+      { path: "secured/support", element: <Support /> },
     ],
   },
 ]);
