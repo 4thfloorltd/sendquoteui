@@ -115,7 +115,12 @@ const NotificationModal = ({
             />
           )}
         </Stack>
-        <IconButton size="small" onClick={handleClose} aria-label="Close notifications">
+        <IconButton
+          size="small"
+          onClick={handleClose}
+          aria-label="Close notifications"
+          sx={{ borderRadius: "50%", width: 28, height: 28, p: 0 }}
+        >
           <CloseIcon sx={{ fontSize: 16 }} />
         </IconButton>
       </Stack>
@@ -157,8 +162,18 @@ const NotificationModal = ({
                       direction="row"
                       alignItems="center"
                       gap={1.25}
+                      component={quoteDocId ? "button" : "div"}
+                      tabIndex={quoteDocId ? 0 : undefined}
                       onClick={() => {
                         if (quoteDocId) {
+                          onNotificationClick?.(quoteDocId, status);
+                          handleClose();
+                          navigate(`/secured/quote/${quoteDocId}`);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (quoteDocId && (e.key === "Enter" || e.key === " ")) {
+                          e.preventDefault();
                           onNotificationClick?.(quoteDocId, status);
                           handleClose();
                           navigate(`/secured/quote/${quoteDocId}`);
@@ -167,9 +182,13 @@ const NotificationModal = ({
                       sx={{
                         px: 2,
                         height: 56,
+                        width: "100%",
+                        border: "none",
+                        textAlign: "left",
                         cursor: quoteDocId ? "pointer" : "default",
                         bgcolor: unread ? "#EBF3FF" : "#F8FAFC",
                         "&:hover": quoteDocId ? { bgcolor: "#DBEAFE" } : undefined,
+                        "&:focus-visible": quoteDocId ? { outline: "2px solid #083a6b", outlineOffset: "-2px", bgcolor: "#DBEAFE" } : undefined,
                         transition: "background 0.12s",
                         position: "relative",
                         flexShrink: 0,
