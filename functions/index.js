@@ -92,19 +92,64 @@ async function sendVerificationEmail({ to, code }) {
     auth: { user, pass },
   });
 
+  const safeCode = String(code).replace(/[^0-9]/g, "");
+  const htmlBody = `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="color-scheme" content="light">
+<meta name="supported-color-schemes" content="light">
+<title>Your SendQuote verification code</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f0f4f8;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;">
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background-color:#f0f4f8;">
+  <tr>
+    <td align="center" style="padding:40px 16px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="max-width:520px;background-color:#ffffff;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 24px rgba(8,58,107,0.08);">
+        <tr>
+          <td style="background-color:#083a6b;padding:24px 28px;border-radius:12px 12px 0 0;">
+            <p style="margin:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.02em;">SendQuote</p>
+            <p style="margin:6px 0 0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;font-size:13px;font-weight:500;color:rgba(255,255,255,0.85);">Email verification</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 28px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+            <h1 style="margin:0 0 8px;font-size:22px;font-weight:700;color:#0f172a;line-height:1.3;">Your verification code</h1>
+            <p style="margin:0 0 24px;font-size:15px;line-height:1.55;color:#475569;">Enter this code to finish signing up or verifying your email. It is valid for <strong style="color:#0f172a;">10 minutes</strong>.</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td align="center" style="background-color:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:20px 16px;">
+                  <p style="margin:0 0 4px;font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;color:#64748b;">Code</p>
+                  <p style="margin:0;font-family:ui-monospace,'SF Mono',Menlo,Consolas,'Liberation Mono',monospace;font-size:32px;font-weight:700;letter-spacing:0.35em;color:#083a6b;line-height:1.2;">${safeCode}</p>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:24px 0 0;font-size:13px;line-height:1.5;color:#64748b;">If you didn&rsquo;t request this code, you can safely ignore this email. Your account won&rsquo;t be changed.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 28px 28px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+            <p style="margin:0;padding-top:20px;border-top:1px solid #f1f5f9;font-size:12px;line-height:1.5;color:#94a3b8;">This message was sent by SendQuote. Please don&rsquo;t share this code with anyone.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>`;
+
   await transporter.sendMail({
     from,
     to,
     subject: "Your SendQuote verification code",
-    text: `Your SendQuote verification code is: ${code}
+    text: `Your SendQuote verification code is: ${safeCode}
 
 This code expires in 10 minutes.
 
 If you did not request this code, you can ignore this email.`,
-    html: `<p>Your SendQuote verification code is:</p>
-<p style="font-size:24px;font-weight:700;letter-spacing:2px">${code}</p>
-<p>This code expires in 10 minutes.</p>
-<p>If you did not request this code, you can ignore this email.</p>`,
+    html: htmlBody,
   });
 }
 
