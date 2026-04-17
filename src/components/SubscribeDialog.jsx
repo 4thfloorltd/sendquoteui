@@ -228,7 +228,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
       {/* ── Step 1: Plan overview ── */}
       {step === 1 && (
         <>
-          <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 0 }}>
+          <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 1.5 }}>
             {quotaExhausted ? "You've reached your free limit" : "Upgrade to Premium"}
           </DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
@@ -240,7 +240,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {quotaExhausted ? (
                 <>
-                  Get unlimited quotes plus all <strong>Premium features</strong> for just{" "}
+                  Get <strong>unlimited quotes</strong> plus all <strong>Premium features</strong> for just{" "}
                   <strong>{premiumMonthlyFormatted}/month</strong>.
                 </>
               ) : (
