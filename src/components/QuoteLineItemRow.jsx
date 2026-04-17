@@ -46,7 +46,7 @@ function removeLineButtonSx(canRemove) {
  * the parsed number to the parent only on blur.  This avoids the "1." → "1"
  * snap-back that plagues controlled <input type="number"> / naive text fields.
  */
-function NumericTextField({ value: externalValue, onChange, parse, format, inputProps, ...rest }) {
+function NumericTextField({ value: externalValue, onChange, parse, format, inputProps, InputLabelProps, ...rest }) {
   const [draft, setDraft] = useState(() => format(externalValue));
   const focused = useRef(false);
 
@@ -61,6 +61,8 @@ function NumericTextField({ value: externalValue, onChange, parse, format, input
       type="text"
       value={draft}
       inputProps={inputProps}
+      /* Keeps the notch + label aligned in Chrome (avoids outline crossing the label). */
+      InputLabelProps={{ shrink: true, ...InputLabelProps }}
       onFocus={() => { focused.current = true; }}
       onChange={(e) => {
         const raw = e.target.value;
@@ -126,6 +128,7 @@ export function QuoteLineItemRow({
       multiline
       minRows={1}
       maxRows={6}
+      InputLabelProps={{ shrink: true }}
       sx={variant === "card" ? { mb: 1.5, minWidth: 0 } : undefined}
     />
   );
@@ -192,6 +195,7 @@ export function QuoteLineItemRow({
       label="Amount"
       value={formatMoney(lineGross(row))}
       InputProps={{ readOnly: true }}
+      InputLabelProps={{ shrink: true }}
       fullWidth
       sx={{
         minWidth: 0,
