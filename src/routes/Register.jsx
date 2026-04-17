@@ -19,6 +19,7 @@ import {
   sendQuoteVerificationCode,
   verifyQuoteVerificationCode,
 } from "../api/quoteVerification";
+import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const RESEND_COOLDOWN_MS = 60_000;
@@ -210,6 +211,11 @@ const Register = () => {
 
     setSubmitting(true);
     try {
+      const alreadyRegistered = await emailHasRegisteredAccount(auth, db, trimmedEmail);
+      if (alreadyRegistered) {
+        setError(mapAuthError("auth/email-already-in-use"));
+        return;
+      }
       await requestVerificationCode(trimmedEmail);
       setStep("verify");
     } catch (err) {
