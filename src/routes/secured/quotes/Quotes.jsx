@@ -265,8 +265,8 @@ const Quotes = () => {
     }
   };
 
-  const openQuoteCount  = quotes.filter((q) => q.status === "pending").length;
-  const isPremium       = plan === "premium";
+  const openQuoteCount = quotes.length;
+  const isPremium = plan === "premium";
   const isQuotaExhausted = !isPremium && openQuoteCount >= FREE_QUOTE_LIMIT;
 
   const handleCreateQuote = () => {

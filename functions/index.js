@@ -11,10 +11,10 @@ const smtpPort = defineSecret("SMTP_PORT");
 const smtpUser = defineSecret("SMTP_USER");
 const smtpPass = defineSecret("SMTP_PASS");
 const smtpFrom = defineSecret("SMTP_FROM");
-const verificationPepper  = defineSecret("QUOTE_VERIFY_PEPPER");
-const stripeSecretKey     = defineSecret("STRIPE_SECRET_KEY");
+const verificationPepper = defineSecret("QUOTE_VERIFY_PEPPER");
+const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
-const stripePriceId       = defineSecret("STRIPE_PRICE_ID");
+const stripePriceId = defineSecret("STRIPE_PRICE_ID");
 
 const MODEL = "claude-haiku-4-5-20251001";
 const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
@@ -344,11 +344,11 @@ async function sendQuoteResponseNotification({
     auth: { user, pass },
   });
 
-  const isAccepted  = status === "accepted";
-  const statusWord  = isAccepted ? "Accepted" : "Declined";
+  const isAccepted = status === "accepted";
+  const statusWord = isAccepted ? "Accepted" : "Declined";
   const statusColor = isAccepted ? "#16A34A" : "#DC2626";
-  const statusBg    = isAccepted ? "#F0FDF4" : "#FEF2F2";
-  const subject     = `Quote QU-${quoteNumber} has been ${statusWord.toLowerCase()} by ${customerName ?? "your customer"}`;
+  const statusBg = isAccepted ? "#F0FDF4" : "#FEF2F2";
+  const subject = `Quote QU-${quoteNumber} has been ${statusWord.toLowerCase()} by ${customerName ?? "your customer"}`;
 
   // Currency symbol helper
   const symbols = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" };
@@ -358,18 +358,18 @@ async function sendQuoteResponseNotification({
   // Line items table rows
   const lineItemRows = Array.isArray(lineItems) && lineItems.length > 0
     ? lineItems.map((item) => {
-        const qty      = Number(item.quantity)  || 1;
-        const price    = Number(item.unitPrice)  || 0;
-        const vatPct   = Number(item.vatPercent ?? item.vatRate ?? 0);
-        const lineNet  = qty * price;
-        return `<tr>
+      const qty = Number(item.quantity) || 1;
+      const price = Number(item.unitPrice) || 0;
+      const vatPct = Number(item.vatPercent ?? item.vatRate ?? 0);
+      const lineNet = qty * price;
+      return `<tr>
           <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151">${item.description ?? ""}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:center">${qty}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right">${fmt(price)}</td>
           <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right">${vatPct}%</td>
           <td style="padding:8px 12px;border-bottom:1px solid #F1F5F9;font-size:13px;color:#374151;text-align:right;font-weight:600">${fmt(lineNet)}</td>
         </tr>`;
-      }).join("")
+    }).join("")
     : "";
 
   const lineItemsTable = lineItemRows ? `
@@ -486,9 +486,9 @@ async function sendQuoteResponseNotification({
     ``,
     `${customerName ?? "Your customer"} has ${statusWord.toLowerCase()} quote QU-${quoteNumber}.`,
     customerEmail ? `Customer email: ${customerEmail}` : "",
-    quoteDate     ? `Quote date: ${quoteDate}` : "",
-    pricing       ? `Total: ${fmt(pricing.total)}` : "",
-    comment       ? `\nCustomer comment:\n"${comment}"` : "",
+    quoteDate ? `Quote date: ${quoteDate}` : "",
+    pricing ? `Total: ${fmt(pricing.total)}` : "",
+    comment ? `\nCustomer comment:\n"${comment}"` : "",
     ``,
     `View the quote: ${quoteUrl}`,
   ].filter(Boolean).join("\n");
@@ -505,7 +505,7 @@ exports.submitQuoteResponse = onCall(
   },
   async (request) => {
     const quoteId = String(request.data?.quoteId ?? "").trim();
-    const status  = String(request.data?.status  ?? "").trim();
+    const status = String(request.data?.status ?? "").trim();
     const comment = String(request.data?.comment ?? "").trim().slice(0, 1000);
 
     if (!quoteId) {
@@ -515,7 +515,7 @@ exports.submitQuoteResponse = onCall(
       throw new HttpsError("invalid-argument", "status must be 'accepted' or 'declined'.");
     }
 
-    const db  = admin.firestore();
+    const db = admin.firestore();
     const ref = db.collection("quotes").doc(quoteId);
     const snap = await ref.get();
 
@@ -541,15 +541,15 @@ exports.submitQuoteResponse = onCall(
     if (businessEmail) {
       const quoteUrl = `https://sendquote.ai/quote/${quoteId}`;
       sendQuoteResponseNotification({
-        to:            businessEmail,
-        businessName:  data.businessName  ?? "",
-        customerName:  data.customerName  ?? "Your customer",
+        to: businessEmail,
+        businessName: data.businessName ?? "",
+        customerName: data.customerName ?? "Your customer",
         customerEmail: data.customerEmail ?? "",
-        quoteNumber:   data.quoteNumber   ?? quoteId.slice(0, 6),
-        quoteDate:     data.quoteDate     ?? "",
-        currency:      data.currency      ?? "GBP",
-        pricing:       data.pricing       ?? null,
-        lineItems:     data.lineItems     ?? [],
+        quoteNumber: data.quoteNumber ?? quoteId.slice(0, 6),
+        quoteDate: data.quoteDate ?? "",
+        currency: data.currency ?? "GBP",
+        pricing: data.pricing ?? null,
+        lineItems: data.lineItems ?? [],
         status,
         comment,
         quoteUrl,
@@ -571,9 +571,9 @@ exports.deleteUserData = onCall(
       throw new HttpsError("unauthenticated", "You must be signed in.");
     }
 
-    const uid   = request.auth.uid;
-    const db    = admin.firestore();
-    const auth  = admin.auth();
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const auth = admin.auth();
 
     // Fetch the user record so we have the email for quote_usage cleanup.
     let email = "";
@@ -673,10 +673,10 @@ exports.checkEmailAvailability = onCall(
     try {
       const [snapBiz, snapLogin] = await Promise.all([
         db.collection("users").where("businessEmail", "==", email).limit(1).get(),
-        db.collection("users").where("loginEmail",    "==", email).limit(1).get(),
+        db.collection("users").where("loginEmail", "==", email).limit(1).get(),
       ]);
       const ids = new Set();
-      snapBiz.forEach((d)  => ids.add(d.id));
+      snapBiz.forEach((d) => ids.add(d.id));
       snapLogin.forEach((d) => ids.add(d.id));
       const claimed = [...ids].some((id) => id !== currentUid);
       return { claimed };
@@ -844,9 +844,9 @@ Rules:
     if (!Array.isArray(parsed.lineItems)) parsed.lineItems = [];
     parsed.lineItems = parsed.lineItems.map((item) => ({
       description: String(item.description ?? ""),
-      quantity:    Number(item.quantity)  || 1,
-      unitPrice:   Number(item.unitPrice) || 0,
-      vatRate:     Number(item.vatRate)   ?? 20,
+      quantity: Number(item.quantity) || 1,
+      unitPrice: Number(item.unitPrice) || 0,
+      vatRate: Number(item.vatRate) ?? 20,
     }));
 
     return { ok: true, data: parsed };
@@ -856,18 +856,18 @@ Rules:
 // ─── Stripe: create Subscription + return PaymentIntent client_secret ─────────
 exports.createSubscriptionIntent = onCall(
   {
-    region:         "us-central1",
+    region: "us-central1",
     timeoutSeconds: 30,
-    memory:         "256MiB",
-    secrets:        [stripeSecretKey, stripePriceId],
+    memory: "256MiB",
+    secrets: [stripeSecretKey, stripePriceId],
   },
   async (request) => {
     if (!request.auth) {
       throw new HttpsError("unauthenticated", "Must be logged in.");
     }
-    const uid      = request.auth.uid;
-    const db       = admin.firestore();
-    const userRef  = db.collection("users").doc(uid);
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
     const userData = userSnap.data() || {};
 
@@ -877,7 +877,7 @@ exports.createSubscriptionIntent = onCall(
     let customerId = userData.stripeCustomerId || null;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email:    request.auth.token.email || userData.bizEmail || undefined,
+        email: request.auth.token.email || userData.bizEmail || undefined,
         metadata: { firebaseUid: uid },
       });
       customerId = customer.id;
@@ -887,23 +887,23 @@ exports.createSubscriptionIntent = onCall(
     // Cancel any existing incomplete subscriptions to avoid duplicates.
     const existing = await stripe.subscriptions.list({
       customer: customerId,
-      status:   "incomplete",
-      limit:    5,
+      status: "incomplete",
+      limit: 5,
     });
     await Promise.all(
-      existing.data.map((s) => stripe.subscriptions.cancel(s.id).catch(() => {})),
+      existing.data.map((s) => stripe.subscriptions.cancel(s.id).catch(() => { })),
     );
 
     // Create subscription without nested expand — we'll fetch the invoice separately.
     // Restrict to 'card' only (covers regular cards, Apple Pay, Google Pay) via
     // payment_settings.payment_method_types, which excludes Link, Klarna, Revolut Pay, etc.
     const subscription = await stripe.subscriptions.create({
-      customer:         customerId,
-      items:            [{ price: stripePriceId.value() }],
+      customer: customerId,
+      items: [{ price: stripePriceId.value() }],
       payment_behavior: "default_incomplete",
       payment_settings: {
         save_default_payment_method: "on_subscription",
-        payment_method_types:        ["card"],
+        payment_method_types: ["card"],
       },
       metadata: { firebaseUid: uid },
     });
@@ -970,7 +970,7 @@ exports.createSubscriptionIntent = onCall(
     await userRef.set({ stripeSubscriptionId: subscription.id }, { merge: true });
 
     return {
-      clientSecret:   paymentIntent.client_secret,
+      clientSecret: paymentIntent.client_secret,
       subscriptionId: subscription.id,
     };
   },
@@ -979,16 +979,16 @@ exports.createSubscriptionIntent = onCall(
 // ─── Stripe: create Checkout session (hosted page) ────────────────────────────
 exports.createCheckoutSession = onCall(
   {
-    region:         "us-central1",
+    region: "us-central1",
     timeoutSeconds: 30,
-    memory:         "256MiB",
-    secrets:        [stripeSecretKey, stripePriceId],
+    memory: "256MiB",
+    secrets: [stripeSecretKey, stripePriceId],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
-    const uid      = request.auth.uid;
-    const db       = admin.firestore();
-    const userRef  = db.collection("users").doc(uid);
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const userRef = db.collection("users").doc(uid);
     const userSnap = await userRef.get();
     const userData = userSnap.data() || {};
 
@@ -996,7 +996,7 @@ exports.createCheckoutSession = onCall(
     let customerId = userData.stripeCustomerId || null;
     if (!customerId) {
       const customer = await stripe.customers.create({
-        email:    request.auth.token.email || userData.bizEmail || undefined,
+        email: request.auth.token.email || userData.bizEmail || undefined,
         metadata: { firebaseUid: uid },
       });
       customerId = customer.id;
@@ -1005,15 +1005,15 @@ exports.createCheckoutSession = onCall(
 
     const appUrl = "https://sendquote.ai";
     const session = await stripe.checkout.sessions.create({
-      customer:                    customerId,
-      client_reference_id:         uid,
-      mode:                        "subscription",
-      line_items:                  [{ price: stripePriceId.value(), quantity: 1 }],
-      success_url:                 `${appUrl}/secured/billing?checkout=success`,
-      cancel_url:                  `${appUrl}/secured/billing?checkout=cancel`,
-      allow_promotion_codes:       true,
-      billing_address_collection:  "auto",
-      subscription_data:           { metadata: { firebaseUid: uid } },
+      customer: customerId,
+      client_reference_id: uid,
+      mode: "subscription",
+      line_items: [{ price: stripePriceId.value(), quantity: 1 }],
+      success_url: `${appUrl}/secured/billing?checkout=success`,
+      cancel_url: `${appUrl}/secured/billing?checkout=cancel`,
+      allow_promotion_codes: true,
+      billing_address_collection: "auto",
+      subscription_data: { metadata: { firebaseUid: uid } },
     });
     return { url: session.url };
   },
@@ -1022,21 +1022,21 @@ exports.createCheckoutSession = onCall(
 // ─── Stripe: create Customer Portal session ───────────────────────────────────
 exports.createPortalSession = onCall(
   {
-    region:         "us-central1",
+    region: "us-central1",
     timeoutSeconds: 30,
-    memory:         "256MiB",
-    secrets:        [stripeSecretKey],
+    memory: "256MiB",
+    secrets: [stripeSecretKey],
   },
   async (request) => {
     if (!request.auth) throw new HttpsError("unauthenticated", "Must be logged in.");
-    const uid      = request.auth.uid;
+    const uid = request.auth.uid;
     const userSnap = await admin.firestore().collection("users").doc(uid).get();
     const customerId = (userSnap.data() || {}).stripeCustomerId;
     if (!customerId) throw new HttpsError("not-found", "No billing account found. Please upgrade first.");
 
-    const stripe  = require("stripe")(stripeSecretKey.value());
+    const stripe = require("stripe")(stripeSecretKey.value());
     const session = await stripe.billingPortal.sessions.create({
-      customer:   customerId,
+      customer: customerId,
       return_url: "https://sendquote.ai/secured/billing",
     });
     return { url: session.url };
@@ -1046,16 +1046,16 @@ exports.createPortalSession = onCall(
 // ─── Stripe: webhook handler ───────────────────────────────────────────────────
 exports.stripeWebhook = onRequest(
   {
-    region:         "us-central1",
+    region: "us-central1",
     timeoutSeconds: 60,
-    memory:         "256MiB",
-    secrets:        [stripeSecretKey, stripeWebhookSecret],
+    memory: "256MiB",
+    secrets: [stripeSecretKey, stripeWebhookSecret],
   },
   async (req, res) => {
     if (req.method !== "POST") { res.status(405).send("Method Not Allowed"); return; }
 
     const stripe = require("stripe")(stripeSecretKey.value());
-    const sig    = req.headers["stripe-signature"];
+    const sig = req.headers["stripe-signature"];
     let event;
     try {
       event = stripe.webhooks.constructEvent(req.rawBody, sig, stripeWebhookSecret.value());
@@ -1086,11 +1086,11 @@ exports.stripeWebhook = onRequest(
           const uid = session.client_reference_id;
           if (!uid) break;
           await db.collection("users").doc(uid).set({
-            plan:                 "premium",
-            planStatus:           "active",
-            stripeCustomerId:     session.customer,
+            plan: "premium",
+            planStatus: "active",
+            stripeCustomerId: session.customer,
             stripeSubscriptionId: session.subscription,
-            planUpdatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+            planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
           break;
         }
@@ -1106,8 +1106,8 @@ exports.stripeWebhook = onRequest(
           if (!ref) ref = await refByCustomerId(invoice.customer);
           if (!ref) break;
           await ref.set({
-            plan:          "premium",
-            planStatus:    "active",
+            plan: "premium",
+            planStatus: "active",
             planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
           break;
@@ -1120,12 +1120,12 @@ exports.stripeWebhook = onRequest(
           if (!ref) break;
           const active = sub.status === "active" || sub.status === "trialing";
           await ref.set({
-            plan:                 active ? "premium" : "free",
-            planStatus:           sub.status,
-            planPeriodEnd:        sub.current_period_end
-                                    ? new Date(sub.current_period_end * 1000) : null,
+            plan: active ? "premium" : "free",
+            planStatus: sub.status,
+            planPeriodEnd: sub.current_period_end
+              ? new Date(sub.current_period_end * 1000) : null,
             stripeSubscriptionId: sub.id,
-            planUpdatedAt:        admin.firestore.FieldValue.serverTimestamp(),
+            planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
           break;
         }
@@ -1136,8 +1136,8 @@ exports.stripeWebhook = onRequest(
           const ref = await refByCustomerId(sub.customer);
           if (!ref) break;
           await ref.set({
-            plan:          "free",
-            planStatus:    "canceled",
+            plan: "free",
+            planStatus: "canceled",
             planPeriodEnd: null,
             planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
@@ -1150,7 +1150,7 @@ exports.stripeWebhook = onRequest(
           const ref = await refByCustomerId(invoice.customer);
           if (!ref) break;
           await ref.set({
-            planStatus:    "past_due",
+            planStatus: "past_due",
             planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
           break;
@@ -1190,9 +1190,9 @@ exports.submitBugReport = onCall(
       throw new HttpsError("unauthenticated", "You must be signed in to submit a bug report.");
     }
 
-    const uid  = request.auth.uid;
-    const description   = String(request.data?.description  ?? "").trim();
-    const screenshotUrl  = request.data?.screenshotUrl  ?? null;
+    const uid = request.auth.uid;
+    const description = String(request.data?.description ?? "").trim();
+    const screenshotPath = request.data?.screenshotPath ?? null;
     const screenshotName = request.data?.screenshotName ?? null;
 
     if (!description) {
@@ -1204,16 +1204,37 @@ exports.submitBugReport = onCall(
     try {
       const userRecord = await admin.auth().getUser(uid);
       reporterEmail = userRecord.email ?? "";
-    } catch (_) {}
+    } catch (_) { }
 
-    const db  = admin.firestore();
+    // Build a download URL using the Firebase download token embedded in the
+    // file's metadata — no IAM signBlob permission required.
+    let screenshotSignedUrl = null;
+    if (screenshotPath) {
+      try {
+        const bucket = admin.storage().bucket("sendquote-c823c.firebasestorage.app");
+        const file = bucket.file(screenshotPath);
+        const [metadata] = await file.getMetadata();
+        const token = metadata.metadata?.firebaseStorageDownloadTokens;
+        if (token) {
+          screenshotSignedUrl =
+            `https://firebasestorage.googleapis.com/v0/b/sendquote-c823c.firebasestorage.app/o/` +
+            `${encodeURIComponent(screenshotPath)}?alt=media&token=${token}`;
+        } else {
+          console.warn("submitBugReport: no download token on file metadata");
+        }
+      } catch (e) {
+        console.warn("submitBugReport: could not build screenshot URL (non-fatal)", e?.message);
+      }
+    }
+
+    const db = admin.firestore();
     const now = admin.firestore.FieldValue.serverTimestamp();
 
     const docRef = await db.collection("bug_reports").add({
       uid,
       email: reporterEmail,
       description,
-      screenshotUrl:  screenshotUrl  ?? null,
+      screenshotPath: screenshotPath ?? null,
       screenshotName: screenshotName ?? null,
       status: "open",
       createdAt: now,
@@ -1233,10 +1254,6 @@ exports.submitBugReport = onCall(
           host, port, secure: port === 465, auth: { user, pass },
         });
 
-        const screenshotLine = screenshotUrl
-          ? `\nScreenshot: ${screenshotUrl}`
-          : "";
-
         await transporter.sendMail({
           from,
           to: from,
@@ -1246,14 +1263,23 @@ exports.submitBugReport = onCall(
             `Report ID: ${docRef.id}`,
             ``,
             description,
-            screenshotLine,
+            screenshotSignedUrl ? `\nScreenshot: ${screenshotSignedUrl}` : "",
           ].join("\n"),
           html: `
             <p><strong>Reporter:</strong> ${reporterEmail || uid}</p>
             <p><strong>Report ID:</strong> ${docRef.id}</p>
             <hr/>
             <p style="white-space:pre-wrap">${description.replace(/</g, "&lt;")}</p>
-            ${screenshotUrl ? `<p><a href="${screenshotUrl}">View screenshot</a></p>` : ""}
+            ${screenshotSignedUrl ? `
+            <p><strong>Screenshot:</strong></p>
+            <p>
+              <a href="${screenshotSignedUrl}">
+                <img src="${screenshotSignedUrl}" alt="Bug screenshot"
+                  style="max-width:100%;max-height:600px;border:1px solid #ddd;border-radius:4px;" />
+              </a>
+            </p>
+            <p style="font-size:12px;color:#888;">Image link expires in 7 days.</p>
+            ` : ""}
           `,
         });
       }

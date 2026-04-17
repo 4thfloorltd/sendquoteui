@@ -49,13 +49,20 @@ export default function Terms() {
         <Section title="2. Description of service">
           <P>
             SendQuote is a web-based quote management tool that allows businesses to create,
-            send, and track quotes. The Service is provided on both a free and paid (Premium)
-            subscription basis.
+            send, and track quotes. Features include:
           </P>
+          <Box component="ul" sx={{ pl: 3, mt: 0 }}>
+            <Li>AI-assisted quote drafting from a plain-language description or uploaded PDF.</Li>
+            <Li>Sharing quotes with customers via a secure link, email, or WhatsApp - no customer sign-in required.</Li>
+            <Li>Real-time notifications when a customer views, accepts, or declines a quote.</Li>
+            <Li>Billing and subscription management via Stripe.</Li>
+          </Box>
+          <P>The Service is provided on both a free and paid (Premium) subscription basis.</P>
         </Section>
 
         <Section title="3. Account registration">
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
+            <Li>You must verify your email address with a one-time code before your account is created.</Li>
             <Li>You must provide accurate and complete information when creating an account.</Li>
             <Li>You are responsible for maintaining the confidentiality of your login credentials.</Li>
             <Li>You must be at least 18 years old and have authority to enter into contracts on behalf of any business you represent.</Li>
@@ -65,9 +72,11 @@ export default function Terms() {
 
         <Section title="4. Free plan">
           <P>
-            The free plan allows you to maintain up to a limited number of open (pending) quotes
-            at any one time. Quotes can be deleted to free up space. The free plan is provided
-            as-is with no guarantee of availability or support response times.
+            The free plan allows you to create up to <strong>3 quotes</strong> in total. Each
+            quote you create - whether pending, accepted, or declined - counts toward this limit.
+            Only permanently deleting a quote frees up a slot. Once the limit is reached you must
+            upgrade to Premium or delete existing quotes before creating new ones. The free plan
+            is provided as-is with no guarantee of availability or support response times.
           </P>
         </Section>
 

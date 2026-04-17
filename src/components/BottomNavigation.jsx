@@ -74,7 +74,7 @@ const BottomNav = () => {
       unsubQuotes = onSnapshot(
         query(collection(db, "quotes"), where("userId", "==", u.uid)),
         (snap) => setQuoteCount(
-          snap.docs.filter((d) => !d.data().deleted && d.data().status === "pending").length,
+          snap.docs.filter((d) => !d.data().deleted).length,
         ),
         () => {},
       );

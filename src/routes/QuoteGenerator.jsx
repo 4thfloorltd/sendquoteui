@@ -1071,9 +1071,7 @@ const QuoteGenerator = () => {
           const quotesSnap = await getDocs(
             query(collection(db, "quotes"), where("userId", "==", uid)),
           );
-          const quoteCount = quotesSnap.docs.filter(
-            (d) => !d.data().deleted && d.data().status === "pending",
-          ).length;
+          const quoteCount = quotesSnap.docs.filter((d) => !d.data().deleted).length;
           if (quoteCount >= FREE_USES) {
             setSubscribeOpen(true);
             setUsageChecking(false);

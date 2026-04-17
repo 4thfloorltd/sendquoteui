@@ -73,9 +73,7 @@ export default function Billing() {
       unsubQuotes = onSnapshot(
         query(collection(db, "quotes"), where("userId", "==", user.uid)),
         (snap) => {
-          const open = snap.docs.filter(
-            (d) => !d.data().deleted && d.data().status === "pending",
-          ).length;
+          const open = snap.docs.filter((d) => !d.data().deleted).length;
           setOpenQuoteCount(open);
           setLoading(false);
         },

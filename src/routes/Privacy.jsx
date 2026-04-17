@@ -50,18 +50,23 @@ export default function Privacy() {
         <Section title="2. Data we collect">
           <P>When you create an account and use SendQuote we collect:</P>
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
-            <Li><strong>Account information</strong> — your email address, business name, and any business profile details you provide.</Li>
-            <Li><strong>Quote data</strong> — customer names, email addresses, line items, pricing, and any other information you enter when creating a quote.</Li>
-            <Li><strong>Usage data</strong> — pages visited, features used, and interactions with the service, collected via Firebase Analytics.</Li>
-            <Li><strong>Payment data</strong> — handled entirely by Stripe. We store only your Stripe customer ID and subscription status; we never see or store card details.</Li>
+            <Li><strong>Account information</strong> - your email address, business name, and any business profile details you provide.</Li>
+            <Li><strong>Email verification codes</strong> - a one-time 6-digit code sent to your email at registration to verify your address. Codes are short-lived and not stored after verification.</Li>
+            <Li><strong>Quote data</strong> - customer names, email addresses, line items, pricing, and any other information you enter when creating a quote.</Li>
+            <Li><strong>Quote usage counters</strong> - a count of quotes created, associated with your email, used to enforce free plan limits.</Li>
+            <Li><strong>Usage data</strong> - pages visited, features used, and interactions with the service, collected via Firebase Analytics.</Li>
+            <Li><strong>Payment data</strong> - handled entirely by Stripe. We store only your Stripe customer ID and subscription status; we never see or store card details.</Li>
+            <Li><strong>Bug reports</strong> - if you submit a bug report via the Support page, we collect your description and any screenshot you choose to attach. Screenshots are stored in Firebase Storage and are not publicly accessible.</Li>
           </Box>
         </Section>
 
         <Section title="3. How we use your data">
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
             <Li>To provide, operate, and improve the SendQuote service.</Li>
-            <Li>To send transactional emails (quote verification codes, notifications).</Li>
+            <Li>To verify your email address at registration and when generating public quotes.</Li>
+            <Li>To send transactional emails (verification codes, quote notifications).</Li>
             <Li>To process and manage your subscription via Stripe.</Li>
+            <Li>To investigate and resolve bug reports submitted through the Support page.</Li>
             <Li>To respond to support requests.</Li>
             <Li>To comply with legal obligations.</Li>
           </Box>
@@ -71,9 +76,10 @@ export default function Privacy() {
         <Section title="4. Data storage & processors">
           <P>Your data is stored and processed using the following third-party services:</P>
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
-            <Li><strong>Firebase (Google)</strong> — authentication, database (Firestore), and cloud functions. Data is stored in the <em>us-central1</em> region.</Li>
-            <Li><strong>Stripe</strong> — payment processing and subscription management. Stripe's privacy policy applies to data they process: <em>stripe.com/gb/privacy</em>.</Li>
-            <Li><strong>Anthropic</strong> — optional AI-powered PDF extraction (Claude). Only the content of PDFs you explicitly upload for parsing is sent; no other data is shared.</Li>
+            <Li><strong>Firebase (Google)</strong> - authentication, database (Firestore), file storage (Firebase Storage), and cloud functions. Data is stored in the <em>us-central1</em> region.</Li>
+            <Li><strong>Stripe</strong> - payment processing and subscription management. Stripe's privacy policy applies to data they process: <em>stripe.com/gb/privacy</em>.</Li>
+            <Li><strong>SMTP email provider</strong> - used to send email verification codes, quote notifications, and internal bug report alerts. Only your email address and the relevant message content are transmitted.</Li>
+            <Li><strong>Anthropic</strong> - optional AI-powered PDF extraction (Claude). Only the content of PDFs you explicitly upload for parsing is sent; no other data is shared.</Li>
           </Box>
         </Section>
 
@@ -89,8 +95,10 @@ export default function Privacy() {
           <P>
             We retain your account and quote data for as long as your account is active.
             If you delete your account, all associated data (quotes, profile, counters) is
-            permanently deleted within 30 days. Payment records are retained by Stripe in
-            accordance with their own retention policies.
+            permanently deleted within 30 days. Bug reports and any attached screenshots are
+            retained for as long as needed to investigate and resolve the issue, after which
+            they are deleted. Payment records are retained by Stripe in accordance with their
+            own retention policies.
           </P>
         </Section>
 
@@ -101,7 +109,7 @@ export default function Privacy() {
             <Li>Correct inaccurate data.</Li>
             <Li>Request deletion of your data ("right to be forgotten").</Li>
             <Li>Object to or restrict processing of your data.</Li>
-            <Li>Data portability — receive your data in a structured, machine-readable format.</Li>
+            <Li>Data portability - receive your data in a structured, machine-readable format.</Li>
           </Box>
           <P>
             To exercise any of these rights, email us at <strong>{CONTACT_EMAIL}</strong>.

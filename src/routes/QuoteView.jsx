@@ -614,7 +614,7 @@ const QuoteView = () => {
             This will permanently remove <strong>QU-{quote.quoteNumber ?? "—"}</strong> for <strong>{quote.customerName ?? "this customer"}</strong>.
             {(quote.status === "accepted" || quote.status === "declined") && (
               <Box component="span" sx={{ display: "block", mt: 1, color: "#EF4444" }}>
-                This quote has already been {quote.status} — the customer&apos;s link will stop working.
+                This quote has already been {quote.status} - the customer&apos;s link will stop working.
               </Box>
             )}
           </Typography>

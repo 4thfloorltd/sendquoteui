@@ -57,7 +57,7 @@ const Sidebar = () => {
       });
       unsubQuotes = onSnapshot(
         query(collection(db, "quotes"), where("userId", "==", u.uid)),
-        (snap) => setQuoteCount(snap.docs.filter((d) => !d.data().deleted && d.data().status === "pending").length),
+        (snap) => setQuoteCount(snap.docs.filter((d) => !d.data().deleted).length),
         () => {},
       );
     });
@@ -84,9 +84,10 @@ const Sidebar = () => {
   ).toUpperCase();
 
   const menuItems = [
-    { label: "Quotes", icon: faPaperPlane, path: "/secured/quotes" },
-    { label: "Billing", icon: faCreditCard, path: "/secured/billing" },
-    { label: "Settings", icon: faCog, path: "/secured/settings" },
+    { label: "Quotes",   icon: faPaperPlane, path: "/secured/quotes" },
+    { label: "Billing",  icon: faCreditCard, path: "/secured/billing" },
+    { label: "Settings", icon: faCog,        path: "/secured/settings" },
+    { label: "Support",  icon: faHeadphones, path: "/secured/support" },
   ];
 
   const isItemActive = (item) => {
@@ -97,6 +98,9 @@ const Sidebar = () => {
         /^\/secured\/quote\/[^/]+/.test(location.pathname) ||
         /^\/quote\/[^/]+/.test(location.pathname)
       );
+    }
+    if (item.path === "/secured/support") {
+      return location.pathname.startsWith("/secured/support");
     }
     return location.pathname === item.path;
   };
@@ -291,31 +295,6 @@ const Sidebar = () => {
             </Typography>
           </Box>
         )}
-
-        {/* Support */}
-        <Link to="/secured/support" style={{ textDecoration: "none" }}>
-          <ListItem
-            sx={{
-              display: "flex",
-              flexDirection: "row",
-              alignItems: "center",
-              gap: "10px",
-              padding: "10px 16px",
-              color: location.pathname.startsWith("/secured/support") ? "#fff" : "#6B7280",
-              backgroundColor: location.pathname.startsWith("/secured/support") ? "#083a6b" : "inherit",
-              "&:hover": {
-                backgroundColor: location.pathname.startsWith("/secured/support") ? "#083a6b" : "#E5E7EB",
-                color: location.pathname.startsWith("/secured/support") ? "#fff" : "#083a6b",
-                "& .fa-icon": { color: location.pathname.startsWith("/secured/support") ? "#fff" : "#083a6b" },
-              },
-            }}
-          >
-            <FontAwesomeIcon icon={faHeadphones} className="fa-icon" style={{ fontSize: "20px", color: "inherit" }} />
-            <Typography variant="body1" sx={{ fontSize: "16px", fontWeight: "bold", marginLeft: "8px" }}>
-              Support
-            </Typography>
-          </ListItem>
-        </Link>
 
       </Drawer>
 

@@ -19,7 +19,7 @@ import CloseIcon from "@mui/icons-material/Close";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
-import { ref, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { ref, uploadBytesResumable } from "firebase/storage";
 import { auth, functions, storage } from "../../../firebase";
 
 const SUPPORT_EMAIL = "support@sendquote.ai";
@@ -95,17 +95,17 @@ const Support = () => {
   const uploadScreenshot = (file, reportId) =>
     new Promise((resolve, reject) => {
       const ext = file.name.split(".").pop() || "png";
-      const storageRef = ref(storage, `bug_reports/${reportId}/screenshot.${ext}`);
+      const storagePath = `bug_reports/${reportId}/screenshot.${ext}`;
+      const storageRef = ref(storage, storagePath);
       const task = uploadBytesResumable(storageRef, file, { contentType: file.type });
 
       task.on(
         "state_changed",
         (snap) => setUploadProgress(Math.round((snap.bytesTransferred / snap.totalBytes) * 100)),
         reject,
-        async () => {
-          const url = await getDownloadURL(task.snapshot.ref);
-          resolve({ url, name: file.name });
-        },
+        // Resolve with the storage path - the Cloud Function uses the Admin SDK
+        // to generate a signed URL, so we never need getDownloadURL on the client.
+        () => resolve({ storagePath, name: file.name }),
       );
     });
 
@@ -123,19 +123,20 @@ const Support = () => {
     try {
       // Use a temp doc ID so we can name the Storage path before the Firestore
       // write. The Cloud Function returns the real ID after it creates the doc.
-      const tempId = `tmp_${uid}_${Date.now()}`;
+      const safeEmail = userEmail.replace(/@/g, "_at_").replace(/\./g, "_");
+      const tempId = `tmp_${safeEmail}_${Date.now()}`;
 
-      let screenshotUrl  = null;
+      let screenshotPath = null;
       let screenshotName = null;
 
       if (screenshot) {
         const result = await uploadScreenshot(screenshot, tempId);
-        screenshotUrl  = result.url;
+        screenshotPath = result.storagePath;
         screenshotName = result.name;
       }
 
       const fn = httpsCallable(functions, "submitBugReport");
-      await fn({ description: trimmedDesc, screenshotUrl, screenshotName });
+      await fn({ description: trimmedDesc, screenshotPath, screenshotName });
 
       setSubmitted(true);
     } catch (err) {
@@ -162,11 +163,11 @@ const Support = () => {
     uploadProgress !== null && uploadProgress < 100
       ? `Uploading screenshot… ${uploadProgress}%`
       : submitting
-      ? "Submitting…"
-      : null;
+        ? "Submitting…"
+        : null;
 
   return (
-    <Box sx={{ maxWidth: 700, mx: "auto" }}>
+    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
       <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mb: 0.5 }}>
         Support
       </Typography>
@@ -247,7 +248,7 @@ const Support = () => {
           >
             <CheckCircleOutlineIcon sx={{ fontSize: 44, color: "#10A86B", mb: 1 }} />
             <Typography variant="h6" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
-              Report received — thank you!
+              Report received - thank you!
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
               We&apos;ve got your report and will look into it. We&apos;ll follow up at{" "}
@@ -332,8 +333,11 @@ const Support = () => {
                         right: 4,
                         bgcolor: "rgba(0,0,0,0.55)",
                         color: "#fff",
+                        borderRadius: "50%",
+                        width: 24,
+                        height: 24,
                         "&:hover": { bgcolor: "rgba(0,0,0,0.75)" },
-                        p: "3px",
+                        p: 0,
                       }}
                     >
                       <CloseIcon sx={{ fontSize: 14 }} />
