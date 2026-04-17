@@ -1,0 +1,15 @@
+# https://www.robotstxt.org/robotstxt.html
+User-agent: *
+Allow: /
+
+# App and auth — avoid indexing duplicate or private flows
+Disallow: /secured/
+Disallow: /login
+Disallow: /register
+Disallow: /forgot-password
+Disallow: /reset-password
+
+# Customer-specific quote links (optional; crawlers rarely need these)
+Disallow: /quote/
+
+Sitemap: https://sendquote.ai/sitemap.xml
