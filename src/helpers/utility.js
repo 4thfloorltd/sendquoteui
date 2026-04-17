@@ -5,6 +5,17 @@ export const capitaliseWords = (str) => {
     .join(" ");
 };
 
+/** Uppercases the first non-whitespace character; leaves the rest unchanged. */
+export const capitalizeLeadingLetter = (str) => {
+  const s = String(str ?? "");
+  const i = s.search(/\S/);
+  if (i === -1) return s;
+  const ch = s[i];
+  const up = ch.toLocaleUpperCase();
+  if (up === ch) return s;
+  return s.slice(0, i) + up + s.slice(i + 1);
+};
+
 export const formatNumberWithCommas = (value) => {
   if (value === null || value === undefined || value === "") return "";
   // Remove non-numeric except dot

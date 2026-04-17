@@ -46,6 +46,7 @@ import { auth, db } from "../../../../firebase";
 import { useAddressAutocomplete } from "../../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../../utils/userEmailAvailability";
 import { FREE_QUOTE_LIMIT } from "../../../constants/plan";
+import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../../constants/site";
 import SubscribeDialog from "../../../components/SubscribeDialog";
 
 const STATUS_CONFIG = {
@@ -327,7 +328,7 @@ const Quotes = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+    <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
       {/* ── Onboarding modal ── */}
       <Dialog open={showOnboarding} fullWidth maxWidth="xs" disableEscapeKeyDown>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 0 }}>

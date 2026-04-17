@@ -1561,8 +1561,9 @@ const QuoteGenerator = () => {
           }}
           onChange={(_, selected) => {
             if (selected && typeof selected === "object") {
+              const nm = String(selected.customerName ?? "").replace(/\s+/g, " ").trim();
               updateQuoteData({
-                customerName: selected.customerName,
+                customerName: nm === "" ? "" : capitaliseWords(nm),
                 email:        selected.customerEmail,
               });
               if (formErrors.customerName) setFormErrors((prev) => { const n = { ...prev }; delete n.customerName; return n; });
@@ -1585,6 +1586,18 @@ const QuoteGenerator = () => {
               label="Customer name"
               error={!!formErrors.customerName}
               helperText={formErrors.customerName ? "Customer name is required" : undefined}
+              InputProps={{
+                ...params.InputProps,
+                onBlur: (e) => {
+                  const raw = e.target.value;
+                  const normalized = raw.replace(/\s+/g, " ").trim();
+                  const formatted = normalized === "" ? "" : capitaliseWords(normalized);
+                  if (formatted !== raw) {
+                    updateQuoteData({ customerName: formatted });
+                  }
+                  params.InputProps?.onBlur?.(e);
+                },
+              }}
               sx={{ mb: 1.5 }}
             />
           )}

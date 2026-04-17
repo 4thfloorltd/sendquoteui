@@ -21,6 +21,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytesResumable } from "firebase/storage";
 import { auth, functions, storage } from "../../../firebase";
+import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 
 const SUPPORT_EMAIL = "support@sendquote.ai";
 const MAX_FILE_SIZE_MB = 5;
@@ -167,7 +168,7 @@ const Support = () => {
         : null;
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+    <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mb: 0.5 }}>
         Support
       </Typography>

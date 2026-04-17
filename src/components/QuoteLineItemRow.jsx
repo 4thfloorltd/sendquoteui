@@ -7,6 +7,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { capitalizeLeadingLetter } from "../helpers/utility";
 import { lineGross, lineQuantityDisplay } from "../utils/quoteLineCalculations";
 
 /** Muted fill for computed/read-only fields — neutral gray reads as “not editable” vs white inputs */
@@ -133,7 +134,14 @@ export function QuoteLineItemRow({
       maxRows={6}
       InputLabelProps={{ shrink: descriptionFocused || descriptionFilled }}
       onFocus={() => setDescriptionFocused(true)}
-      onBlur={() => setDescriptionFocused(false)}
+      onBlur={(e) => {
+        setDescriptionFocused(false);
+        const raw = e.target.value;
+        const formatted = capitalizeLeadingLetter(raw);
+        if (formatted !== raw) {
+          updateLineField(row.id, "description")({ target: { value: formatted } });
+        }
+      }}
       sx={variant === "card" ? { mb: 1.5, minWidth: 0 } : undefined}
     />
   );

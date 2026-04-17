@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { FREE_QUOTE_LIMIT } from "../../constants/plan";
+import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 import {
   Alert,
   Box,
@@ -125,7 +126,7 @@ export default function Billing() {
     : null;
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+    <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h5" sx={{ fontWeight: 800, color: "#083a6b", mb: 0.5 }}>
         Billing
       </Typography>

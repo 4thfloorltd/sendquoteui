@@ -24,6 +24,7 @@ import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth, db } from "../../../firebase";
 import { useAddressAutocomplete } from "../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../utils/userEmailAvailability";
+import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -407,7 +408,7 @@ const Settings = () => {
   }
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: "auto" }}>
+    <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h5" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
         Settings
       </Typography>

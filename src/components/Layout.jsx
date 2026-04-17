@@ -119,7 +119,7 @@ function Layout() {
             sx={{
               ml: { xs: 0, sm: 0, "@media (min-width:769px)": { marginLeft: `${SIDEBAR_WIDTH}px` } },
               minHeight: "100vh",
-              padding: { xs: "calc(64px + 24px) 16px 80px" },
+              padding: { xs: "86px 16px 80px" },
             }}
           >
             <Outlet />
