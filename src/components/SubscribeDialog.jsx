@@ -26,8 +26,12 @@ import { onSnapshot, doc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, functions } from "../../firebase";
 import { FREE_QUOTE_LIMIT } from "../constants/plan";
+import { formatPremiumMonthlyDisplay } from "../helpers/currency";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
+/** Visitor-locale price label (e.g. £9.99 or $9.99) — same logic as landing. */
+const premiumMonthlyFormatted = formatPremiumMonthlyDisplay();
 
 const FEATURES = [
   "Unlimited quotes",
@@ -140,7 +144,7 @@ function PaymentForm({ onSuccess, onCancel }) {
         >
           {paying
             ? <CircularProgress size={18} sx={{ color: "#fff" }} />
-            : "Pay £9.99 / month"}
+            : `Pay ${premiumMonthlyFormatted} / month`}
         </Button>
       </Box>
     </form>
@@ -244,13 +248,13 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
             )}
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {quotaExhausted
-                ? "Get unlimited quotes plus all Premium features for just £9.99/month."
-                : "Unlock all features for just £9.99/month. Cancel any time."}
+                ? `Get unlimited quotes plus all Premium features for just ${premiumMonthlyFormatted}/month.`
+                : `Unlock all features for just ${premiumMonthlyFormatted}/month. Cancel any time.`}
             </Typography>
             <Box sx={{ border: "2px solid #083a6b", borderRadius: 2, p: 2.5, bgcolor: "#F0F4FF" }}>
               <Typography fontWeight={800} color="#083a6b" fontSize="1.1rem">Premium Plan</Typography>
               <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mt: 0.5 }}>
-                £9.99
+                {premiumMonthlyFormatted}
                 <Typography component="span" variant="body2" color="text.secondary" fontWeight={400}>/month</Typography>
               </Typography>
               <Divider sx={{ my: 1.5 }} />
@@ -274,7 +278,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
               sx={{ textTransform: "none", fontWeight: 700, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" }, flex: 1 }}>
               {intentLoading
                 ? <CircularProgress size={18} sx={{ color: "#fff" }} />
-                : "Subscribe — £9.99/mo"}
+                : `Subscribe — ${premiumMonthlyFormatted}/mo`}
             </Button>
           </DialogActions>
         </>

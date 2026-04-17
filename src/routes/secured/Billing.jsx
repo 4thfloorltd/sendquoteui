@@ -21,6 +21,7 @@ import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../../../firebase";
 import PricingPlanComparison from "../../components/PricingPlanComparison";
 import SubscribeDialog from "../../components/SubscribeDialog";
+import { formatPremiumMonthlyDisplay } from "../../helpers/currency";
 
 const FREE_QUOTA = FREE_QUOTE_LIMIT;
 
@@ -201,7 +202,7 @@ export default function Billing() {
         ) : (
           <Button variant="contained" fullWidth onClick={() => setSubscribeOpen(true)}
             sx={{ mt: 3, textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
-            Upgrade to Premium — £9.99/mo
+            Upgrade to Premium — {formatPremiumMonthlyDisplay()}/mo
           </Button>
         )}
       />

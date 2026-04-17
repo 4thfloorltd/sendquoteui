@@ -52,6 +52,7 @@ import {
 import {
   CURRENCY_OPTIONS,
   POPULAR_CURRENCY_OPTIONS,
+  getCurrencyNarrowSymbol,
   getDefaultCurrency,
   getDefaultVatPercent,
   getFlagEmoji,
@@ -518,6 +519,8 @@ const QuoteGenerator = () => {
       currencyDisplay: "narrowSymbol",
     }).format(amount);
 
+  const exampleCurrencySymbol = getCurrencyNarrowSymbol(activeCurrency) || "£";
+
   const handleInputChange = (field) => (event) => {
     updateQuoteData({ [field]: event.target.value });
   };
@@ -636,7 +639,7 @@ const QuoteGenerator = () => {
     if (!text) {
       setNlChatFieldError(true);
       setAiParseError(
-        "Type one or more lines in plain English (e.g. £120 Garden landscaping)"
+        `Type one or more lines in plain English (e.g. ${exampleCurrencySymbol}120 Garden landscaping)`,
       );
       requestAnimationFrame(() => nlLineChatInputRef.current?.focus());
       return;
@@ -945,7 +948,7 @@ const QuoteGenerator = () => {
       // Format line items as text into the AI field so user can review then click "Add to quote"
       if (Array.isArray(d.lineItems) && d.lineItems.length > 0) {
         const currency = d.currency ?? activeCurrency ?? "GBP";
-        const symbol = { GBP: "£", USD: "$", EUR: "€", AUD: "A$", CAD: "C$" }[currency] ?? "";
+        const symbol = getCurrencyNarrowSymbol(currency);
         const lines = d.lineItems.map((item) => {
           const qty = Number(item.quantity) || 1;
           const price = Number(item.unitPrice) || 0;
@@ -1870,7 +1873,7 @@ const QuoteGenerator = () => {
                 </Alert>
               )}
               <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                Describe charges, e.g. &quot;£120 Garden landscaping&quot;. Press <b>Enter</b> to send, <b>Shift+Enter</b> for new line.
+                Describe charges, e.g. &quot;{exampleCurrencySymbol}120 Garden landscaping&quot;. Press <b>Enter</b> to send, <b>Shift+Enter</b> for new line.
               </Typography>
 
               {/* Drop zone wrapping the input stack */}
@@ -1953,6 +1956,7 @@ const QuoteGenerator = () => {
                     onSubmit={handleNlChatAddLines}
                     loading={aiParseLoading}
                     error={nlChatFieldError}
+                    currencySymbol={exampleCurrencySymbol}
                     inputRef={nlLineChatInputRef}
                     minRows={3}
                     maxRows={8}
@@ -2032,11 +2036,6 @@ const QuoteGenerator = () => {
                   <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
                     PDF import — Premium feature
                   </Typography>
-                  <Chip
-                    label="Upgrade"
-                    size="small"
-                    sx={{ ml: 0.5, fontSize: "0.6rem", height: 16, bgcolor: "#083a6b", color: "#fff", fontWeight: 700, "& .MuiChip-label": { px: 0.75 } }}
-                  />
                 </Box>
               )}
 

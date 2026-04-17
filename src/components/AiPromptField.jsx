@@ -22,7 +22,8 @@ import { TypewriterPlaceholderOverlay } from "./TypewriterPlaceholderOverlay";
  * rootSx       sx       – sx applied to the outer Box (TypewriterPlaceholderOverlay root)
  * overlaySx    sx|fn    – sx applied to the animated-placeholder overlay box
  * textFieldSx  sx       – sx applied to the TextField itself
- * …rest                 – any other TextField props (e.g. InputProps, inputProps, id, slotProps)
+ * currencySymbol – narrow symbol for animated £ examples (default £)
+ * …rest – any other TextField props (e.g. InputProps, inputProps, id, slotProps)
  */
 export function AiPromptField({
   value,
@@ -34,13 +35,14 @@ export function AiPromptField({
   minRows = 3,
   maxRows = 8,
   variant = "outlined",
+  currencySymbol = "£",
   rootSx,
   overlaySx,
   textFieldSx,
   ...textFieldProps
 }) {
   const placeholderEnabled = !value.trim() && !loading;
-  const { animatedPlaceholder, twIndex } = useTypewriterPlaceholder(placeholderEnabled);
+  const { animatedPlaceholder, twIndex } = useTypewriterPlaceholder(placeholderEnabled, currencySymbol);
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {

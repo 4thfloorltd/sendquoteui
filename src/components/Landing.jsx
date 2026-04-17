@@ -24,6 +24,7 @@ import {
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { AiPromptField } from "./AiPromptField";
 import PricingPlanComparison from "./PricingPlanComparison";
+import { getCurrencyNarrowSymbol, getDefaultCurrency } from "../helpers/currency";
 
 const annotationInLeft = keyframes`
   0%   { opacity: 0; transform: translate(-14px, -10px); }
@@ -40,6 +41,7 @@ const annotationInRight = keyframes`
 const Landing = () => {
   const [projectMessage, setProjectMessage] = useState("");
   const navigate = useNavigate();
+  const landingCurrencySymbol = getCurrencyNarrowSymbol(getDefaultCurrency()) || "£";
 
   // Only animate the "customer reviews quote…" annotation once it scrolls into view.
   const rightAnnotationRef = useRef(null);
@@ -346,6 +348,7 @@ const Landing = () => {
                     value={projectMessage}
                     onChange={setProjectMessage}
                     onSubmit={handleSendMessage}
+                    currencySymbol={landingCurrencySymbol}
                     variant="standard"
                     minRows={3}
                     maxRows={7}

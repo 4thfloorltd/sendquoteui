@@ -64,6 +64,14 @@ export const QUOTE_EXAMPLE_CATEGORIES = [
 
 export const QUOTE_EXAMPLES_GROUP_SIZE = 3;
 
+/** Replace £ in example strings with the selected currency narrow symbol. */
+export function categoriesWithCurrencySymbol(categories, symbol) {
+  if (!symbol || symbol === "£") return categories;
+  return categories.map((group) =>
+    group.map((line) => (typeof line === "string" ? line.replace(/£/g, symbol) : line)),
+  );
+}
+
 function shuffle(arr) {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {
@@ -76,9 +84,11 @@ function shuffle(arr) {
 export function buildExamplePlaceholderSequence(
   categories = QUOTE_EXAMPLE_CATEGORIES,
   groupSize = QUOTE_EXAMPLES_GROUP_SIZE,
+  currencySymbol = "£",
 ) {
+  const resolvedCats = categoriesWithCurrencySymbol(categories, currencySymbol);
   const sequence = [];
-  for (const cat of categories) {
+  for (const cat of resolvedCats) {
     const items = shuffle(cat);
     for (let i = 0; i < items.length; i += groupSize) {
       sequence.push(items.slice(i, i + groupSize).join("\n"));

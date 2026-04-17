@@ -129,6 +129,49 @@ export const getDefaultCurrency = () => {
   return "GBP";
 };
 
+/**
+ * Marketing display amount for Premium / month. Stripe may charge a different currency;
+ * the UI shows this number with the visitor’s default currency symbol.
+ */
+export const PREMIUM_MONTHLY_DISPLAY_AMOUNT = 9.99;
+
+export function formatPremiumMonthlyDisplay(currency = getDefaultCurrency()) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(PREMIUM_MONTHLY_DISPLAY_AMOUNT);
+}
+
+export function formatFreePlanPriceDisplay(currency = getDefaultCurrency()) {
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency,
+    currencyDisplay: "narrowSymbol",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(0);
+}
+
+/** Narrow symbol for a currency code (e.g. £, $, €) — use for UI examples and hints. */
+export const getCurrencyNarrowSymbol = (code) => {
+  if (!code || typeof code !== "string") return "";
+  try {
+    const part = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code.toUpperCase(),
+      currencyDisplay: "narrowSymbol",
+    })
+      .formatToParts(0)
+      .find((p) => p.type === "currency");
+    return part?.value ?? "";
+  } catch {
+    return "";
+  }
+};
+
 /** Returns the standard VAT / GST rate (0–100) for the user's detected region.
  *  Uses live EU rates from vatcomply.com if initVatRates() has already resolved,
  *  otherwise falls back to the hardcoded map in vatRates.js. */

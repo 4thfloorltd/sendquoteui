@@ -8,20 +8,28 @@ import {
 /**
  * Typewriter loop for multiline placeholder text. Pauses when `enabled` is false.
  * @param {boolean} enabled — run animation only while true (e.g. empty input).
+ * @param {string} currencySymbol — narrow symbol for £ placeholders (e.g. $, €).
  */
-export function useTypewriterPlaceholder(enabled) {
+export function useTypewriterPlaceholder(enabled, currencySymbol = "£") {
   const examplesOrder = useMemo(
     () =>
       buildExamplePlaceholderSequence(
         QUOTE_EXAMPLE_CATEGORIES,
         QUOTE_EXAMPLES_GROUP_SIZE,
+        currencySymbol,
       ),
-    [],
+    [currencySymbol],
   );
 
   const [twIndex, setTwIndex] = useState(0);
   const [twChar, setTwChar] = useState(0);
   const [twMode, setTwMode] = useState("typing");
+
+  useEffect(() => {
+    setTwIndex(0);
+    setTwChar(0);
+    setTwMode("typing");
+  }, [currencySymbol]);
 
   useEffect(() => {
     if (!enabled) return;
