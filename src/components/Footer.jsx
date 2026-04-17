@@ -1,5 +1,6 @@
 import React from "react";
 import { Box, Link, Typography } from "@mui/material";
+import { Link as RouterLink } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEnvelope } from "@fortawesome/free-solid-svg-icons";
 
@@ -9,6 +10,7 @@ const Footer = () => {
 
   return (
     <footer
+      id="site-footer"
       style={{
         backgroundColor: "#083a6b",
         padding: "16px",
@@ -62,6 +64,14 @@ const Footer = () => {
                 support@sendquote.ai
               </Link>
             </Typography>
+            <Box sx={{ display: "flex", gap: 2, justifyContent: { xs: "flex-start", md: "flex-end" }, mb: 1 }}>
+              <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
+                Privacy Policy
+              </Link>
+              <Link component={RouterLink} to="/terms" underline="hover" sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
+                Terms of Service
+              </Link>
+            </Box>
             <Typography
               variant="body2"
               sx={{

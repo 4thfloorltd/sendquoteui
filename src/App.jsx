@@ -22,6 +22,8 @@ import Billing from "./routes/secured/Billing";
 import theme from "./theme";
 import Pricing from "./routes/Pricing";
 import QuoteView from "./routes/QuoteView";
+import Privacy from "./routes/Privacy";
+import Terms from "./routes/Terms";
 
 // Kick off the EU VAT rate fetch as early as possible; result is cached in
 // memory and used by getDefaultVatPercent() throughout the app.
@@ -52,12 +54,15 @@ const router = createBrowserRouter([
       { path: "quote", element: <QuoteGenerator /> },
       { path: "quote/:quoteId", element: <QuoteView /> },
       { path: "pricing", element: <Pricing /> },
+      { path: "privacy", element: <Privacy /> },
+      { path: "terms", element: <Terms /> },
       { path: "register", element: <Register /> },
       { path: "login", element: <Login /> },
       { path: "forgot-password", element: <ForgotPassword /> },
       { path: "reset-password", element: <ResetPassword /> },
       { path: "secured/dashboard", element: <Dashboard /> },
       { path: "secured/quotes", element: <Quotes /> },
+      { path: "secured/quote/:quoteId", element: <QuoteView /> },
       { path: "secured/quote", element: <QuoteGenerator /> },
       { path: "secured/quoteReview", element: <QuoteReview /> },
       { path: "secured/settings", element: <Settings /> },
