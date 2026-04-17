@@ -1,16 +1,17 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Box,
   Button,
+  Chip,
   Grid,
   Link,
-  TextField,
   Typography,
   Accordion,
   AccordionSummary,
   AccordionDetails,
   Divider,
 } from "@mui/material";
+import StarOutlineIcon from "@mui/icons-material/StarOutline";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -21,6 +22,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { AiPromptField } from "./AiPromptField";
+import PricingPlanComparison from "./PricingPlanComparison";
 
 const Landing = () => {
   const [projectMessage, setProjectMessage] = useState("");
@@ -47,6 +49,33 @@ const Landing = () => {
     });
   };
 
+  const scrollToPricing = () => {
+    document.getElementById("pricing")?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
+  };
+
+  useEffect(() => {
+    if (window.location.hash !== "#pricing") return;
+    const t = window.setTimeout(() => {
+      document.getElementById("pricing")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+    return () => window.clearTimeout(t);
+  }, []);
+
+  /** Nav: max-width 425px — logo row, then one full-width row with three equal columns */
+  const narrowNavActionsBtnSx = {
+    "@media (max-width: 424.95px)": {
+      minWidth: 0,
+      width: "100%",
+      px: 0.5,
+      fontSize: "0.8125rem",
+      whiteSpace: "nowrap",
+      lineHeight: 1.2,
+    },
+  };
+
   return (
     <Box>
       <Box
@@ -67,11 +96,17 @@ const Landing = () => {
             minHeight: 52,
             display: "grid",
             alignItems: "center",
-            columnGap: { xs: 1, md: 2 },
+            columnGap: { xs: 2, md: 2 },
             // xs: logo | actions (no overlap). md+: spacer | centered logo | actions
             gridTemplateColumns: {
               xs: "minmax(0, 1fr) max-content",
               md: "minmax(0, 1fr) auto minmax(0, 1fr)",
+            },
+            // <425px: logo row, then full-width row with all three controls
+            "@media (max-width: 424.95px)": {
+              gridTemplateColumns: "minmax(0, 1fr)",
+              rowGap: 1,
+              columnGap: 0,
             },
           }}
         >
@@ -117,8 +152,36 @@ const Landing = () => {
               alignItems: "center",
               gap: { xs: 0.5, sm: 1.5 },
               flexShrink: 0,
+              "@media (max-width: 424.95px)": {
+                gridColumn: "1",
+                justifySelf: "stretch",
+                width: "100%",
+                minWidth: 0,
+                flexShrink: 1,
+                display: "grid",
+                gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+                columnGap: 0.5,
+                rowGap: 0.5,
+                alignItems: "stretch",
+              },
             }}
           >
+            <Button
+              variant="text"
+              onClick={scrollToPricing}
+              aria-label="Scroll to pricing plans"
+              sx={{
+                color: "#083a6b",
+                fontWeight: 600,
+                fontSize: "0.9375rem",
+                textTransform: "none",
+                minWidth: "auto",
+                px: 1,
+                ...narrowNavActionsBtnSx,
+              }}
+            >
+              Pricing
+            </Button>
             <Button
               variant="text"
               onClick={scrollToFaq}
@@ -130,6 +193,7 @@ const Landing = () => {
                 textTransform: "none",
                 minWidth: "auto",
                 px: 1,
+                ...narrowNavActionsBtnSx,
               }}
             >
               FAQs
@@ -143,6 +207,7 @@ const Landing = () => {
                 fontWeight: 600,
                 bgcolor: "#083a6b",
                 "&:hover": { bgcolor: "#062d52" },
+                ...narrowNavActionsBtnSx,
               }}
             >
               Get started
@@ -321,18 +386,110 @@ const Landing = () => {
           </Box>
         </Box>
         <Box
-          className="flex justify-self-center mt-4 mb-16"
-          sx={{ px: { md: "32px" }, maxWidth: "1200px" }}
+          className="flex justify-self-center"
+          sx={{ px: { md: "32px" }, maxWidth: "1200px", width: "100%" }}
         >
-          <img
-            src="images/landing.webp"
-            alt="Desktop Illustration"
-            className="animate-slideUp transition duration-500 delay-200"
-            style={{
-              height: "auto",
-              display: "block",
+          <Box
+            sx={{
+              position: "relative",
+              width: "100%",
+              pt: { xs: "44px", sm: "52px", md: "60px" },
+              pb: { xs: "44px", sm: "52px", md: "60px" },
             }}
-          />
+          >
+            {/* Left annotation — top-left */}
+            <Box
+              aria-hidden
+              sx={{
+                position: "absolute",
+                top: 0,
+                left: { xs: "8px", sm: "2%", md: "4%" },
+                width: { xs: 160, sm: 220, md: 260 },
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-start",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            >
+              <Box
+                component="span"
+                sx={{
+                  display: "inline-block",
+                  fontFamily: 'Manrope, system-ui, sans-serif',
+                  fontWeight: 700,
+                  fontSize: { xs: "0.85rem", sm: "0.95rem", md: "1.05rem" },
+                  lineHeight: 1.3,
+                  letterSpacing: "0.1px",
+                  color: "#083a6b",
+                  transform: "rotate(-3deg)",
+                  transformOrigin: "left bottom",
+                }}
+              >
+                create quote &amp;
+                <br />
+                share with customer
+              </Box>
+            </Box>
+
+            {/* Right annotation — bottom-right */}
+            <Box
+              aria-hidden
+              sx={{
+                position: "absolute",
+                bottom: 0,
+                right: { xs: "8px", sm: "2%", md: "4%" },
+                width: { xs: 170, sm: 230, md: 280 },
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "flex-end",
+                textAlign: "right",
+                pointerEvents: "none",
+                zIndex: 2,
+              }}
+            >
+              <Box
+                component="span"
+                sx={{
+                  display: "inline-block",
+                  fontFamily: 'Manrope, system-ui, sans-serif',
+                  fontWeight: 700,
+                  fontSize: { xs: "0.85rem", sm: "0.95rem", md: "1.05rem" },
+                  lineHeight: 1.3,
+                  letterSpacing: "0.1px",
+                  color: "#083a6b",
+                  transform: "rotate(3deg)",
+                  transformOrigin: "right top",
+                }}
+              >
+                customer reviews quote
+                <br />
+                to accept or decline
+              </Box>
+            </Box>
+
+            <Box
+              sx={{
+                width: "100%",
+                overflow: "hidden",
+                lineHeight: 0,
+              }}
+            >
+              <Box
+                component="img"
+                src="images/landingImg.webp"
+                alt="Desktop Illustration"
+                className="animate-slideUp transition duration-500 delay-200"
+                sx={{
+                  display: "block",
+                  width: "100%",
+                  height: "auto",
+                  transform: "scale(1.08)",
+                  transformOrigin: "center center",
+                }}
+              />
+            </Box>
+          </Box>
         </Box>
       </Box>
 
@@ -349,18 +506,18 @@ const Landing = () => {
           {[
             {
               icon: faUser,
-              title: "Create Customer Quote",
-              text: "Customers request a quote. The business reviews the request and prepares pricing details.",
+              title: "Draft a Quote in Seconds",
+              text: "Describe the project and let AI draft a professional quote — or build it yourself with line items, pricing, and terms.",
             },
             {
               icon: faPaperPlane,
-              title: "Send Quote to Customer",
-              text: "Once ready, the quote is sent to the customer via a secure link or email for their review.",
+              title: "Share with Your Customer",
+              text: "Send the quote via a secure link, email, or WhatsApp. Customers open it on any device — no sign-in required.",
             },
             {
               icon: faThumbsUp,
-              title: "Customer Accepts or Declines",
-              text: "The customer reviews the quote and chooses to accept or decline it to move forward.",
+              title: "Track Acceptance in Real Time",
+              text: "Get notified the moment a customer views, accepts, or declines, so you can follow up fast and close more deals.",
             },
           ].map((item, idx) => (
             <Grid
@@ -416,6 +573,84 @@ const Landing = () => {
         </Grid>
       </Box>
 
+      {/* Pricing — same plan comparison as Billing */}
+      <Box
+        id="pricing"
+        sx={{
+          margin: "0 auto",
+          mb: 8,
+          maxWidth: "1200px",
+          px: { xs: 2, sm: 3 },
+          scrollMarginTop: "24px",
+        }}
+      >
+        <Divider sx={{ borderColor: "#E5E7EB", mb: { xs: 4, sm: 6 } }} />
+        <Typography
+          variant="h4"
+          fontWeight={800}
+          textAlign="center"
+          sx={{ color: "#083a6b", mb: 1 }}
+        >
+          Simple pricing
+        </Typography>
+        <Typography
+          variant="body1"
+          textAlign="center"
+          sx={{ color: "#6B7280", mb: 4, maxWidth: "640px", mx: "auto" }}
+        >
+          Start free, then upgrade to Premium when you need unlimited quotes, PDF import, and more.
+        </Typography>
+        <PricingPlanComparison
+          premiumHeaderAddon={(
+            <Chip
+              icon={<StarOutlineIcon sx={{ fontSize: 16 }} />}
+              label="Recommended"
+              size="small"
+              sx={{ fontWeight: 700, bgcolor: "#083a6b", color: "#fff", "& .MuiChip-icon": { color: "#fff" } }}
+            />
+          )}
+          freeFooter={(
+            <Button
+              component={RouterLink}
+              to="/register"
+              variant="outlined"
+              fullWidth
+              sx={{
+                mt: 3,
+                textTransform: "none",
+                fontWeight: 700,
+                borderColor: "#083a6b",
+                color: "#083a6b",
+                "&:hover": { borderColor: "#062d52", bgcolor: "rgba(8,58,107,0.04)" },
+              }}
+            >
+              Create free account
+            </Button>
+          )}
+          premiumFooter={(
+            <>
+              <Button
+                component={RouterLink}
+                to="/register"
+                state={{ redirectAfterProfile: "/secured/billing" }}
+                variant="contained"
+                fullWidth
+                sx={{
+                  mt: 3,
+                  textTransform: "none",
+                  fontWeight: 700,
+                  fontSize: "1rem",
+                  bgcolor: "#083a6b",
+                  "&:hover": { bgcolor: "#062d52" },
+                }}
+              >
+                Get Premium
+              </Button>
+            </>
+          )}
+        />
+      </Box>
+
       {/* FAQ Section */}
       <Box
         id="landing-faq"
@@ -445,9 +680,17 @@ const Landing = () => {
               a: "SendQuote is ideal for individuals and small businesses who need a quick and efficient way to create, send, and manage quotes.",
             },
             {
-              q: "Why join the waitlist?",
-              a: "Join the waitlist to be the first to know when we launch — simplify your quoting process and stand out to customers.",
+              q: "How do I get started?",
+              a: (
+                <>
+                  Click the <strong>Start your quote</strong> button below to get started. Sending your first quote takes just minutes.
+             
+             
+                </>
+              ),
+         
             },
+       
           ].map((item, idx) => (
             <Accordion
               key={idx}
@@ -475,7 +718,7 @@ const Landing = () => {
             variant="subtitle1"
             fontWeight="bold"
             className="text-center"
-            sx={{ color: "#6B7280", marginTop: "16px", marginBottom: "16px" }}
+            sx={{ color: "#6B7280", marginTop: "32px", marginBottom: "16px" }}
           >
             Still have questions? Ask us at{" "}
             <Link

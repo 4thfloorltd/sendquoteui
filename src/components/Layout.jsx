@@ -106,16 +106,16 @@ function Layout() {
           {/* Fixed top bar — sits above everything */}
           <TopNavigation />
 
-          {/* Fixed sidebar — starts directly below the 64px AppBar */}
+          {/* Fixed sidebar */}
           <Sidebar />
 
-          {/* Main content — sidebar offset only on non-mobile */}
+          {/* Main content — sidebar offset on non-mobile */}
           <Box
             component="main"
             sx={{
               ml: { xs: 0, sm: 0, "@media (min-width:769px)": { marginLeft: `${SIDEBAR_WIDTH}px` } },
               minHeight: "100vh",
-              padding: { xs: "calc(64px + 24px) 16px 80px", md: "calc(64px + 32px) 16px 72px" },
+              padding: { xs: "calc(64px + 24px) 16px 80px" },
             }}
           >
             <Outlet />
@@ -123,18 +123,20 @@ function Layout() {
         </>
       ) : (
         <>
-          {/* Show TopNav on the quote view page for logged-in users */}
+          {/* Show TopNav + Sidebar on the quote view page for logged-in users */}
           {isQuoteViewPath && isLoggedIn && <TopNavigation />}
+          {isQuoteViewPath && isLoggedIn && <Sidebar />}
 
           <main
             style={{
               display: "flex",
               flexDirection: "column",
               minHeight: "100vh",
+              marginLeft: isQuoteViewPath && isLoggedIn && !isMobile ? `${SIDEBAR_WIDTH}px` : 0,
             }}
           >
             {isAuthPath && <PublicNavbar />}
-            <div style={{ flex: 1, paddingTop: isQuoteViewPath && isLoggedIn ? 64 : 0 }}>
+            <div style={{ flex: 1, paddingTop: isQuoteViewPath && isLoggedIn ? "calc(64px + env(safe-area-inset-top) + 28px)" : 0 }}>
               <Outlet />
             </div>
             {!isQuoteViewPath && <Footer />}

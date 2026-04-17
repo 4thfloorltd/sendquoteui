@@ -82,7 +82,9 @@ const Login = () => {
       >
         Log in
       </Typography>
-
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: "center" }}>
+        Log in to your account to send and manage your quotes.
+      </Typography>
       <Paper
         elevation={0}
         sx={{

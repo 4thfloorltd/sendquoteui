@@ -23,13 +23,21 @@ const saveSeen = (set) => {
 // quote that gets a fresh response shows as unread again.
 const notifKey = (q) => `${q.id}_${q.status}`;
 
-const isToday = (date) => {
+const ordinal = (n) => {
+  const v = n % 100;
+  return n + (["th", "st", "nd", "rd"][(v - 20) % 10] || ["th", "st", "nd", "rd"][v] || "th");
+};
+
+const getNotifDateLabel = (date) => {
   const d = date instanceof Date ? date : date?.toDate?.();
-  if (!d) return false;
-  const now = new Date();
-  return d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear();
+  if (!d) return "Earlier";
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day   = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff  = Math.round((today - day) / 86_400_000);
+  if (diff === 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  if (diff <= 3)  return `${diff} days ago`;
+  return `${ordinal(d.getDate())} ${d.toLocaleString("default", { month: "long" })} ${d.getFullYear()}`;
 };
 
 const statusLabel = (status) =>
@@ -72,25 +80,20 @@ const TopNavigation = () => {
     });
   }, []);
 
-  // Only quotes with a customer response count as notifications.
-  const responded = quotes.filter((q) => q.status === "accepted" || q.status === "declined");
+  // Only non-deleted quotes with a customer response count as notifications.
+  const responded = quotes.filter((q) => !q.deleted && (q.status === "accepted" || q.status === "declined"));
   const unreadCount = responded.filter((q) => !seen.has(notifKey(q))).length;
 
-  // Build grouped notifications, attaching the raw status for markRead.
-  const todayItems = [];
-  const earlierItems = [];
-  responded.forEach((q) => {
-    const text = `Quote <b>QU-${q.quoteNumber ?? q.id.slice(0, 6)}</b> was ${statusLabel(q.status)} by ${q.customerName ?? "your customer"}.`;
-    const item = { message: text, quoteDocId: q.id, status: q.status, unread: !seen.has(notifKey(q)) };
-    if (isToday(q.updatedAt ?? q.createdAt)) {
-      todayItems.push(item);
-    } else {
-      earlierItems.push(item);
-    }
-  });
+  // Build grouped notifications keyed by relative/absolute date label.
+  // responded is already sorted newest-first so group insertion order is correct.
   const groupedNotifications = {};
-  if (todayItems.length) groupedNotifications["Today"] = todayItems;
-  if (earlierItems.length) groupedNotifications["Earlier"] = earlierItems;
+  responded.forEach((q) => {
+    const text  = `Quote <b>QU-${q.quoteNumber ?? q.id.slice(0, 6)}</b> was ${statusLabel(q.status)} by ${q.customerName ?? "your customer"}.`;
+    const item  = { message: text, quoteDocId: q.id, status: q.status, unread: !seen.has(notifKey(q)) };
+    const label = getNotifDateLabel(q.updatedAt ?? q.createdAt);
+    if (!groupedNotifications[label]) groupedNotifications[label] = [];
+    groupedNotifications[label].push(item);
+  });
 
   // latestQuotes in the shape NotificationModal expects.
   const latestQuotes = responded.map((q) => ({
@@ -117,7 +120,7 @@ const TopNavigation = () => {
         <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
           <Link to="/secured/quotes" style={{ textDecoration: "none" }}>
             <Typography
-              fontSize={18}
+              fontSize="18px"
               fontWeight="bold"
               sx={{ display: "flex", alignItems: "center", color: "#fff" }}
             >

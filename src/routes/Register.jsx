@@ -93,6 +93,14 @@ const Register = () => {
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password]);
 
+  const postRegisterState = (() => {
+    const raw = location.state?.redirectAfterProfile;
+    if (raw === "/secured/billing" || raw === "/secured/settings") {
+      return { redirectAfterProfile: raw };
+    }
+    return undefined;
+  })();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -113,7 +121,7 @@ const Register = () => {
         loginEmail: trimmedEmail,
         updatedAt: serverTimestamp(),
       }, { merge: true });
-      navigate("/secured/quotes", { replace: true });
+      navigate("/secured/quotes", { replace: true, state: postRegisterState });
     } catch (err) {
       if (err?.code === "auth/email-already-in-use") {
         try {
@@ -122,7 +130,7 @@ const Register = () => {
             loginEmail: trimmedEmail,
             updatedAt: serverTimestamp(),
           }, { merge: true });
-          navigate("/secured/quotes", { replace: true });
+          navigate("/secured/quotes", { replace: true, state: postRegisterState });
         } catch (signInErr) {
           if (signInErr?.code === "auth/wrong-password" || signInErr?.code === "auth/invalid-credential") {
             setError("existing-account");

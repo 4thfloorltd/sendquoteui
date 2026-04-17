@@ -6,6 +6,8 @@ import { Link as RouterLink, useLocation } from "react-router-dom";
 const PublicNavbar = () => {
   const { pathname } = useLocation();
   const isLogin = pathname === "/login";
+  const isRegister = pathname === "/register";
+  const showPricing = !isLogin && !isRegister;
 
   return (
     <AppBar position="static" elevation={0} sx={{ backgroundColor: "#083a6b" }}>
@@ -22,12 +24,28 @@ const PublicNavbar = () => {
         </RouterLink>
 
         <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          {showPricing && (
+            <Button
+              component={RouterLink}
+              to={{ pathname: "/", hash: "pricing" }}
+              variant="text"
+              size="medium"
+              sx={{
+                textTransform: "none",
+                fontWeight: 600,
+                color: "#fff",
+                "&:hover": { bgcolor: "rgba(255,255,255,0.08)" },
+              }}
+            >
+              Pricing
+            </Button>
+          )}
           {isLogin ? (
             <Button
               component={RouterLink}
               to="/register"
               variant="outlined"
-              size="small"
+              size="medium"
               sx={{
                 textTransform: "none",
                 fontWeight: 600,
@@ -43,7 +61,7 @@ const PublicNavbar = () => {
               component={RouterLink}
               to="/login"
               variant="outlined"
-              size="small"
+              size="medium"
               sx={{
                 textTransform: "none",
                 fontWeight: 600,
