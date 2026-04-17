@@ -7,7 +7,7 @@ import {
 } from "@mui/material";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CancelOutlinedIcon from "@mui/icons-material/CancelOutlined";
-import { FREE_QUOTE_LIMIT } from "../constants/plan";
+import { FREE_QUOTE_LIMIT, PREMIUM_PLAN_FEATURES } from "../constants/plan";
 import { formatFreePlanPriceDisplay, formatPremiumMonthlyDisplay } from "../helpers/currency";
 
 export const PlanFeature = ({ text }) => (
@@ -78,13 +78,9 @@ export default function PricingPlanComparison({
         </Typography>
         <Divider sx={{ mb: 2.5 }} />
 
-        <PlanFeature text="Unlimited quotes" />
-        <PlanFeature text="Customer accept / decline tracking" />
-        <PlanFeature text="PDF download for every quote" />
-        <PlanFeature text="Edit sent quotes" />
-        <PlanFeature text="Delete sent quotes" />
-        <PlanFeature text="PDF import to pre-fill quotes" />
-        <PlanFeature text="Priority support" />
+        {PREMIUM_PLAN_FEATURES.map((text) => (
+          <PlanFeature key={text} text={text} />
+        ))}
         <Box sx={{ flex: 1 }} />
         {premiumFooter}
       </Paper>

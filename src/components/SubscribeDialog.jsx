@@ -25,22 +25,13 @@ import { httpsCallable } from "firebase/functions";
 import { onSnapshot, doc } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { auth, db, functions } from "../../firebase";
-import { FREE_QUOTE_LIMIT } from "../constants/plan";
+import { FREE_QUOTE_LIMIT, PREMIUM_PLAN_FEATURES } from "../constants/plan";
 import { formatPremiumMonthlyDisplay } from "../helpers/currency";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 /** Visitor-locale price label (e.g. £9.99 or $9.99) — same logic as landing. */
 const premiumMonthlyFormatted = formatPremiumMonthlyDisplay();
-
-const FEATURES = [
-  "Unlimited quotes",
-  "Edit sent quotes",
-  "Delete sent quotes",
-  "Search by name, email or quote ID",
-  "PDF import to pre-fill quotes",
-  "Priority support",
-];
 
 // ─── Inner payment form (must be inside <Elements>) ───────────────────────────
 function PaymentForm({ onSuccess, onCancel }) {
@@ -247,9 +238,14 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
               </Alert>
             )}
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {quotaExhausted
-                ? `Get unlimited quotes plus all Premium features for just ${premiumMonthlyFormatted}/month.`
-                : `Unlock all features for just ${premiumMonthlyFormatted}/month. Cancel any time.`}
+              {quotaExhausted ? (
+                <>
+                  Get unlimited quotes plus all <strong>Premium features</strong> for just{" "}
+                  <strong>{premiumMonthlyFormatted}/month</strong>.
+                </>
+              ) : (
+                `Unlock all features for just ${premiumMonthlyFormatted}/month. Cancel any time.`
+              )}
             </Typography>
             <Box sx={{ border: "2px solid #083a6b", borderRadius: 2, p: 2.5, bgcolor: "#F0F4FF" }}>
               <Typography fontWeight={800} color="#083a6b" fontSize="1.1rem">Premium Plan</Typography>
@@ -258,7 +254,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
                 <Typography component="span" variant="body2" color="text.secondary" fontWeight={400}>/month</Typography>
               </Typography>
               <Divider sx={{ my: 1.5 }} />
-              {FEATURES.map((feat) => (
+              {PREMIUM_PLAN_FEATURES.map((feat) => (
                 <Box key={feat} sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.75 }}>
                   <CheckCircleOutlineIcon sx={{ fontSize: 18, color: "#10A86B" }} />
                   <Typography variant="body2">{feat}</Typography>
