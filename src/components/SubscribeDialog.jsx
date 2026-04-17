@@ -14,7 +14,13 @@ import {
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import { loadStripe } from "@stripe/stripe-js";
-import { Elements, PaymentElement, useStripe, useElements } from "@stripe/react-stripe-js";
+import {
+  Elements,
+  ExpressCheckoutElement,
+  PaymentElement,
+  useStripe,
+  useElements,
+} from "@stripe/react-stripe-js";
 import { httpsCallable } from "firebase/functions";
 import { functions } from "../../firebase";
 import { FREE_QUOTE_LIMIT } from "../constants/plan";
@@ -36,12 +42,9 @@ function PaymentForm({ onSuccess, onCancel }) {
   const elements = useElements();
   const [paying, setPaying]   = useState(false);
   const [error, setError]     = useState("");
+  const [expressAvailable, setExpressAvailable] = useState(false);
 
-  const handlePay = async (e) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-    setPaying(true);
-    setError("");
+  const confirm = async () => {
     const { error: stripeError } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
@@ -55,13 +58,63 @@ function PaymentForm({ onSuccess, onCancel }) {
     }
   };
 
+  const handlePay = async (e) => {
+    e.preventDefault();
+    if (!stripe || !elements) return;
+    setPaying(true);
+    setError("");
+    await confirm();
+  };
+
+  const handleExpressConfirm = async () => {
+    if (!stripe || !elements) return;
+    setPaying(true);
+    setError("");
+    await confirm();
+  };
+
   return (
     <form onSubmit={handlePay}>
+      {/* Apple Pay / Google Pay / Link (shown only when available in this browser) */}
+      <Box sx={{ mb: expressAvailable ? 2 : 0 }}>
+        <ExpressCheckoutElement
+          onReady={({ availablePaymentMethods }) => {
+            const methods = availablePaymentMethods || {};
+            setExpressAvailable(
+              Boolean(methods.applePay || methods.googlePay || methods.link),
+            );
+          }}
+          onConfirm={handleExpressConfirm}
+          options={{
+            paymentMethods: {
+              applePay: "always",
+              googlePay: "always",
+              link: "auto",
+              paypal: "never",
+              amazonPay: "never",
+            },
+            buttonHeight: 44,
+          }}
+        />
+      </Box>
+
+      {expressAvailable && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, mb: 2 }}>
+          <Divider sx={{ flex: 1 }} />
+          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: "nowrap" }}>
+            or pay with card
+          </Typography>
+          <Divider sx={{ flex: 1 }} />
+        </Box>
+      )}
+
       <Box sx={{ mb: 2 }}>
         <PaymentElement
           options={{
             layout: "tabs",
-            wallets: { applePay: "auto", googlePay: "auto" },
+            // Wallets are handled above by ExpressCheckoutElement to avoid
+            // duplicate buttons inside the card tab.
+            wallets: { applePay: "never", googlePay: "never" },
           }}
         />
       </Box>
@@ -99,9 +152,10 @@ function PaymentForm({ onSuccess, onCancel }) {
  *   onClose        – called on dismiss
  *   onSuccess      – called after successful payment (optional — for post-payment logic)
  *   quotaExhausted – show "you've used all X free quotes" banner
+ *   skipOverview   – jump straight to the embedded Stripe payment form
  */
-const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false }) => {
-  const [step, setStep]               = useState(1); // 1 = overview, 2 = payment, 3 = success
+const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, skipOverview = false }) => {
+  const [step, setStep]               = useState(skipOverview ? 2 : 1); // 1 = overview, 2 = payment, 3 = success
   const [clientSecret, setClientSecret] = useState("");
   const [intentLoading, setIntentLoading] = useState(false);
   const [intentError, setIntentError]   = useState("");
@@ -109,9 +163,13 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false }) =
   // Reset when dialog closes.
   useEffect(() => {
     if (!open) {
-      setTimeout(() => { setStep(1); setClientSecret(""); setIntentError(""); }, 300);
+      setTimeout(() => {
+        setStep(skipOverview ? 2 : 1);
+        setClientSecret("");
+        setIntentError("");
+      }, 300);
     }
-  }, [open]);
+  }, [open, skipOverview]);
 
   const handleClose = () => {
     if (intentLoading) return;
@@ -131,6 +189,15 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false }) =
       setIntentLoading(false);
     }
   };
+
+  // When opened in skip-overview mode, fetch the client secret immediately
+  // so the Stripe PaymentElement can render on first paint.
+  useEffect(() => {
+    if (open && skipOverview && !clientSecret && !intentLoading) {
+      handleSubscribeClick();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, skipOverview]);
 
   const handlePaymentSuccess = async () => {
     setStep(3);
@@ -191,7 +258,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false }) =
       )}
 
       {/* ── Step 2: Embedded Stripe payment form ── */}
-      {step === 2 && clientSecret && (
+      {step === 2 && (
         <>
           <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 0 }}>
             Payment details
@@ -200,18 +267,30 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false }) =
             <Typography variant="caption" color="text.secondary" sx={{ display: "flex", alignItems: "center", gap: 0.5, mb: 2 }}>
               🔒 Secure payment powered by Stripe
             </Typography>
-            <Elements
-              stripe={stripePromise}
-              options={{
-                clientSecret,
-                appearance: {
-                  theme: "stripe",
-                  variables: { colorPrimary: "#083a6b", borderRadius: "6px" },
-                },
-              }}
-            >
-              <PaymentForm onSuccess={handlePaymentSuccess} onCancel={() => setStep(1)} />
-            </Elements>
+            {intentError && (
+              <Alert severity="error" sx={{ mb: 2 }}>{intentError}</Alert>
+            )}
+            {clientSecret ? (
+              <Elements
+                stripe={stripePromise}
+                options={{
+                  clientSecret,
+                  appearance: {
+                    theme: "stripe",
+                    variables: { colorPrimary: "#083a6b", borderRadius: "6px" },
+                  },
+                }}
+              >
+                <PaymentForm
+                  onSuccess={handlePaymentSuccess}
+                  onCancel={skipOverview ? handleClose : () => setStep(1)}
+                />
+              </Elements>
+            ) : (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                <CircularProgress size={28} sx={{ color: "#083a6b" }} />
+              </Box>
+            )}
           </DialogContent>
         </>
       )}

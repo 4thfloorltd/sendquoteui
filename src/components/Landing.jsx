@@ -502,12 +502,12 @@ const Landing = () => {
           padding: { xs: "0 16px", sm: "0 16px" },
         }}
       >
-        <Grid container spacing={4} sx={{ width: "100%", marginLeft: "0" }}>
+        <Grid container rowSpacing={4} columnSpacing={1}>
           {[
             {
               icon: faUser,
               title: "Draft a Quote in Seconds",
-              text: "Describe the project and let AI draft a professional quote - or build it yourself with line items, pricing, and terms.",
+              text: "Describe the project and let AI draft a professional quote - or build it yourself with line items, pricing, and descriptions.",
             },
             {
               icon: faPaperPlane,
@@ -525,11 +525,7 @@ const Landing = () => {
               item
               xs={12}
               md={4}
-              sx={{
-                textAlign: "center",
-                paddingLeft: "0 !important",
-                width: "350px",
-              }}
+              sx={{ textAlign: "center" }}
             >
               <Box className="flex flex-col items-center text-center">
                 <Box

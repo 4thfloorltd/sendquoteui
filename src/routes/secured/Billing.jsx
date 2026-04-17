@@ -20,6 +20,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { httpsCallable } from "firebase/functions";
 import { auth, db, functions } from "../../../firebase";
 import PricingPlanComparison from "../../components/PricingPlanComparison";
+import SubscribeDialog from "../../components/SubscribeDialog";
 
 const FREE_QUOTA = FREE_QUOTE_LIMIT;
 
@@ -42,9 +43,9 @@ export default function Billing() {
   const [planStatus, setPlanStatus]         = useState(null);
   const [planPeriodEnd, setPlanPeriodEnd]   = useState(null);
 
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [portalLoading, setPortalLoading]   = useState(false);
   const [actionError, setActionError]       = useState("");
+  const [subscribeOpen, setSubscribeOpen]   = useState(false);
 
   useEffect(() => {
     if (checkoutResult.current) {
@@ -83,18 +84,6 @@ export default function Billing() {
     });
     return () => { unsubAuth(); unsubQuotes?.(); unsubUser?.(); };
   }, []);
-
-  const handleUpgrade = async () => {
-    setUpgradeLoading(true);
-    setActionError("");
-    try {
-      const { data } = await httpsCallable(functions, "createCheckoutSession")();
-      window.location.href = data.url;
-    } catch (err) {
-      setActionError(err.message ?? "Failed to start checkout. Please try again.");
-      setUpgradeLoading(false);
-    }
-  };
 
   const handleManage = async () => {
     setPortalLoading(true);
@@ -212,14 +201,17 @@ export default function Billing() {
             </Button>
           </Stack>
         ) : (
-          <Button variant="contained" fullWidth onClick={handleUpgrade} disabled={upgradeLoading}
-            endIcon={upgradeLoading ? null : <OpenInNewIcon sx={{ fontSize: 16 }} />}
+          <Button variant="contained" fullWidth onClick={() => setSubscribeOpen(true)}
             sx={{ mt: 3, textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
-            {upgradeLoading
-              ? <CircularProgress size={20} sx={{ color: "#fff" }} />
-              : "Upgrade to Premium — £9.99/mo"}
+            Upgrade to Premium — £9.99/mo
           </Button>
         )}
+      />
+
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+        skipOverview
       />
     </Box>
   );
