@@ -7,7 +7,9 @@ const PublicNavbar = () => {
   const { pathname } = useLocation();
   const isLogin = pathname === "/login";
   const isRegister = pathname === "/register";
-  const showPricing = !isLogin && !isRegister;
+  const isTerms = pathname === "/terms";
+  const isPrivacy = pathname === "/privacy";
+  const showPricing = !isLogin && !isRegister && !isTerms && !isPrivacy;
 
   return (
     <AppBar position="static" elevation={0} sx={{ backgroundColor: "#083a6b" }}>
