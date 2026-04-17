@@ -254,7 +254,7 @@ const Quotes = () => {
       setShowOnboarding(false);
       const billingRedirect = sanitizeProfileRedirect(location.state?.redirectAfterProfile);
       if (billingRedirect) {
-        navigate(billingRedirect, { replace: true });
+        navigate(billingRedirect, { replace: true, state: { scrollToPremium: true } });
         return;
       }
     } catch (e) {

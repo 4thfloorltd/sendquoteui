@@ -2020,7 +2020,7 @@ const QuoteGenerator = () => {
                 <Box
                   component={isSecuredQuote ? "button" : "div"}
                   type={isSecuredQuote ? "button" : undefined}
-                  onClick={isSecuredQuote ? () => navigate("/secured/billing") : undefined}
+                  onClick={isSecuredQuote ? () => navigate("/secured/billing", { state: { scrollToPremium: true } }) : undefined}
                   aria-disabled={!isSecuredQuote}
                   sx={{
                     mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
@@ -2034,8 +2034,27 @@ const QuoteGenerator = () => {
                 >
                   <LockOutlinedIcon sx={{ fontSize: 15 }} />
                   <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
-                    PDF import — Premium feature
+                    PDF import - Premium feature
                   </Typography>
+                  {isSecuredQuote && (
+                    <Chip
+                      label="Upgrade"
+                      size="small"
+                      onClick={() => navigate("/secured/billing", { state: { scrollToPremium: true } })}
+                      sx={{
+                        ml: 0.5,
+                        fontSize: "0.6rem",
+                        height: 16,
+                        bgcolor: "#083a6b",
+                        color: "#fff",
+                        fontWeight: 700,
+                        cursor: "pointer",
+                        "& .MuiChip-label": { px: 0.75 },
+                        "&:hover": { bgcolor: "#0a4a88" },
+                      }}
+                    />
+                  )}
+            
                 </Box>
               )}
 

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useLocation } from "react-router-dom";
 import { FREE_QUOTE_LIMIT } from "../../constants/plan";
 import {
   Alert,
@@ -34,9 +34,14 @@ const STATUS_LABELS = {
   paused:   { label: "Paused",          color: "default" },
 };
 
+/** Scroll target: full Free + Premium comparison (scroll aligns bottom into view). */
+const BILLING_PLANS_SECTION_ID = "billing-plans-section";
+
 export default function Billing() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
   const checkoutResult = useRef(searchParams.get("checkout"));
+  const didScrollToPremium = useRef(false);
 
   const [openQuoteCount, setOpenQuoteCount] = useState(0);
   const [loading, setLoading]               = useState(true);
@@ -55,6 +60,23 @@ export default function Billing() {
       setSearchParams(next, { replace: true });
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (location.state?.scrollToPremium !== true || didScrollToPremium.current) return;
+    didScrollToPremium.current = true;
+    // Double rAF + short delay so layout (usage card, alerts) is painted before measuring.
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.setTimeout(() => {
+          document.getElementById(BILLING_PLANS_SECTION_ID)?.scrollIntoView({
+            behavior: "smooth",
+            block: "end",
+            inline: "nearest",
+          });
+        }, 50);
+      });
+    });
+  }, [location.state?.scrollToPremium]);
 
   useEffect(() => {
     let unsubQuotes = null;
@@ -169,43 +191,51 @@ export default function Billing() {
         </Alert>
       )}
 
-      <PricingPlanComparison
-        freeHeaderAddon={!isPremium ? <Chip label="Current plan" color="success" size="small" sx={{ fontWeight: 700 }} /> : null}
-        premiumHeaderAddon={isPremium ? (
-          <Stack direction="row" spacing={1} alignItems="center">
-            {statusMeta && <Chip label={statusMeta.label} color={statusMeta.color} size="small" sx={{ fontWeight: 700 }} />}
-            <Chip label="Current plan" color="success" size="small" sx={{ fontWeight: 700 }} />
-          </Stack>
-        ) : (
-          <Chip
-            icon={<StarOutlineIcon sx={{ fontSize: 16 }} />}
-            label="Recommended"
-            size="small"
-            sx={{ fontWeight: 700, bgcolor: "#083a6b", color: "#fff", "& .MuiChip-icon": { color: "#fff" } }}
-          />
-        )}
-        freeFooter={null}
-        premiumFooter={isPremium ? (
-          <Stack spacing={1.5} sx={{ mt: 3 }}>
-            {periodFmt && (
-              <Typography variant="caption" color="text.secondary" textAlign="center">
-                {planStatus === "canceled" ? `Access until ${periodFmt}` : `Next renewal: ${periodFmt}`}
-              </Typography>
-            )}
-            <Button variant="outlined" fullWidth onClick={handleManage} disabled={portalLoading}
-              startIcon={portalLoading ? null : <SettingsIcon sx={{ fontSize: 18 }} />}
-              endIcon={portalLoading ? null : <OpenInNewIcon sx={{ fontSize: 14 }} />}
-              sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.95rem", borderColor: "#083a6b", color: "#083a6b", "&:hover": { borderColor: "#062d52", bgcolor: "rgba(8,58,107,0.04)" } }}>
-              {portalLoading ? <CircularProgress size={18} /> : "Manage subscription"}
+      <Box
+        id={BILLING_PLANS_SECTION_ID}
+        sx={{
+          scrollMarginTop: "88px",
+          scrollMarginBottom: { xs: "100px", md: "32px" },
+        }}
+      >
+        <PricingPlanComparison
+          freeHeaderAddon={!isPremium ? <Chip label="Current plan" color="success" size="small" sx={{ fontWeight: 700 }} /> : null}
+          premiumHeaderAddon={isPremium ? (
+            <Stack direction="row" spacing={1} alignItems="center">
+              {statusMeta && <Chip label={statusMeta.label} color={statusMeta.color} size="small" sx={{ fontWeight: 700 }} />}
+              <Chip label="Current plan" color="success" size="small" sx={{ fontWeight: 700 }} />
+            </Stack>
+          ) : (
+            <Chip
+              icon={<StarOutlineIcon sx={{ fontSize: 16 }} />}
+              label="Recommended"
+              size="small"
+              sx={{ fontWeight: 700, bgcolor: "#083a6b", color: "#fff", "& .MuiChip-icon": { color: "#fff" } }}
+            />
+          )}
+          freeFooter={null}
+          premiumFooter={isPremium ? (
+            <Stack spacing={1.5} sx={{ mt: 3 }}>
+              {periodFmt && (
+                <Typography variant="caption" color="text.secondary" textAlign="center">
+                  {planStatus === "canceled" ? `Access until ${periodFmt}` : `Next renewal: ${periodFmt}`}
+                </Typography>
+              )}
+              <Button variant="outlined" fullWidth onClick={handleManage} disabled={portalLoading}
+                startIcon={portalLoading ? null : <SettingsIcon sx={{ fontSize: 18 }} />}
+                endIcon={portalLoading ? null : <OpenInNewIcon sx={{ fontSize: 14 }} />}
+                sx={{ textTransform: "none", fontWeight: 700, fontSize: "0.95rem", borderColor: "#083a6b", color: "#083a6b", "&:hover": { borderColor: "#062d52", bgcolor: "rgba(8,58,107,0.04)" } }}>
+                {portalLoading ? <CircularProgress size={18} /> : "Manage subscription"}
+              </Button>
+            </Stack>
+          ) : (
+            <Button variant="contained" fullWidth onClick={() => setSubscribeOpen(true)}
+              sx={{ mt: 3, textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
+              Upgrade to Premium — {formatPremiumMonthlyDisplay()}/mo
             </Button>
-          </Stack>
-        ) : (
-          <Button variant="contained" fullWidth onClick={() => setSubscribeOpen(true)}
-            sx={{ mt: 3, textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
-            Upgrade to Premium — {formatPremiumMonthlyDisplay()}/mo
-          </Button>
-        )}
-      />
+          )}
+        />
+      </Box>
 
       <SubscribeDialog
         open={subscribeOpen}

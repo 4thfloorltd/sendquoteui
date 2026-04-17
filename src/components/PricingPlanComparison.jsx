@@ -26,7 +26,6 @@ export const PlanFeatureMissing = ({ text }) => (
 
 /**
  * Free vs Premium comparison (same content as Billing plan cards).
- * @param {{ freeHeaderAddon?: React.ReactNode; premiumHeaderAddon?: React.ReactNode; freeFooter?: React.ReactNode; premiumFooter?: React.ReactNode }} props
  */
 export default function PricingPlanComparison({
   freeHeaderAddon = null,

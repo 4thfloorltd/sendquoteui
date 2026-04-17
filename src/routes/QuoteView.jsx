@@ -494,7 +494,7 @@ const QuoteView = () => {
                           startIcon={<LockOutlinedIcon />}
                           size="small"
                           variant="outlined"
-                          onClick={() => navigate("/secured/billing")}
+                          onClick={() => navigate("/secured/billing", { state: { scrollToPremium: true } })}
                           sx={{ textTransform: "none", fontWeight: 600, borderColor: "#CBD5E1", color: "#9CA3AF", width: "100%", "&:hover": { bgcolor: "#F8FAFC", borderColor: "#9CA3AF" } }}
                         >
                           Edit quote
