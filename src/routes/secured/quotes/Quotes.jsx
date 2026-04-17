@@ -398,34 +398,46 @@ const Quotes = () => {
             }}
             renderInput={(params) => {
               const addrFilled = Boolean(bizAddress.trim());
+              const shrink = onboardingAddressFocused || addrFilled;
+              const {
+                InputProps: paramsInputProps = {},
+                InputLabelProps: paramsInputLabelProps,
+                slotProps: paramsSlotProps,
+                ...restParams
+              } = params;
               return (
               <TextField
-                {...params}
+                {...restParams}
                 label="Business address"
                 multiline
+                minRows={2}
                 maxRows={3}
                 fullWidth
                 placeholder="e.g. 123 Main St, London, E1 1AA"
-                InputLabelProps={{
-                  shrink: onboardingAddressFocused || addrFilled,
-                  ...params.InputLabelProps,
+                slotProps={{
+                  ...paramsSlotProps,
+                  inputLabel: {
+                    shrink,
+                    ...paramsSlotProps?.inputLabel,
+                    ...paramsInputLabelProps,
+                  },
                 }}
                 InputProps={{
-                  ...params.InputProps,
+                  ...paramsInputProps,
                   onFocus: (e) => {
                     setOnboardingAddressFocused(true);
-                    params.InputProps?.onFocus?.(e);
+                    paramsInputProps.onFocus?.(e);
                   },
                   onBlur: (e) => {
                     setOnboardingAddressFocused(false);
-                    params.InputProps?.onBlur?.(e);
+                    paramsInputProps.onBlur?.(e);
                   },
                   endAdornment: (
                     <>
                       {addressLoading || addressResolving ? (
                         <CircularProgress color="inherit" size={20} sx={{ mr: 1 }} />
                       ) : null}
-                      {params.InputProps.endAdornment}
+                      {paramsInputProps.endAdornment}
                     </>
                   ),
                 }}
@@ -742,10 +754,12 @@ const Quotes = () => {
               borderRadius: 2,
               px: 3,
               display: "inline-flex",
+              mb: 2, 
             }}
           >
             Create a quote
           </Button>
+     
         </Box>
       )}
 

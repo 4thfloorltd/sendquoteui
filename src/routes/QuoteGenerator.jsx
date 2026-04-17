@@ -1471,36 +1471,52 @@ const QuoteGenerator = () => {
                   }}
                   renderInput={(params) => {
                     const addrFilled = Boolean((quoteData.businessAddress ?? "").trim());
+                    const shrink = addressFieldFocused || addrFilled;
+                    const {
+                      InputProps: paramsInputProps = {},
+                      InputLabelProps: paramsInputLabelProps,
+                      slotProps: paramsSlotProps,
+                      ...restParams
+                    } = params;
                     return (
                     <TextField
-                      {...params}
+                      {...restParams}
                       variant="outlined"
                       label="Address"
                       multiline
+                      minRows={2}
                       maxRows={4}
                       fullWidth
-                      InputLabelProps={{
-                        shrink: addressFieldFocused || addrFilled,
-                        ...params.InputLabelProps,
+                      /* MUI 6: params.slotProps overwrites InputLabelProps unless merged here */
+                      slotProps={{
+                        ...paramsSlotProps,
+                        inputLabel: {
+                          shrink,
+                          ...paramsSlotProps?.inputLabel,
+                          ...paramsInputLabelProps,
+                        },
+                        formHelperText: {
+                          sx: { mt: 0.5 },
+                          ...paramsSlotProps?.formHelperText,
+                        },
                       }}
                       sx={{ mb: { xs: 0, sm: 1.5 }, width: { xs: "100%", sm: undefined } }}
-                      slotProps={{ formHelperText: { sx: { mt: 0.5 } } }}
                       InputProps={{
-                        ...params.InputProps,
+                        ...paramsInputProps,
                         onFocus: (e) => {
                           setAddressFieldFocused(true);
-                          params.InputProps?.onFocus?.(e);
+                          paramsInputProps.onFocus?.(e);
                         },
                         onBlur: (e) => {
                           setAddressFieldFocused(false);
-                          params.InputProps?.onBlur?.(e);
+                          paramsInputProps.onBlur?.(e);
                         },
                         endAdornment: (
                           <>
                             {addressLoading || addressResolving ? (
                               <CircularProgress color="inherit" size={22} sx={{ mr: 1 }} />
                             ) : null}
-                            {params.InputProps.endAdornment}
+                            {paramsInputProps.endAdornment}
                           </>
                         ),
                       }}
