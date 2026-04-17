@@ -141,7 +141,7 @@ export function resolveSeoForPath(pathname) {
 
   if (/^\/quote\/[^/]+$/.test(path)) {
     return {
-      title: `Quote — ${SITE_NAME}`,
+      title: `Quote - ${SITE_NAME}`,
       description: "View and respond to a quote sent via SendQuote.",
       path,
       noindex: true,
@@ -160,7 +160,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/quote":
       return {
-        title: `Create a quote — ${SITE_NAME}`,
+        title: `Create a quote - ${SITE_NAME}`,
         description:
           "Build a professional quote with line items, VAT, and AI-assisted descriptions. Share a secure link with your customer.",
         path: "/quote",
