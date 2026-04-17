@@ -313,6 +313,10 @@ const QuoteGenerator = () => {
       if (!editId) updateQuoteData({ quoteNumber: "0001" });
       return;
     }
+    // Clear any stale data from a previous public quote session so the
+    // new-quote form always starts blank (business profile is re-applied below).
+    if (!editId) resetQuoteData();
+
     const uid = auth.currentUser.uid;
 
     // Load business profile and plan
