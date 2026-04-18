@@ -130,7 +130,7 @@ export default function Billing() {
       <Typography variant="h5" sx={{ fontWeight: 800, color: "#083a6b", mb: 0.5 }}>
         Billing
       </Typography>
-      <Typography color="text.secondary" sx={{ mb: 4, fontSize: "0.95rem" }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Manage your plan and usage.
       </Typography>
 

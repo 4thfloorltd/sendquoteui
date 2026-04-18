@@ -460,10 +460,15 @@ const Quotes = () => {
       </Dialog>
 
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 3, flexWrap: "wrap", gap: 2 }}>
-        <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
-          My Quotes
-        </Typography>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
+            My Quotes
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Create quotes, and manage sent quotes.
+          </Typography>
+        </Box>
         <TextField
           size="small"
           placeholder="Search by name, email or quote ID…"
@@ -478,8 +483,24 @@ const Quotes = () => {
             ),
             endAdornment: searchQuery ? (
               <InputAdornment position="end">
-                <IconButton size="small" onClick={() => handleSearchChange("")} edge="end">
-                  <CloseIcon sx={{ fontSize: 16 }} />
+                <IconButton
+                  onClick={() => handleSearchChange("")}
+                  edge="end"
+                  aria-label="Clear search"
+                  sx={{
+                    width: 32,
+                    height: 32,
+                    minWidth: 32,
+                    padding: 0,
+                    borderRadius: "50%",
+                    "&.Mui-focusVisible": {
+                      outline: "none",
+                      boxShadow: "0 0 0 2px #083a6b",
+                      backgroundColor: "rgba(8, 58, 107, 0.08)",
+                    },
+                  }}
+                >
+                  <CloseIcon sx={{ fontSize: 18 }} />
                 </IconButton>
               </InputAdornment>
             ) : null,
