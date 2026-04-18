@@ -111,7 +111,6 @@ const Landing = () => {
       minWidth: 0,
       width: "100%",
       px: 0.5,
-      fontSize: "0.8125rem",
       whiteSpace: "nowrap",
       lineHeight: 1.2,
     },
@@ -214,7 +213,7 @@ const Landing = () => {
               sx={{
                 color: "#083a6b",
                 fontWeight: 600,
-                fontSize: "0.9375rem",
+                fontSize: "1rem",
                 textTransform: "none",
                 minWidth: "auto",
                 px: 1,
@@ -230,7 +229,7 @@ const Landing = () => {
               sx={{
                 color: "#083a6b",
                 fontWeight: 600,
-                fontSize: "0.9375rem",
+                fontSize: "1rem",
                 textTransform: "none",
                 minWidth: "auto",
                 px: 1,
