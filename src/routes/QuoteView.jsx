@@ -48,7 +48,8 @@ const QuoteView = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [deleting, setDeleting] = useState(false);
+  /** After confirm: hide quote UI and show loader until Firestore + navigate (avoids deleted-state flash). */
+  const [deleteWorking, setDeleteWorking] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const pdfBlobUrlRef = useRef(null);
 
@@ -195,7 +196,7 @@ const QuoteView = () => {
 
   if (loading) {
     return (
-      <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto", width: "100%", boxSizing: "border-box" }}>
+      <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto", width: "100%", boxSizing: "border-box", px: isSecuredQuoteView ? 0 : { xs: 2, sm: 3 } }}>
         {isSecuredQuoteView ? (
           <Button
             component={Link}
@@ -235,6 +236,54 @@ const QuoteView = () => {
     );
   }
 
+  if (deleteWorking) {
+    return (
+      <Box
+        sx={{
+          maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500,
+          mx: "auto",
+          width: isSecuredQuoteView ? "100%" : undefined,
+          boxSizing: "border-box",
+          px: isSecuredQuoteView ? 0 : 2,
+          py: isSecuredQuoteView ? 4 : 6,
+          pt: isSecuredQuoteView ? 0 : 6,
+        }}
+      >
+        {isSecuredQuoteView ? (
+          <Button
+            component={Link}
+            to="/secured/quotes"
+            variant="text"
+            color="inherit"
+            startIcon={<ArrowBackIcon />}
+            sx={SECURED_BACK_TO_QUOTES_BUTTON_SX}
+          >
+            Back to quotes
+          </Button>
+        ) : null}
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            py: { xs: 6, sm: 8 },
+            textAlign: "center",
+          }}
+        >
+          <CircularProgress size={40} />
+          <Typography variant="body1" fontWeight={600} color="text.primary">
+            Deleting quote…
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 360 }}>
+            Hang on while we remove this quote and update your list.
+          </Typography>
+        </Box>
+      </Box>
+    );
+  }
+
   if (quote?.deleted) {
     return (
       <Box sx={{ maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500, mx: "auto", width: isSecuredQuoteView ? "100%" : undefined, boxSizing: "border-box", px: isSecuredQuoteView ? 0 : 2, py: isSecuredQuoteView ? 4 : 10, pt: isSecuredQuoteView ? 0 : 10, textAlign: "center" }}>
@@ -263,7 +312,8 @@ const QuoteView = () => {
   }
 
   const handleDelete = async () => {
-    setDeleting(true);
+    setDeleteDialogOpen(false);
+    setDeleteWorking(true);
     try {
       await updateDoc(doc(db, "quotes", quoteId), {
         deleted: true,
@@ -272,7 +322,8 @@ const QuoteView = () => {
       navigate("/secured/quotes");
     } catch (e) {
       console.error("Delete failed", e);
-      setDeleting(false);
+      setDeleteWorking(false);
+      setDeleteDialogOpen(true);
     }
   };
 
@@ -295,6 +346,7 @@ const QuoteView = () => {
         mx: "auto",
         width: "100%",
         boxSizing: "border-box",
+        px: isSecuredQuoteView ? 0 : { xs: 2, sm: 3 },
         pb: { xs: isOwner ? 14 : 3, md: 5 },
       }}
     >
@@ -534,14 +586,12 @@ const QuoteView = () => {
                 <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.5, color: "#083a6b" }}>
                   Share this quote
                 </Typography>
-                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1.25 }}>
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 0.5 }}>
                   Copy and share the link below, or use a quick share option.
                 </Typography>
 
-                <QuoteShareQuickButtons quoteDocId={quoteId} sx={{ mb: 1.5 }} />
-
                 {/* Copy link */}
-                <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 2 }}>
                   <TextField
                     fullWidth
                     size="small"
@@ -568,8 +618,18 @@ const QuoteView = () => {
                   </Button>
                 </Box>
 
+                <QuoteShareQuickButtons
+                  quoteDocId={quoteId}
+                  customerName={quote.customerName}
+                  businessName={quote.businessName}
+                  quoteNumber={quote.quoteNumber}
+                  currency={quote.currency}
+                  total={quote.pricing?.total}
+                  sx={{ mb: 1 }}
+                />
+
                 {/* Edit / Delete quote */}
-                <Divider sx={{ mt: 3, mb: 2 }} />
+                <Divider sx={{ mt: 2, mb: 2 }} />
                 <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
                   {isPremium ? (
                     <Button
@@ -636,7 +696,7 @@ const QuoteView = () => {
               /* ── Customer: pending response ── */
               <>
                 <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1.5 }}>
-                  Your response
+                  Your quote response
                 </Typography>
                 <Box sx={{ display: "flex", gap: 1.5 }}>
                   <Button
@@ -701,7 +761,7 @@ const QuoteView = () => {
       </Paper>
 
       {/* Delete confirmation dialog */}
-      <Dialog open={deleteDialogOpen} onClose={() => !deleting && setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
+      <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b" }}>Delete this quote?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
@@ -714,16 +774,15 @@ const QuoteView = () => {
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
-          <Button onClick={() => setDeleteDialogOpen(false)} disabled={deleting} sx={{ textTransform: "none", color: "text.secondary" }}>
+          <Button onClick={() => setDeleteDialogOpen(false)} sx={{ textTransform: "none", color: "text.secondary" }}>
             Cancel
           </Button>
           <Button
             variant="contained"
             onClick={handleDelete}
-            disabled={deleting}
             sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#EF4444", "&:hover": { bgcolor: "#DC2626" } }}
           >
-            {deleting ? <CircularProgress size={18} sx={{ color: "#fff" }} /> : "Delete"}
+            Delete
           </Button>
         </DialogActions>
       </Dialog>

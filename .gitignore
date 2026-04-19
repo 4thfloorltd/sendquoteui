@@ -35,3 +35,6 @@ dist-ssr
 # Firebase Functions local env / secret overrides
 functions/.env
 functions/.env.local
+# Per-project files from `firebase functions:secrets:*` / `.env.<projectId>` (may include secrets)
+functions/.env.*
+!functions/.env.example

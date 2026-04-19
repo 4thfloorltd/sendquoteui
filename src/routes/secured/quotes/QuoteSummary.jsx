@@ -222,7 +222,7 @@ const QuoteSummary = React.forwardRef((props, ref) => {
               type="submit"
               startIcon={<SendIcon />}
             >
-              Send Quote
+              Send quote
             </Button>
           </Box>
         </Box>

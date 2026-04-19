@@ -8,6 +8,7 @@ import { useMediaQuery } from "@mui/material";
 import TopNavigation from "./TopNavigation";
 import PublicNavbar from "./PublicNavbar";
 import { ScrollToTopFab } from "./ScrollToTopFab";
+import { SecuredQuoteNavigationBlockerProvider } from "../context/SecuredQuoteNavigationBlocker";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { auth, db } from "../../firebase";
@@ -108,48 +109,51 @@ function Layout() {
     <>
       <ScrollToTop />
 
-      {isSecuredPath ? (
-        <>
-          {/* Fixed top bar — sits above everything */}
-          <TopNavigation />
+      {/* One provider for the whole app shell so React Router only ever sees a single useBlocker. */}
+      <SecuredQuoteNavigationBlockerProvider>
+        {isSecuredPath ? (
+          <>
+            {/* Fixed top bar — sits above everything */}
+            <TopNavigation />
 
-          {/* Fixed sidebar */}
-          <Sidebar />
+            {/* Fixed sidebar */}
+            <Sidebar />
 
-          {/* Main content — sidebar offset on non-mobile */}
-          <Box
-            component="main"
-            sx={{
-              ml: { xs: 0, sm: 0, "@media (min-width:769px)": { marginLeft: `${SIDEBAR_WIDTH}px` } },
-              minHeight: "100vh",
-              padding: { xs: "86px 16px 80px" },
-            }}
-          >
-            <Outlet />
-          </Box>
-        </>
-      ) : (
-        <>
-          {/* Show TopNav + Sidebar on the quote view page for logged-in users */}
-          {isQuoteViewPath && isLoggedIn && <TopNavigation />}
-          {isQuoteViewPath && isLoggedIn && <Sidebar />}
-
-          <main
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              minHeight: "100vh",
-              marginLeft: isQuoteViewPath && isLoggedIn && !isMobile ? `${SIDEBAR_WIDTH}px` : 0,
-            }}
-          >
-            {isAuthPath && <PublicNavbar />}
-            <div style={{ flex: 1, paddingTop: isQuoteViewPath && isLoggedIn ? "calc(64px + env(safe-area-inset-top) + 28px)" : 0 }}>
+            {/* Main content — sidebar offset on non-mobile */}
+            <Box
+              component="main"
+              sx={{
+                ml: { xs: 0, sm: 0, "@media (min-width:769px)": { marginLeft: `${SIDEBAR_WIDTH}px` } },
+                minHeight: "100vh",
+                padding: { xs: "86px 16px 80px" },
+              }}
+            >
               <Outlet />
-            </div>
-            {!isQuoteViewPath && <Footer />}
-          </main>
-        </>
-      )}
+            </Box>
+          </>
+        ) : (
+          <>
+            {/* Show TopNav + Sidebar on the quote view page for logged-in users */}
+            {isQuoteViewPath && isLoggedIn && <TopNavigation />}
+            {isQuoteViewPath && isLoggedIn && <Sidebar />}
+
+            <main
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                minHeight: "100vh",
+                marginLeft: isQuoteViewPath && isLoggedIn && !isMobile ? `${SIDEBAR_WIDTH}px` : 0,
+              }}
+            >
+              {isAuthPath && <PublicNavbar />}
+              <div style={{ flex: 1, paddingTop: isQuoteViewPath && isLoggedIn ? "calc(64px + env(safe-area-inset-top) + 28px)" : 0 }}>
+                <Outlet />
+              </div>
+              {!isQuoteViewPath && <Footer />}
+            </main>
+          </>
+        )}
+      </SecuredQuoteNavigationBlockerProvider>
 
       {(isSecuredPath || (isQuoteViewPath && isLoggedIn)) && isMobile && <BottomNavigation />}
 

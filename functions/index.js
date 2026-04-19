@@ -1,5 +1,5 @@
 const { onCall, onRequest, HttpsError } = require("firebase-functions/v2/https");
-const { defineSecret } = require("firebase-functions/params");
+const { defineSecret, defineString } = require("firebase-functions/params");
 const { Anthropic } = require("@anthropic-ai/sdk");
 const admin = require("firebase-admin");
 const crypto = require("crypto");
@@ -15,6 +15,26 @@ const verificationPepper = defineSecret("QUOTE_VERIFY_PEPPER");
 const stripeSecretKey = defineSecret("STRIPE_SECRET_KEY");
 const stripeWebhookSecret = defineSecret("STRIPE_WEBHOOK_SECRET");
 const stripePriceId = defineSecret("STRIPE_PRICE_ID");
+
+const DEFAULT_PUBLIC_APP_ORIGIN = "https://sendquote.ai";
+
+/** Public web origin for quote links and redirects (no trailing slash). */
+const publicQuoteAppUrl = defineString("PUBLIC_QUOTE_APP_URL", {
+  default: DEFAULT_PUBLIC_APP_ORIGIN,
+  description: "Public app URL (emails, Stripe return URLs, quote links)",
+});
+
+/** Ensures https:// (or http://) when the param is host-only (e.g. sendquote.ai). */
+function normalizePublicAppOrigin(raw) {
+  let s = String(raw ?? "").trim().replace(/\/+$/, "");
+  if (!s) s = DEFAULT_PUBLIC_APP_ORIGIN;
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  return s;
+}
+
+function getPublicAppOrigin() {
+  return normalizePublicAppOrigin(publicQuoteAppUrl.value());
+}
 
 const MODEL = "claude-haiku-4-5-20251001";
 const VERIFICATION_CODE_TTL_MS = 10 * 60 * 1000;
@@ -46,8 +66,48 @@ function validateEmailAddress(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email || "").trim().toLowerCase());
 }
 
+/**
+ * SMTP_FROM secret may be `addr@domain` or `Display Name <addr@domain>`.
+ * Returns the envelope address (must stay verified with the provider) and a default display name.
+ */
+function parseSmtpFromSecret(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return { address: "", fallbackDisplayName: "SendQuote" };
+  const angle = s.match(/<\s*([^>]+?)\s*>/);
+  const address = (angle ? angle[1] : s).trim().replace(/^mailto:/i, "");
+  let fallbackDisplayName = "SendQuote";
+  if (angle) {
+    const before = s
+      .slice(0, s.indexOf("<"))
+      .trim()
+      .replace(/^["']+|["']+$/g, "")
+      .trim();
+    if (before) fallbackDisplayName = before.slice(0, 100);
+  }
+  return { address, fallbackDisplayName };
+}
+
+/** Safe ASCII-ish display name for MIME From (business name). */
+function sanitizeEmailDisplayName(name) {
+  let s = String(name ?? "")
+    .replace(/[\r\n\x00-\x1f]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  s = s.replace(/["\\]/g, "");
+  if (s.length > 100) s = s.slice(0, 100).trim();
+  return s;
+}
+
 function toSafeDocId(value) {
   return Buffer.from(String(value || ""), "utf8").toString("base64url");
+}
+
+function escapeHtmlText(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function mapSmtpErrorToHttpsError(error) {
@@ -334,39 +394,6 @@ exports.sendQuoteVerificationCode = onCall(
   },
 );
 
-/**
- * Checks whether an email address is already registered to a *different* user.
- * Requires the caller to be authenticated.
- *
- * Request data: { email: string }
- * Response:     { claimed: boolean }
- *
- * Uses the Admin SDK so it bypasses client-side email enumeration protection
- * and Firestore security rules that restrict cross-user reads.
- */
-/**
- * Deletes all Firestore data belonging to the calling user then deletes their
- * Firebase Auth account.  Using the Admin SDK guarantees the deletes succeed
- * regardless of client-side security rules, and runs the whole operation
- * server-side so a flaky client can't leave orphaned documents behind.
- *
- * Collections cleaned up:
- *   users/{uid}
- *   quote_counters/{uid}
- *   quote_usage/{email}
- *   quotes  — all documents where userId == uid (batched)
- */
-/**
- * Allows a customer (unauthenticated) to accept or decline a quote and
- * optionally leave a comment.  Runs with the Admin SDK so it bypasses the
- * Firestore security rule that restricts updates to the quote owner only.
- *
- * Safeguards:
- *   - Quote must exist and not be deleted.
- *   - Quote must still be in "pending" status (prevents double-response).
- *   - status must be "accepted" or "declined".
- *   - comment is optional, trimmed, and capped at 1000 characters.
- */
 async function sendQuoteResponseNotification({
   to, businessName, customerName, customerEmail,
   quoteNumber, quoteDate, currency, pricing, lineItems,
@@ -541,6 +568,251 @@ async function sendQuoteResponseNotification({
   await transporter.sendMail({ from, to, subject, text, html });
 }
 
+/**
+ * Builds the same customer-facing invite copy as the in-app email share template.
+ */
+function buildCustomerQuoteInviteCopy({
+  quoteUrl,
+  customerName,
+  businessName,
+  quoteNumber,
+  currency,
+  total,
+  isRevision = false,
+}) {
+  const name = String(customerName ?? "").trim();
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  const biz = String(businessName ?? "").trim();
+  const cur = (String(currency ?? "GBP").trim() || "GBP").toUpperCase();
+  const totalNum = Number(total);
+  const amountLine = Number.isFinite(totalNum) ? `${cur} ${totalNum.toFixed(2)}` : null;
+  const num = String(quoteNumber ?? "").trim();
+  const quRef = num ? `QU-${num}` : null;
+
+  let quoteSentence;
+  if (isRevision) {
+    if (quRef && amountLine) {
+      quoteSentence = `Here's your updated quote ${quRef} for ${amountLine}.`;
+    } else if (quRef) {
+      quoteSentence = `Here's your updated quote ${quRef}.`;
+    } else if (amountLine) {
+      quoteSentence = `Here's your updated quote for ${amountLine}.`;
+    } else {
+      quoteSentence = "Here's your updated quote.";
+    }
+  } else if (quRef && amountLine) {
+    quoteSentence = `Here's quote ${quRef} for ${amountLine}.`;
+  } else if (quRef) {
+    quoteSentence = `Here's quote ${quRef}.`;
+  } else if (amountLine) {
+    quoteSentence = `Here's your quote for ${amountLine}.`;
+  } else {
+    quoteSentence = "Here's your quote.";
+  }
+
+  const textParagraphs = [
+    greeting,
+    "Thank you for your enquiry.",
+    quoteSentence,
+    ["View your quote online:", quoteUrl].join("\n"),
+    "From your online quote you can accept, decline, comment or print.",
+    "If you have any questions, please let us know.",
+    ["Thanks,", biz || null].filter(Boolean).join("\n"),
+  ].filter(Boolean);
+  const textBody = textParagraphs.join("\n\n");
+  const subject = num
+    ? (isRevision
+        ? (biz
+            ? `Updated Quote QU-${num} from ${biz} is ready to review`
+            : `Updated Quote QU-${num} is ready to review`)
+        : (biz
+            ? `Quote QU-${num} from ${biz} is ready to review`
+            : `Quote QU-${num} is ready to review`))
+    : (isRevision ? "Your updated quote is ready" : "Your quote is ready");
+  const businessSignoff = biz || null;
+  return { textBody, subject, greeting, quoteSentence, businessSignoff };
+}
+
+async function sendCustomerQuoteInviteSmtp({
+  to,
+  subject,
+  textBody,
+  quoteUrl,
+  businessName,
+  businessEmail,
+  emailHeading = "Your quote is ready",
+  greeting,
+  quoteSentence,
+  businessSignoff,
+}) {
+  const host = smtpHost.value();
+  const port = Number.parseInt(String(smtpPort.value() || "587"), 10);
+  const user = smtpUser.value();
+  const pass = smtpPass.value();
+  const fromSecret = smtpFrom.value();
+  if (!host || !Number.isFinite(port) || !user || !pass || !fromSecret) {
+    throw new HttpsError("failed-precondition", "Email is not configured.");
+  }
+
+  const { address: envelopeAddr, fallbackDisplayName } = parseSmtpFromSecret(fromSecret);
+  if (!validateEmailAddress(envelopeAddr)) {
+    throw new HttpsError("failed-precondition", "SMTP_FROM must include a valid envelope address.");
+  }
+
+  const bizDisplay = sanitizeEmailDisplayName(businessName);
+  const fromName = bizDisplay || fallbackDisplayName;
+  const replyTo = validateEmailAddress(businessEmail)
+    ? String(businessEmail).trim().toLowerCase()
+    : undefined;
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const safeBiz = escapeHtmlText(businessName || "your supplier");
+  const safeHeading = escapeHtmlText(emailHeading);
+  const safeHref = escapeHtmlText(quoteUrl);
+  const replyHint = replyTo
+    ? `<p style="margin:8px 0 0;font-size:12px;color:#64748b;text-align:center">Replies are sent to <a href="mailto:${escapeHtmlText(replyTo)}" style="color:#083a6b">${escapeHtmlText(replyTo)}</a>.</p>`
+    : "";
+  const useStructuredBody = greeting && quoteSentence;
+  const bodyHtml = useStructuredBody
+    ? `
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">${escapeHtmlText(greeting)}</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">Thank you for your enquiry.</p>
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#111827"><strong>${escapeHtmlText(quoteSentence)}</strong></p>
+        <p style="margin:0 0 6px;font-size:15px;line-height:1.55;color:#374151"><strong>View your quote online</strong></p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.55;word-break:break-word"><a href="${safeHref}" style="color:#083a6b;font-weight:600;text-decoration:underline">${escapeHtmlText(quoteUrl)}</a></p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">From your online quote you can <strong>accept</strong>, <strong>decline</strong>, <strong>comment</strong> or <strong>print</strong>.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">If you have any questions, please let us know.</p>
+        <p style="margin:0 0 4px;font-size:15px;line-height:1.55;color:#374151">Thanks,</p>
+        ${businessSignoff ? `<p style="margin:0;font-size:15px;line-height:1.55;color:#111827;font-weight:600">${escapeHtmlText(businessSignoff)}</p>` : ""}`
+    : `<div style="white-space:pre-wrap;font-size:15px;line-height:1.55;color:#374151">${escapeHtmlText(textBody)}</div>`;
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden">
+        <tr><td style="background:#083a6b;padding:20px 24px">
+          <p style="margin:0;font-size:18px;font-weight:700;color:#fff">${safeHeading}</p>
+        </td></tr>
+        <tr><td style="padding:24px 24px 8px">
+          ${bodyHtml}
+        </td></tr>
+        <tr><td style="padding:8px 24px 28px;text-align:center">
+          <a href="${safeHref}" style="display:inline-block;background:#083a6b;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:8px">View quote online</a>
+        </td></tr>
+        <tr><td style="padding:16px 24px 24px;border-top:1px solid #F1F5F9">
+          <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center">Sent via SendQuote on behalf of ${safeBiz}</p>
+          ${replyHint}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: { name: fromName, address: envelopeAddr },
+    replyTo,
+    to,
+    subject,
+    text: textBody,
+    html,
+  });
+}
+
+exports.sendQuoteLinkToCustomer = onCall(
+  {
+    region: "us-central1",
+    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+
+    const quoteId = String(request.data?.quoteId ?? "").trim();
+    if (!quoteId) {
+      throw new HttpsError("invalid-argument", "quoteId is required.");
+    }
+    const resend = Boolean(request.data?.resend);
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const ref = db.collection("quotes").doc(quoteId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Quote not found.");
+    }
+
+    const data = snap.data() || {};
+    if (data.deleted) {
+      throw new HttpsError("not-found", "Quote has been deleted.");
+    }
+    if (data.userId !== uid) {
+      throw new HttpsError("permission-denied", "You do not have access to this quote.");
+    }
+    if (data.customerInviteSentAt && !resend) {
+      return { ok: true, skipped: true, reason: "already_sent" };
+    }
+
+    const to = String(data.customerEmail ?? "").trim().toLowerCase();
+    if (!validateEmailAddress(to)) {
+      return { ok: true, skipped: true, reason: "no_email" };
+    }
+
+    const isRevision = Boolean(resend && data.customerInviteSentAt);
+
+    const quoteUrl = `${getPublicAppOrigin()}/quote/${quoteId}`;
+
+    const { textBody, subject, greeting, quoteSentence, businessSignoff } = buildCustomerQuoteInviteCopy({
+      quoteUrl,
+      customerName: data.customerName,
+      businessName: data.businessName,
+      quoteNumber: data.quoteNumber,
+      currency: data.currency,
+      total: data.pricing?.total,
+      isRevision,
+    });
+
+    try {
+      await sendCustomerQuoteInviteSmtp({
+        to,
+        subject,
+        textBody,
+        quoteUrl,
+        businessName: data.businessName ?? "",
+        businessEmail: data.businessEmail ?? "",
+        emailHeading: isRevision ? "Your updated quote" : "Your quote is ready",
+        greeting,
+        quoteSentence,
+        businessSignoff,
+      });
+    } catch (e) {
+      console.error("sendQuoteLinkToCustomer SMTP failed", e);
+      if (e instanceof HttpsError) throw e;
+      throw mapSmtpErrorToHttpsError(e);
+    }
+
+    await ref.update({
+      customerInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, sent: true, isRevision };
+  },
+);
+
+/** Customer accepts/declines a pending quote (unauthenticated; Admin update + optional owner email). */
 exports.submitQuoteResponse = onCall(
   {
     region: "us-central1",
@@ -584,7 +856,7 @@ exports.submitQuoteResponse = onCall(
     // Send email notification to the business owner (non-fatal if it fails).
     const businessEmail = data.businessEmail ?? "";
     if (businessEmail) {
-      const quoteUrl = `https://sendquote.ai/quote/${quoteId}`;
+      const quoteUrl = `${getPublicAppOrigin()}/quote/${quoteId}`;
       sendQuoteResponseNotification({
         to: businessEmail,
         businessName: data.businessName ?? "",
@@ -1048,7 +1320,7 @@ exports.createCheckoutSession = onCall(
       await userRef.set({ stripeCustomerId: customerId }, { merge: true });
     }
 
-    const appUrl = "https://sendquote.ai";
+    const appUrl = getPublicAppOrigin();
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
       client_reference_id: uid,
@@ -1082,7 +1354,7 @@ exports.createPortalSession = onCall(
     const stripe = require("stripe")(stripeSecretKey.value());
     const session = await stripe.billingPortal.sessions.create({
       customer: customerId,
-      return_url: "https://sendquote.ai/secured/billing",
+      return_url: `${getPublicAppOrigin()}/secured/billing`,
     });
     return { url: session.url };
   },

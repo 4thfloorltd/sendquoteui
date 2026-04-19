@@ -49,6 +49,7 @@ import {
   newLineItemId,
   createDefaultLineItems,
 } from "../context/QuoteContext";
+import { useSecuredQuoteNavigationBlocker } from "../context/SecuredQuoteNavigationBlocker";
 import {
   CURRENCY_OPTIONS,
   POPULAR_CURRENCY_OPTIONS,
@@ -71,6 +72,7 @@ import {
   sendQuoteVerificationCode,
   verifyQuoteVerificationCode,
 } from "../api/quoteVerification";
+import { sendQuoteLinkToCustomer } from "../api/sendQuoteLinkToCustomer";
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
 import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
@@ -120,12 +122,37 @@ const LINE_ITEMS_TABLE_MIN_PX = 700;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Stable snapshot for leave-blocking — block only when current form differs from this baseline. */
+function serializeQuoteForLeaveBlocker(quoteData, lineItems, vatRegistered) {
+  const rows = (lineItems ?? []).map((r) => ({
+    id: String(r.id ?? ""),
+    description: String(r.description ?? "").trim(),
+    unitPrice: Math.round((Number(r.unitPrice) || 0) * 100) / 100,
+    quantity: Math.trunc(Number(r.quantity) || 0),
+    vatPercent: Math.round((Number(r.vatPercent) || 0) * 100) / 100,
+  }));
+  return JSON.stringify({
+    vatRegistered: Boolean(vatRegistered),
+    quoteNumber: String(quoteData?.quoteNumber ?? ""),
+    quoteDate: String(quoteData?.quoteDate ?? ""),
+    businessName: String(quoteData?.businessName ?? "").trim(),
+    businessEmail: String(quoteData?.businessEmail ?? "").trim(),
+    businessAddress: String(quoteData?.businessAddress ?? "").trim(),
+    customerName: String(quoteData?.customerName ?? "").trim(),
+    email: String(quoteData?.email ?? "").trim().toLowerCase(),
+    currency: String(quoteData?.currency || "GBP"),
+    lineItems: rows,
+  });
+}
+
 const QuoteGenerator = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const { quoteData, updateQuoteData, resetQuoteData } = useQuote();
   // Derive editId early so state initialisers can reference it.
   const editId = location.state?.editId ?? null;
+  /** Exact path only — `startsWith("/secured/quote")` would wrongly match `/secured/quotes`. */
+  const isSecuredQuote = location.pathname === "/secured/quote";
   const [formErrors, setFormErrors] = useState({});
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [usageChecking, setUsageChecking] = useState(false);
@@ -151,6 +178,17 @@ const QuoteGenerator = () => {
   const [savedQuoteId, setSavedQuoteId] = useState(null);
   const [savedPdfBlobUrl, setSavedPdfBlobUrl] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
+  const [customerInviteNotice, setCustomerInviteNotice] = useState(null);
+  /** null until invite API returns; then "new" | "updated" for dialog copy (first invite vs revision email). */
+  const [customerInviteKind, setCustomerInviteKind] = useState(null);
+  /** New quote save + customer email: full-screen loader until sendQuoteLinkToCustomer finishes (same pattern as edit resend). */
+  const [newQuoteCustomerEmailLoading, setNewQuoteCustomerEmailLoading] = useState(false);
+  /** After "Resend quote" (edit save), navigate here when the success dialog closes (view updated quote). */
+  const [quoteSuccessNavigatePath, setQuoteSuccessNavigatePath] = useState(null);
+  /** Edit save + customer email: show until sendQuoteLinkToCustomer(resend) finishes — avoids "Quote updated" success dialog flash. */
+  const [editResendEmailLoading, setEditResendEmailLoading] = useState(false);
+  /** Serialized snapshot after load / initial settle — leave guard compares current form to this. */
+  const [leaveBaseline, setLeaveBaseline] = useState(null);
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistEmailError, setWaitlistEmailError] = useState(false);
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
@@ -211,6 +249,17 @@ const QuoteGenerator = () => {
   );
 
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
+  /** Skip blocker when leaving after a successful save — resetQuoteData is async so isFormDirty can still look dirty. */
+  const suppressSecuredLeaveBlockerRef = useRef(false);
+  /** Latest quote snapshot for capturing edit baseline after load (setTimeout 0). */
+  const leaveSnapshotRef = useRef({
+    quoteData: null,
+    lineItems: [],
+    isVatRegistered: true,
+  });
+
+  const { registerShouldBlock, blocker: leaveBlocker } = useSecuredQuoteNavigationBlocker();
+
   /** Guest `/quote`: business email already tied to an account (Auth or profile) */
   const [businessEmailHasAccount, setBusinessEmailHasAccount] = useState(false);
   const [businessEmailChecking, setBusinessEmailChecking] = useState(false);
@@ -233,16 +282,6 @@ const QuoteGenerator = () => {
     return () => clearInterval(timer);
   }, [verifyDialogOpen, resendBlocked]);
 
-  // Block browser tab close / hard refresh when the form is dirty.
-  // Skipped in edit mode — the original quote is safe in Firestore.
-  useEffect(() => {
-    if (!isFormDirty || editId) return undefined;
-    const handle = (e) => { e.preventDefault(); e.returnValue = ""; };
-    window.addEventListener("beforeunload", handle);
-    return () => window.removeEventListener("beforeunload", handle);
-  }, [isFormDirty, editId]);
-
-  const isSecuredQuote = location.pathname.startsWith("/secured/quote");
   const backPath = editId ? `/secured/quote/${editId}` : isSecuredQuote ? "/secured/quotes" : "/";
   const backLabel = editId
     ? `Back to QU-${quoteData.quoteNumber ?? "…"}`
@@ -334,11 +373,14 @@ const QuoteGenerator = () => {
       }
       if (snap.exists() && p?.profileComplete) {
         setBusinessProfile(p);
-        updateQuoteData({
-          businessName:    p.businessName    ?? "",
-          businessEmail:   p.businessEmail   ?? "",
-          businessAddress: p.businessAddress ?? "",
-        });
+        // Editing an existing quote: keep document fields; profile must not clobber baseline.
+        if (!editId) {
+          updateQuoteData({
+            businessName:    p.businessName    ?? "",
+            businessEmail:   p.businessEmail   ?? "",
+            businessAddress: p.businessAddress ?? "",
+          });
+        }
       }
     }).catch((e) => console.error("Failed to load business profile", e));
 
@@ -366,24 +408,6 @@ const QuoteGenerator = () => {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const handleHomeClick = (e) => {
-    // In edit mode the original quote is safe in Firestore — no leave guard needed.
-    if (isFormDirty && !editId) {
-      e.preventDefault();
-      setLeaveDialogOpen(true);
-    }
-  };
-
-  const handleConfirmLeave = () => {
-    resetQuoteData();
-    setLeaveDialogOpen(false);
-    navigate(backPath);
-  };
-
-  const handleCancelLeave = () => {
-    setLeaveDialogOpen(false);
-  };
 
   useEffect(() => {
     const incoming = location.state?.projectDescription?.trim();
@@ -469,6 +493,121 @@ const QuoteGenerator = () => {
     Array.isArray(quoteData.lineItems) && quoteData.lineItems.length > 0
       ? quoteData.lineItems
       : createDefaultLineItems();
+
+  leaveSnapshotRef.current = { quoteData, lineItems, isVatRegistered };
+
+  useEffect(() => {
+    if (editId) {
+      if (!isSecuredQuote) {
+        setLeaveBaseline(null);
+        return;
+      }
+      if (editLoading) {
+        setLeaveBaseline(null);
+        return;
+      }
+      let cancelled = false;
+      const t = window.setTimeout(() => {
+        if (cancelled) return;
+        const snap = leaveSnapshotRef.current;
+        setLeaveBaseline(serializeQuoteForLeaveBlocker(snap.quoteData, snap.lineItems, snap.isVatRegistered));
+      }, 0);
+      return () => {
+        cancelled = true;
+        clearTimeout(t);
+      };
+    }
+
+    // New quote on /secured/quote or public /quote — capture after profile / quote number / defaults settle.
+    if (isSecuredQuote && !auth.currentUser) {
+      setLeaveBaseline(null);
+      return;
+    }
+    let cancelled = false;
+    const t = window.setTimeout(() => {
+      if (cancelled) return;
+      const snap = leaveSnapshotRef.current;
+      setLeaveBaseline(serializeQuoteForLeaveBlocker(snap.quoteData, snap.lineItems, snap.isVatRegistered));
+    }, 280);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [editId, editLoading, isSecuredQuote, auth.currentUser?.uid]);
+
+  const shouldWarnOnLeave = useMemo(() => {
+    if (editId) {
+      if (!isSecuredQuote) return isFormDirty;
+      if (leaveBaseline == null) return false;
+      return serializeQuoteForLeaveBlocker(quoteData, lineItems, isVatRegistered) !== leaveBaseline;
+    }
+    if (leaveBaseline == null) return isFormDirty;
+    return serializeQuoteForLeaveBlocker(quoteData, lineItems, isVatRegistered) !== leaveBaseline;
+  }, [editId, isSecuredQuote, leaveBaseline, quoteData, lineItems, isVatRegistered, isFormDirty]);
+
+  const securedFormHasUnsavedChanges = useMemo(
+    () => isSecuredQuote && shouldWarnOnLeave,
+    [isSecuredQuote, shouldWarnOnLeave],
+  );
+
+  const shouldBlockSecuredLeave = useCallback(
+    ({ currentLocation, nextLocation }) => {
+      if (suppressSecuredLeaveBlockerRef.current) return false;
+      return (
+        isSecuredQuote &&
+        securedFormHasUnsavedChanges &&
+        currentLocation.pathname !== nextLocation.pathname
+      );
+    },
+    [isSecuredQuote, securedFormHasUnsavedChanges],
+  );
+
+  useEffect(() => {
+    registerShouldBlock(shouldBlockSecuredLeave);
+    return () => registerShouldBlock(null);
+  }, [registerShouldBlock, shouldBlockSecuredLeave]);
+
+  useEffect(() => {
+    if (leaveBlocker.state === "blocked") {
+      setLeaveDialogOpen(true);
+    }
+  }, [leaveBlocker.state]);
+
+  // Block browser tab close / hard refresh when the form differs from baseline (or fallback while baseline pending).
+  useEffect(() => {
+    if (!shouldWarnOnLeave) return undefined;
+    const handle = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handle);
+    return () => window.removeEventListener("beforeunload", handle);
+  }, [shouldWarnOnLeave]);
+
+  const handleHomeClick = (e) => {
+    if (isSecuredQuote) {
+      // useBlocker intercepts in-app navigation when the form is dirty.
+      return;
+    }
+    if (shouldWarnOnLeave && !editId) {
+      e.preventDefault();
+      setLeaveDialogOpen(true);
+    }
+  };
+
+  const handleConfirmLeave = () => {
+    resetQuoteData();
+    setLeaveDialogOpen(false);
+    if (leaveBlocker.state === "blocked") {
+      leaveBlocker.proceed();
+    } else {
+      navigate(backPath);
+    }
+  };
+
+  const handleCancelLeave = () => {
+    setLeaveDialogOpen(false);
+    if (leaveBlocker.state === "blocked") {
+      leaveBlocker.reset();
+    }
+  };
 
   useLayoutEffect(() => {
     const el = lineItemsLayoutRef.current;
@@ -821,6 +960,39 @@ const QuoteGenerator = () => {
     setCreateAccountOpen(true);
   };
 
+  /** Send customer invite for a newly saved quote (loader matches edit-resend UX). */
+  const runNewQuoteCustomerInvite = async (quoteId) => {
+    const cust = (quoteData.email ?? "").trim().toLowerCase();
+    if (!EMAIL_RE.test(cust)) return;
+    setNewQuoteCustomerEmailLoading(true);
+    try {
+      const data = await sendQuoteLinkToCustomer(quoteId);
+      if (data?.sent) {
+        const isRevision = Boolean(data.isRevision);
+        setCustomerInviteKind(isRevision ? "updated" : "new");
+        setCustomerInviteNotice({
+          severity: "success",
+          message: isRevision
+            ? `We've emailed an updated quote link to ${cust}.`
+            : `We've emailed a link to ${cust}.`,
+        });
+      } else if (data?.skipped && data.reason === "already_sent") {
+        setCustomerInviteNotice({
+          severity: "info",
+          message: "A link was already emailed for this quote.",
+        });
+      }
+    } catch (e) {
+      console.warn("Auto-send quote to customer failed", e);
+      setCustomerInviteNotice({
+        severity: "warning",
+        message: "Could not email the customer automatically. Share the link using the options below.",
+      });
+    } finally {
+      setNewQuoteCustomerEmailLoading(false);
+    }
+  };
+
   const handleCreateAccountAndSave = async () => {
     if (createAccountPassword.length < 6) {
       setCreateAccountError("Password must be at least 6 characters.");
@@ -856,6 +1028,10 @@ const QuoteGenerator = () => {
       setSavedQuoteId(quoteId);
       setCreateAccountOpen(false);
       setVerificationEmail("");
+      setCustomerInviteKind(null);
+      setCustomerInviteNotice(null);
+      setQuoteSuccessNavigatePath(null);
+      await runNewQuoteCustomerInvite(quoteId);
       setQuoteSuccessOpen(true);
     } catch (err) {
       console.error("Account creation failed", err);
@@ -897,6 +1073,10 @@ const QuoteGenerator = () => {
       setCreateAccountOpen(false);
       setCreateAccountIsLoginMode(false);
       setVerificationEmail("");
+      setCustomerInviteKind(null);
+      setCustomerInviteNotice(null);
+      setQuoteSuccessNavigatePath(null);
+      await runNewQuoteCustomerInvite(quoteId);
       setQuoteSuccessOpen(true);
     } catch (err) {
       console.error("Login and save failed", err);
@@ -988,14 +1168,25 @@ const QuoteGenerator = () => {
     doc.save(getQuotePdfFilename(quoteData));
   };
 
-  const handleCloseQuoteSuccess = () => {
+  const handleCloseQuoteSuccess = (opts = {}) => {
+    const { navigateTo } = opts;
+    const pathToOpen = navigateTo !== undefined ? navigateTo : quoteSuccessNavigatePath;
     if (savedPdfBlobUrl) {
       URL.revokeObjectURL(savedPdfBlobUrl);
       setSavedPdfBlobUrl(null);
     }
     setSavedQuoteId(null);
     setCopiedLink(false);
+    setCustomerInviteNotice(null);
+    setCustomerInviteKind(null);
+    setNewQuoteCustomerEmailLoading(false);
+    setQuoteSuccessNavigatePath(null);
     setQuoteSuccessOpen(false);
+    setEditResendEmailLoading(false);
+    if (pathToOpen) {
+      resetQuoteData();
+      navigate(pathToOpen);
+    }
   };
 
   const handleCopyShareLink = () => {
@@ -1056,11 +1247,47 @@ const QuoteGenerator = () => {
       try {
         const uid = auth.currentUser.uid;
 
-        // ── Edit mode: update existing quote, no quota check ──
+        // ── Edit mode: update existing quote, then same success dialog as new send (copy reflects updated quote). ──
         if (editId) {
           await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing, vatRegistered: isVatRegistered });
-          resetQuoteData();
-          navigate(`/secured/quote/${editId}`);
+          const custEmail = (quoteData.email ?? "").trim().toLowerCase();
+          setCustomerInviteKind(null);
+          setCustomerInviteNotice(null);
+          setQuoteSuccessNavigatePath(`/secured/quote/${editId}`);
+          setSavedQuoteId(editId);
+          suppressSecuredLeaveBlockerRef.current = true;
+
+          if (EMAIL_RE.test(custEmail)) {
+            setEditResendEmailLoading(true);
+            try {
+              const data = await sendQuoteLinkToCustomer(editId, { resend: true });
+              if (data?.sent) {
+                const isRevision = Boolean(data.isRevision);
+                setCustomerInviteKind(isRevision ? "updated" : "new");
+                setCustomerInviteNotice({
+                  severity: "success",
+                  message: isRevision
+                    ? `We've emailed an updated quote link to ${custEmail}.`
+                    : `We've emailed a link to ${custEmail}.`,
+                });
+              } else if (data?.skipped && data.reason === "already_sent") {
+                setCustomerInviteNotice({
+                  severity: "info",
+                  message: "A link was already emailed for this quote.",
+                });
+              }
+            } catch (e) {
+              console.warn("Resend quote link to customer after edit failed", e);
+              setCustomerInviteNotice({
+                severity: "warning",
+                message: "Could not email the customer automatically. Share the link using the options below.",
+              });
+            } finally {
+              setEditResendEmailLoading(false);
+            }
+          }
+
+          setQuoteSuccessOpen(true);
           return;
         }
 
@@ -1084,6 +1311,10 @@ const QuoteGenerator = () => {
           vatRegistered: isVatRegistered,
         });
         setSavedQuoteId(quoteId);
+        setCustomerInviteKind(null);
+        setCustomerInviteNotice(null);
+        setQuoteSuccessNavigatePath(null);
+        await runNewQuoteCustomerInvite(quoteId);
         setQuoteSuccessOpen(true);
       } catch (e) {
         console.error("Save quote (signed in) failed", e);
@@ -2142,7 +2373,7 @@ const QuoteGenerator = () => {
             startIcon={
               usageChecking || sendingVerificationCode
                 ? <CircularProgress size={18} color="inherit" />
-                : <FontAwesomeIcon icon={editId ? undefined : faPaperPlane} />
+                : <FontAwesomeIcon icon={faPaperPlane} />
             }
             sx={{
               minHeight: 48,
@@ -2152,18 +2383,18 @@ const QuoteGenerator = () => {
               width: { xs: "100%", sm: "auto" },
               minWidth: 0,
               maxWidth: { sm: 200 },
-              bgcolor: editId ? "#083a6b" : "#10A86B",
+              bgcolor: "#10A86B",
               color: "#fff",
-              "&:hover": { bgcolor: editId ? "#062d52" : "#13C47A" },
+              "&:hover": { bgcolor: "#13C47A" },
             }}
           >
             {editId
-              ? usageChecking ? "Saving…" : "Save changes"
+              ? usageChecking ? "Sending" : "Resend quote"
               : auth.currentUser
-                ? usageChecking ? "Saving…" : "Create Quote"
+                ? usageChecking ? "Sending" : "Send quote"
                 : sendingVerificationCode ? "Sending code…"
                 : usageChecking ? "Checking…"
-                : "Create Quote"
+                : "Send quote"
             }
           </Button>
         </Stack>
@@ -2173,11 +2404,15 @@ const QuoteGenerator = () => {
       <Dialog open={leaveDialogOpen} onClose={handleCancelLeave} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b" }}>Leave this page?</DialogTitle>
         <DialogContent>
-          <Typography>Your quote will be cleared and cannot be recovered.</Typography>
+          <Typography>
+            {editId
+              ? "Your unsaved changes will be lost."
+              : "Your quote will be cleared and cannot be recovered."}
+          </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
           <Button onClick={handleCancelLeave} color="inherit">Stay</Button>
-          <Button onClick={handleConfirmLeave} variant="contained" color="error">Leave & clear</Button>
+          <Button onClick={handleConfirmLeave} variant="contained" color="error">Leave</Button>
         </DialogActions>
       </Dialog>
 
@@ -2545,10 +2780,35 @@ const QuoteGenerator = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Customer email in flight — same loader for edit resend and new-quote send (success opens after). */}
+      <Dialog
+        open={editResendEmailLoading || newQuoteCustomerEmailLoading}
+        disableEscapeKeyDown
+        onClose={(_, reason) => {
+          if (reason === "backdropClick") return;
+        }}
+        fullWidth
+        maxWidth="xs"
+      >
+        <DialogContent sx={{ py: 4, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+          <CircularProgress size={40} />
+          <Typography variant="body1" fontWeight={600} color="text.primary" textAlign="center">
+            {editResendEmailLoading
+              ? "Emailing your customer the updated quote"
+              : "Emailing your customer a link to your quote"}
+          </Typography>
+          <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ maxWidth: 320 }}>
+            {editResendEmailLoading
+              ? "They’ll get an email with a fresh link to the latest version. This usually takes a few seconds."
+              : "They’ll get an email they can open on any device to review, accept, or comment. This usually takes a few seconds."}
+          </Typography>
+        </DialogContent>
+      </Dialog>
+
       {/* Quote success — shown after account creation */}
       <Dialog
         open={quoteSuccessOpen}
-        onClose={handleCloseQuoteSuccess}
+        onClose={() => handleCloseQuoteSuccess()}
         fullWidth
         maxWidth="sm"
       >
@@ -2564,9 +2824,25 @@ const QuoteGenerator = () => {
           }}
         >
           <CheckCircleOutlineIcon sx={{ color: "#4CAF50", fontSize: "1.6rem", mr: 1.5 }} />
-          Quote is ready to share!
+          {(() => {
+            const cust = (quoteData.email ?? "").trim().toLowerCase();
+            const afterEditSave = Boolean(quoteSuccessNavigatePath);
+            if (!EMAIL_RE.test(cust)) {
+              return afterEditSave ? "Quote updated — share below" : "Quote is ready to share!";
+            }
+            if (customerInviteKind === "updated") {
+              return `We've emailed an updated quote link to ${cust}`;
+            }
+            if (customerInviteKind === "new") {
+              return `We've emailed a link to ${cust}`;
+            }
+            if (afterEditSave && EMAIL_RE.test(cust)) {
+              return "Quote updated";
+            }
+            return "Quote saved";
+          })()}
           <IconButton
-            onClick={handleCloseQuoteSuccess}
+            onClick={() => handleCloseQuoteSuccess()}
             size="small"
             sx={{ position: "absolute", right: 12, top: 12, color: "#9CA3AF", "&:hover": { color: "#111827" } }}
           >
@@ -2585,16 +2861,11 @@ const QuoteGenerator = () => {
           }}
         >
           <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 0.25, color: "#083a6b" }}>
-            Share this link with your customer
+            Other ways to share with your customer
           </Typography>
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-            Copy and share the link below, or use one of the quick share options.
-          </Typography>
-
-          <QuoteShareQuickButtons quoteDocId={savedQuoteId} sx={{ mb: 1 }} />
 
           {/* Copy link */}
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          <Box sx={{ display: "flex", gap: 1, alignItems: "center", mb: 2 }}>
             <TextField
               fullWidth
               size="small"
@@ -2617,32 +2888,32 @@ const QuoteGenerator = () => {
               {copiedLink ? "Copied!" : "Copy link"}
             </Button>
           </Box>
+          <QuoteShareQuickButtons
+            quoteDocId={savedQuoteId}
+            customerName={quoteData.customerName}
+            businessName={quoteData.businessName}
+            quoteNumber={quoteData.quoteNumber}
+            currency={activeCurrency}
+            total={pricing.total}
+            sx={{ mb: 1 }}
+          />
         </Box>
 
         {/* Dashboard CTA */}
         <Box sx={{ px: 3, pb: 2.5, pt: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, borderTop: "1px solid #E5E7EB" }}>
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1, fontWeight: 700 }}>
-            Go to your quotes to monitor when your customer accepts or declines.
+            Go to your quotes to view and manage sent quotes.
           </Typography>
 
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
-            <Button
-              variant="outlined"
-              size="medium"
-              onClick={handleDownloadSuccessPdf}
-              startIcon={<FontAwesomeIcon icon={faDownload} style={{ fontSize: 14 }} />}
-              sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", "&:hover": { bgcolor: "#EFF6FF" } }}
-            >
-              Download PDF
-            </Button>
-            <Button
-              variant="contained"
-              size="medium"
-              onClick={() => { handleCloseQuoteSuccess(); navigate("/secured/quotes"); }}
-              sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
-            >
-              Go to quotes →
-            </Button>
+              <Button
+                variant="contained"
+                size="medium"
+                onClick={() => handleCloseQuoteSuccess({ navigateTo: "/secured/quotes" })}
+                sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
+              >
+                Go to quotes →
+              </Button>
           </Box>
         </Box>
 
