@@ -31,7 +31,7 @@ export function ensureGoogleAnalytics() {
   return initPromise;
 }
 
-/** SPA page views — call on route changes (after ensureGoogleAnalytics has resolved). */
+/** SPA page views - call on route changes (after ensureGoogleAnalytics has resolved). */
 export async function trackGa4PageView(pathname, search = "") {
   const a = await ensureGoogleAnalytics();
   if (!a) return;

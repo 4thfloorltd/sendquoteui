@@ -68,7 +68,7 @@ const Quotes = () => {
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const navigate = useNavigate();
   const location = useLocation();
-  /** Fresh each render — read inside onAuthStateChanged without resubscribing. */
+  /** Fresh each render - read inside onAuthStateChanged without resubscribing. */
   const redirectAfterProfileRef = useRef(null);
   redirectAfterProfileRef.current = sanitizeProfileRedirect(location.state?.redirectAfterProfile);
   const consumedBillingRedirectRef = useRef(false);
@@ -182,7 +182,7 @@ const Quotes = () => {
       }
 
       if (profileData && !profileData.profileComplete) {
-        // Profile doc exists but setup was never completed — pre-fill all fields
+        // Profile doc exists but setup was never completed - pre-fill all fields
         // from whatever is already stored so the user doesn't lose data.
         setOnboardingUid(user.uid);
         setBizName(profileData.businessName ?? "");
@@ -198,7 +198,7 @@ const Quotes = () => {
         navigate(redirectAfterProfileRef.current, { replace: true });
         return;
       }
-      // If profileData is null (read failed or doc missing), skip onboarding —
+      // If profileData is null (read failed or doc missing), skip onboarding -
       // the profile likely exists but is temporarily unreadable (e.g. mid email
       // change).  The user can access Profile directly to fix their profile.
 
@@ -323,7 +323,7 @@ const Quotes = () => {
 
   const formatDate = (quote) => {
     const ts = quote.createdAt?.toDate?.() ?? (quote.quoteDate ? new Date(`${quote.quoteDate}T12:00:00`) : null);
-    if (!ts) return "—";
+    if (!ts) return "-";
     return ts.toLocaleDateString(isXs ? "en-GB" : "en-US", isXs
       ? { day: "2-digit", month: "2-digit", year: "2-digit" }
       : { weekday: "short", month: "short", day: "numeric", year: "numeric" });
@@ -629,10 +629,10 @@ const Quotes = () => {
                 <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 1 }}>
                   <Box sx={{ minWidth: 0, flex: 1, pr: 1 }}>
                     <Typography sx={{ fontWeight: 700, fontSize: "0.95rem", color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {quote.customerName ?? "—"}
+                      {quote.customerName ?? "-"}
                     </Typography>
                     <Typography variant="caption" sx={{ color: "#6B7280" }}>
-                      QU-{quote.quoteNumber ?? "—"} · {formatDate(quote)}
+                      QU-{quote.quoteNumber ?? "-"} · {formatDate(quote)}
                     </Typography>
                   </Box>
                   <Chip
@@ -696,10 +696,10 @@ const Quotes = () => {
                       },
                     }}
                   >
-                    {/* Customer — primary column */}
+                    {/* Customer - primary column */}
                     <TableCell sx={{ maxWidth: 220, py: 1.75 }}>
                       <Typography sx={{ fontSize: "14px", fontWeight: 600, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {quote.customerName ?? "—"}
+                        {quote.customerName ?? "-"}
                       </Typography>
                       {quote.email || quote.customerEmail ? (
                         <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -710,7 +710,7 @@ const Quotes = () => {
 
                     {/* Quote ID */}
                     <TableCell sx={{ fontSize: "13px", whiteSpace: "nowrap", color: "#083a6b", fontWeight: 700, py: 1.75 }}>
-                      QU-{quote.quoteNumber ?? "—"}
+                      QU-{quote.quoteNumber ?? "-"}
                     </TableCell>
 
                     {/* Date */}
@@ -718,7 +718,7 @@ const Quotes = () => {
                       {formatDate(quote)}
                     </TableCell>
 
-                    {/* Total — right-aligned */}
+                    {/* Total - right-aligned */}
                     <TableCell align="right" sx={{ fontSize: "13px", whiteSpace: "nowrap", fontWeight: 700, color: "#111827", py: 1.75 }}>
                       {formatted}
                     </TableCell>
@@ -732,7 +732,7 @@ const Quotes = () => {
                       />
                     </TableCell>
 
-                    {/* Chevron — visible on row hover */}
+                    {/* Chevron - visible on row hover */}
                     <TableCell sx={{ width: 40, p: 0, pr: 1.5 }}>
                       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", height: "100%" }}>
                         <ChevronRightIcon

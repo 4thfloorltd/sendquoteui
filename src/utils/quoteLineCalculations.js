@@ -18,7 +18,7 @@ export function lineVatAmount(row) {
   return net * (pct / 100);
 }
 
-/** Line total inc VAT — used for the Amount column and PDF. */
+/** Line total inc VAT - used for the Amount column and PDF. */
 export function lineGross(row) {
   const g = lineNet(row) + lineVatAmount(row);
   return Math.round((g + Number.EPSILON) * 100) / 100;

@@ -7,8 +7,8 @@ import {
 
 /**
  * Typewriter loop for multiline placeholder text. Pauses when `enabled` is false.
- * @param {boolean} enabled — run animation only while true (e.g. empty input).
- * @param {string} currencySymbol — narrow symbol for £ placeholders (e.g. $, €).
+ * @param {boolean} enabled - run animation only while true (e.g. empty input).
+ * @param {string} currencySymbol - narrow symbol for £ placeholders (e.g. $, €).
  */
 export function useTypewriterPlaceholder(enabled, currencySymbol = "£") {
   const examplesOrder = useMemo(

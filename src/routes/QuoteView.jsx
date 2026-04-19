@@ -90,7 +90,7 @@ const QuoteView = () => {
           setComment(data.comment ?? "");
         }
 
-        // Generate PDF only once on first load — status changes don't affect PDF content.
+        // Generate PDF only once on first load - status changes don't affect PDF content.
         if (!pdfGenerated.current) {
           pdfGenerated.current = true;
           try {
@@ -376,9 +376,9 @@ const QuoteView = () => {
                 color="#083a6b"
                 sx={{ fontWeight: 800, fontSize: { xs: "1rem", sm: "1.2rem" }, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
               >
-                QU-{quote.quoteNumber ?? "—"}
+                QU-{quote.quoteNumber ?? "-"}
               </Typography>
-              {/* Status — mobile only; desktop is in the right panel */}
+              {/* Status - mobile only; desktop is in the right panel */}
               <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", gap: 0.75, flexShrink: 0 }}>
                 <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600, whiteSpace: "nowrap" }}>
                   Status:
@@ -488,7 +488,7 @@ const QuoteView = () => {
                     }}
                   >
                     <Typography variant="body2" sx={{ flex: 1, pr: 2 }}>
-                      {item.description || "—"}
+                      {item.description || "-"}
                     </Typography>
                     <Typography variant="body2" fontWeight={600} sx={{ flexShrink: 0 }}>
                       {formatMoney((item.unitPrice ?? 0) * (item.quantity ?? 1))}
@@ -558,7 +558,7 @@ const QuoteView = () => {
             {auth.currentUser?.uid === quote.userId ? (
               /* ── Business owner view ── */
               <>
-                {/* Status — desktop / tablet only (mobile: same row as quote number in header) */}
+                {/* Status - desktop / tablet only (mobile: same row as quote number in header) */}
                 <Box sx={{ display: { xs: "none", md: "block" }, mb: 2 }}>
                   <Typography variant="subtitle2" color="text.secondary" sx={{ mb: 0.5 }}>
                     Status
@@ -765,7 +765,7 @@ const QuoteView = () => {
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b" }}>Delete this quote?</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary">
-            This will permanently remove <strong>QU-{quote.quoteNumber ?? "—"}</strong> for <strong>{quote.customerName ?? "this customer"}</strong>.
+            This will permanently remove <strong>QU-{quote.quoteNumber ?? "-"}</strong> for <strong>{quote.customerName ?? "this customer"}</strong>.
             {(quote.status === "accepted" || quote.status === "declined") && (
               <Box component="span" sx={{ display: "block", mt: 1, color: "#EF4444" }}>
                 This quote has already been {quote.status} - the customer&apos;s link will stop working.

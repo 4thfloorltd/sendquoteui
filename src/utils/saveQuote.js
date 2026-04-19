@@ -48,7 +48,7 @@ export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, user
 
 /**
  * Updates an existing quote document. Preserves quoteNumber, status,
- * comment, userId, and createdAt — only content fields are overwritten.
+ * comment, userId, and createdAt - only content fields are overwritten.
  */
 export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pricing, vatRegistered = true }) {
   await updateDoc(doc(db, "quotes", quoteId), {

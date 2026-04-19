@@ -93,10 +93,10 @@ export function buildQuotePdfDocument({
   // ── HEADER ──────────────────────────────────────────────────────────────────
 
   const quoteMetaBlock = () => {
-    const qn = String(quoteData.quoteNumber ?? "").trim() || "—";
+    const qn = String(quoteData.quoteNumber ?? "").trim() || "-";
     const qd = String(quoteData.quoteDate   ?? "").trim()
       ? formatDateLong(quoteData.quoteDate)
-      : "—";
+      : "-";
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
@@ -215,7 +215,7 @@ export function buildQuotePdfDocument({
     const desc = (
       String(item.description ?? "").trim() ||
       String(item.label       ?? "").trim() ||
-      "—"
+      "-"
     );
 
     const wrapped    = wrapText(desc, descW);

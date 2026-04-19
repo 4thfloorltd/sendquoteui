@@ -405,7 +405,7 @@ async function sendQuoteResponseNotification({
   const pass = smtpPass.value();
   const from = smtpFrom.value();
   if (!host || !Number.isFinite(port) || !user || !pass || !from) {
-    console.warn("SMTP secrets not configured — skipping quote response notification.");
+    console.warn("SMTP secrets not configured - skipping quote response notification.");
     return;
   }
 
@@ -898,7 +898,7 @@ exports.deleteUserData = onCall(
       const userRecord = await auth.getUser(uid);
       email = (userRecord.email ?? "").trim().toLowerCase();
     } catch (e) {
-      // Non-fatal — continue without email-keyed deletions.
+      // Non-fatal - continue without email-keyed deletions.
       console.warn("deleteUserData: could not fetch user record", e);
     }
 
@@ -928,7 +928,7 @@ exports.deleteUserData = onCall(
 );
 
 // Lightweight guest-safe check: returns { registered: true } if an Auth
-// account exists for the given email. No authentication required — the
+// account exists for the given email. No authentication required - the
 // response only confirms presence, not identity, so enumeration risk is
 // equivalent to the standard registration flow.
 exports.checkEmailRegistered = onCall(
@@ -968,17 +968,17 @@ exports.checkEmailAvailability = onCall(
 
     const db = admin.firestore();
 
-    // 1. Firebase Auth — direct lookup; immune to enumeration-protection.
+    // 1. Firebase Auth - direct lookup; immune to enumeration-protection.
     try {
       const userRecord = await admin.auth().getUserByEmail(email);
       if (userRecord.uid !== currentUid) {
         return { claimed: true };
       }
-      // Email belongs to the calling user — not a conflict.
+      // Email belongs to the calling user - not a conflict.
       return { claimed: false };
     } catch (e) {
       if (e.code !== "auth/user-not-found") {
-        // Unexpected error — fail safe (let the save proceed; Firebase will
+        // Unexpected error - fail safe (let the save proceed; Firebase will
         // surface a duplicate error at the verifyBeforeUpdateEmail step).
         console.error("checkEmailAvailability auth lookup failed", e);
         return { claimed: false };
@@ -986,7 +986,7 @@ exports.checkEmailAvailability = onCall(
       // auth/user-not-found → no Auth account with this email; still check Firestore.
     }
 
-    // 2. Firestore — catch orphaned profile docs not yet cleaned up in Auth.
+    // 2. Firestore - catch orphaned profile docs not yet cleaned up in Auth.
     try {
       const [snapBiz, snapLogin] = await Promise.all([
         db.collection("users").where("businessEmail", "==", email).limit(1).get(),
@@ -1085,7 +1085,7 @@ exports.extractQuoteFromPdf = onCall(
 
     const client = new Anthropic({ apiKey: anthropicApiKey.value() });
 
-    const systemPrompt = `You are a data extraction assistant. Extract quote/invoice information from the provided PDF and return ONLY a raw JSON object. Do not include markdown, code fences, backticks, or any explanation — just the JSON object starting with { and ending with }.
+    const systemPrompt = `You are a data extraction assistant. Extract quote/invoice information from the provided PDF and return ONLY a raw JSON object. Do not include markdown, code fences, backticks, or any explanation - just the JSON object starting with { and ending with }.
 
 Return this exact shape (use null for any field you cannot find):
 {
@@ -1211,7 +1211,7 @@ exports.createSubscriptionIntent = onCall(
       existing.data.map((s) => stripe.subscriptions.cancel(s.id).catch(() => { })),
     );
 
-    // Create subscription without nested expand — we'll fetch the invoice separately.
+    // Create subscription without nested expand - we'll fetch the invoice separately.
     // Restrict to 'card' only (covers regular cards, Apple Pay, Google Pay) via
     // payment_settings.payment_method_types, which excludes Link, Klarna, Revolut Pay, etc.
     const subscription = await stripe.subscriptions.create({
@@ -1238,7 +1238,7 @@ exports.createSubscriptionIntent = onCall(
 
     // Fetch the invoice with payments expanded (Stripe 2026-03-25.dahlia).
     // In this API version invoice.payment_intent is gone; the PI id lives in
-    // invoice.payments.data[0].payment_intent (a string — NOT further expandable).
+    // invoice.payments.data[0].payment_intent (a string - NOT further expandable).
     const invoice = await stripe.invoices.retrieve(invoiceId, {
       expand: ["payment_intent", "payments"],
     });
@@ -1257,7 +1257,7 @@ exports.createSubscriptionIntent = onCall(
     }
 
     // 2) New path: invoice.payments.data[0].payment_intent (2024-09-30 / dahlia)
-    //    The PI is returned as a string id — retrieve it separately.
+    //    The PI is returned as a string id - retrieve it separately.
     if (!paymentIntent) {
       const piId = invoice.payments?.data?.[0]?.payment_intent;
       console.log("payments[0].payment_intent:", piId);
@@ -1490,7 +1490,7 @@ exports.stripeWebhook = onRequest(
  *
  * Request data:
  *   description  – string (required)
- *   screenshotUrl – string | null — download URL from Firebase Storage (optional)
+ *   screenshotUrl – string | null - download URL from Firebase Storage (optional)
  *   screenshotName – string | null
  *
  * Response: { reportId: string }
@@ -1524,7 +1524,7 @@ exports.submitBugReport = onCall(
     } catch (_) { }
 
     // Build a download URL using the Firebase download token embedded in the
-    // file's metadata — no IAM signBlob permission required.
+    // file's metadata - no IAM signBlob permission required.
     let screenshotSignedUrl = null;
     if (screenshotPath) {
       try {
@@ -1558,7 +1558,7 @@ exports.submitBugReport = onCall(
       updatedAt: now,
     });
 
-    // Best-effort email to support — never fail the whole request if SMTP is down.
+    // Best-effort email to support - never fail the whole request if SMTP is down.
     try {
       const host = smtpHost.value();
       const port = Number.parseInt(String(smtpPort.value() || "587"), 10);

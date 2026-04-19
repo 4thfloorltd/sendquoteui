@@ -3,7 +3,7 @@
  * available; otherwise use Meta's Messenger deep link on mobile, and Facebook's
  * web sharer on desktop (fb-messenger:// does not work in desktop browsers).
  *
- * @param {string} url — full public quote URL
+ * @param {string} url - full public quote URL
  * @returns {Promise<void>}
  */
 export async function openMessengerShare(url) {

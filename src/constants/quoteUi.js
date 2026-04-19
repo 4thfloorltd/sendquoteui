@@ -1,4 +1,4 @@
-/** "Back to quotes" on `/secured/quote` and `/secured/quote/:id` — keep vertical alignment identical. */
+/** "Back to quotes" on `/secured/quote` and `/secured/quote/:id` - keep vertical alignment identical. */
 export const SECURED_BACK_TO_QUOTES_BUTTON_SX = {
   alignSelf: "flex-start",
   mb: 2,

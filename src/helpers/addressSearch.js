@@ -37,7 +37,7 @@ function regionFromLanguageTag(tag) {
 }
 
 /**
- * ISO 3166-1 alpha-2 from the browser — used to bias Places. Not GPS.
+ * ISO 3166-1 alpha-2 from the browser - used to bias Places. Not GPS.
  * Uses `navigator.languages` (ordered) so `en-GB` ahead of `en-US` is respected;
  * if we only get `US` from language but the system timezone is UK, prefer GB.
  */

@@ -136,7 +136,7 @@ export default function Billing() {
 
       {checkoutResult.current === "success" && (
         <Alert severity="success" sx={{ mb: 3, alignItems: "center" }}>
-          Payment successful — you&apos;re now on Premium! It may take a few seconds to reflect.
+          Payment successful - you&apos;re now on Premium! It may take a few seconds to reflect.
         </Alert>
       )}
       {checkoutResult.current === "cancel" && (
@@ -232,7 +232,7 @@ export default function Billing() {
           ) : (
             <Button variant="contained" fullWidth onClick={() => setSubscribeOpen(true)}
               sx={{ mt: 3, textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}>
-              Upgrade to Premium — {formatPremiumMonthlyDisplay()}/mo
+              Upgrade to Premium - {formatPremiumMonthlyDisplay()}/mo
             </Button>
           )}
         />

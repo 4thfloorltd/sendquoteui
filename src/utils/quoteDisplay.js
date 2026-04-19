@@ -1,6 +1,6 @@
 /** Long date for quote UI and PDFs (e.g. 12 May 2026). */
 export const formatDateLong = (iso) => {
-  if (!iso) return "—";
+  if (!iso) return "-";
   const d = new Date(`${iso}T12:00:00`);
   return d.toLocaleDateString(undefined, {
     day: "numeric",

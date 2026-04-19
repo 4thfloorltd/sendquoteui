@@ -1,10 +1,10 @@
 /**
  * VAT rate resolution with a live EU data overlay.
  *
- * - `initVatRates()` — call once on app load; fetches current EU standard rates
+ * - `initVatRates()` - call once on app load; fetches current EU standard rates
  *   from vatcomply.com (free, open-source).  Silently falls back to the hardcoded
  *   map if the request fails or times out.
- * - `getVatForRegion(region)` — synchronous; returns the standard rate for an
+ * - `getVatForRegion(region)` - synchronous; returns the standard rate for an
  *   ISO 3166-1 alpha-2 region code, or null if unknown.
  *
  * Coverage:
@@ -40,12 +40,12 @@ const HARDCODED_RATES = {
   BR: 0,
 };
 
-// In-memory overlay — populated by initVatRates(), keyed by region code.
+// In-memory overlay - populated by initVatRates(), keyed by region code.
 let liveRates = null;
 
 /**
  * Fetches the latest EU VAT standard rates from vatcomply.com and caches them.
- * Safe to call multiple times — only fetches once per page load.
+ * Safe to call multiple times - only fetches once per page load.
  */
 export async function initVatRates() {
   if (liveRates !== null) return; // already fetched
@@ -68,7 +68,7 @@ export async function initVatRates() {
       liveRates = fetched;
     }
   } catch {
-    // Network error or timeout — silent fallback to hardcoded map.
+    // Network error or timeout - silent fallback to hardcoded map.
   } finally {
     clearTimeout(timer);
   }

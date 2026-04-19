@@ -3,7 +3,7 @@ import { Box, Button, Typography } from "@mui/material";
 import PublicNavbar from "../components/PublicNavbar";
 
 /**
- * Catch-all 404 — rendered inside Layout (public or secured shell).
+ * Catch-all 404 - rendered inside Layout (public or secured shell).
  */
 export default function NotFound() {
   const { pathname } = useLocation();

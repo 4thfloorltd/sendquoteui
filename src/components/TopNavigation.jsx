@@ -159,7 +159,7 @@ const TopNavigation = () => {
   const latestQuotes = responded.map((q) => ({
     quoteDocId: q.id,
     quoteId: `QU-${q.quoteNumber ?? q.id.slice(0, 6)}`,
-    name: q.customerName ?? "—",
+    name: q.customerName ?? "-",
     dateSent: q.updatedAt?.toDate?.()?.toISOString() ?? q.quoteDate ?? new Date().toISOString(),
     status: q.status.charAt(0).toUpperCase() + q.status.slice(1),
   }));

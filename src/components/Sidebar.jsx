@@ -47,7 +47,7 @@ const Sidebar = () => {
         setBusinessName(d?.businessName ?? "");
         setBusinessEmail(d?.businessEmail ?? "");
         setPlan(d?.plan ?? "free");
-        // Backfill loginEmail for older profiles — only when the document
+        // Backfill loginEmail for older profiles - only when the document
         // actually exists; guards against recreating a just-deleted doc.
         if (snap.exists() && !d?.loginEmail && u.email) {
           setDoc(doc(db, "users", u.uid), {
@@ -262,7 +262,7 @@ const Sidebar = () => {
           ))}
         </List>
 
-        {/* Quota widget — hidden for Premium users */}
+        {/* Quota widget - hidden for Premium users */}
         {plan !== "premium" ? (
           <Box sx={{ px: 2, pb: 2 }}>
             <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", mb: 0.75 }}>

@@ -66,7 +66,7 @@ const TIMEZONE_PREFIX_TO_CURRENCY = {
   "Australia/": "AUD",
   "America/": "USD",
   "Pacific/": "NZD",
-  // Broad European fallback — specific GBP entries above take priority via
+  // Broad European fallback - specific GBP entries above take priority via
   // exact-match check before this prefix scan runs.
   "Europe/": "EUR",
   "Atlantic/": "EUR",
@@ -155,7 +155,7 @@ export function formatFreePlanPriceDisplay(currency = getDefaultCurrency()) {
   }).format(0);
 }
 
-/** Narrow symbol for a currency code (e.g. £, $, €) — use for UI examples and hints. */
+/** Narrow symbol for a currency code (e.g. £, $, €) - use for UI examples and hints. */
 export const getCurrencyNarrowSymbol = (code) => {
   if (!code || typeof code !== "string") return "";
   try {
@@ -219,29 +219,29 @@ export const POPULAR_CURRENCY_CODES = ["GBP", "USD", "EUR"];
  * Supported quote currencies (order: primary set, then others)
  */
 export const CURRENCY_OPTIONS = [
-  { code: "USD", label: "USD — US Dollar", region: "US" },
-  { code: "GBP", label: "GBP — British Pound", region: "GB" },
-  { code: "EUR", label: "EUR — Euro", region: "EU" },
-  { code: "AUD", label: "AUD — Australian Dollar", region: "AU" },
-  { code: "NZD", label: "NZD — New Zealand Dollar", region: "NZ" },
-  { code: "CAD", label: "CAD — Canadian Dollar", region: "CA" },
-  { code: "HUF", label: "HUF — Hungarian Forint", region: "HU" },
-  { code: "RON", label: "RON — Romanian Leu", region: "RO" },
-  { code: "TRY", label: "TRY — Turkish Lira", region: "TR" },
-  { code: "SGD", label: "SGD — Singapore Dollar", region: "SG" },
-  { code: "BRL", label: "BRL — Brazilian Real", region: "BR" },
-  { code: "CNY", label: "CNY — Chinese Yuan", region: "CN" },
-  { code: "CZK", label: "CZK — Czech Koruna", region: "CZ" },
-  { code: "DKK", label: "DKK — Danish Krone", region: "DK" },
-  { code: "HKD", label: "HKD — Hong Kong Dollar", region: "HK" },
-  { code: "IDR", label: "IDR — Indonesian Rupiah", region: "ID" },
-  { code: "ILS", label: "ILS — Israeli Shekel", region: "IL" },
-  { code: "JPY", label: "JPY — Japanese Yen", region: "JP" },
-  { code: "MYR", label: "MYR — Malaysian Ringgit", region: "MY" },
-  { code: "NOK", label: "NOK — Norwegian Krone", region: "NO" },
-  { code: "PHP", label: "PHP — Philippine Peso", region: "PH" },
-  { code: "PLN", label: "PLN — Polish Zloty", region: "PL" },
-  { code: "SEK", label: "SEK — Swedish Krona", region: "SE" },
+  { code: "USD", label: "USD - US Dollar", region: "US" },
+  { code: "GBP", label: "GBP - British Pound", region: "GB" },
+  { code: "EUR", label: "EUR - Euro", region: "EU" },
+  { code: "AUD", label: "AUD - Australian Dollar", region: "AU" },
+  { code: "NZD", label: "NZD - New Zealand Dollar", region: "NZ" },
+  { code: "CAD", label: "CAD - Canadian Dollar", region: "CA" },
+  { code: "HUF", label: "HUF - Hungarian Forint", region: "HU" },
+  { code: "RON", label: "RON - Romanian Leu", region: "RO" },
+  { code: "TRY", label: "TRY - Turkish Lira", region: "TR" },
+  { code: "SGD", label: "SGD - Singapore Dollar", region: "SG" },
+  { code: "BRL", label: "BRL - Brazilian Real", region: "BR" },
+  { code: "CNY", label: "CNY - Chinese Yuan", region: "CN" },
+  { code: "CZK", label: "CZK - Czech Koruna", region: "CZ" },
+  { code: "DKK", label: "DKK - Danish Krone", region: "DK" },
+  { code: "HKD", label: "HKD - Hong Kong Dollar", region: "HK" },
+  { code: "IDR", label: "IDR - Indonesian Rupiah", region: "ID" },
+  { code: "ILS", label: "ILS - Israeli Shekel", region: "IL" },
+  { code: "JPY", label: "JPY - Japanese Yen", region: "JP" },
+  { code: "MYR", label: "MYR - Malaysian Ringgit", region: "MY" },
+  { code: "NOK", label: "NOK - Norwegian Krone", region: "NO" },
+  { code: "PHP", label: "PHP - Philippine Peso", region: "PH" },
+  { code: "PLN", label: "PLN - Polish Zloty", region: "PL" },
+  { code: "SEK", label: "SEK - Swedish Krona", region: "SE" },
 ];
 
 export const POPULAR_CURRENCY_OPTIONS = POPULAR_CURRENCY_CODES.map((code) =>

@@ -25,6 +25,7 @@ import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { AiPromptField } from "./AiPromptField";
 import PricingPlanComparison from "./PricingPlanComparison";
 import { getCurrencyNarrowSymbol, getDefaultCurrency } from "../helpers/currency";
+import { HOMEPAGE_FAQ } from "../seo/homepageFaq";
 
 const annotationInLeft = keyframes`
   0%   { opacity: 0; transform: translate(-14px, -10px); }
@@ -105,7 +106,7 @@ const Landing = () => {
     return () => window.clearTimeout(t);
   }, []);
 
-  /** Nav: max-width 425px — logo row, then one full-width row with three equal columns */
+  /** Nav: max-width 425px - logo row, then one full-width row with three equal columns */
   const narrowNavActionsBtnSx = {
     "@media (max-width: 424.95px)": {
       minWidth: 0,
@@ -264,16 +265,12 @@ const Landing = () => {
                 <Typography
                   variant="h1"
                   className="animate-slideUp transition duration-500 delay-150"
-                  fontSize={48}
+                  fontSize={{ xs: 32, sm: 40, md: 48 }}
                   fontWeight={900}
                   marginTop={{ xs: 2, sm: 4 }}
-                  sx={{ color: "#083a6b" }}
+                  sx={{ color: "#083a6b", lineHeight: 1.15, px: { xs: 0.5, sm: 0 } }}
                 >
-                  Simplify your{" "}
-                  <span style={{ color: "#083a6b", fontWeight: "bold" }}>
-                    quote
-                  </span>{" "}
-                  process
+                Send Quotes Online & Get Faster Customer Approvals
                 </Typography>
               </Box>
               <Typography
@@ -283,16 +280,15 @@ const Landing = () => {
                   fontSize: "1.25rem",
                   fontWeight: "500",
                   ml: "auto",
-                  mb: 6,
+                  mb: 2,
                   mr: "auto",
                   mt: 2,
                   textAlign: "center",
-                  maxWidth: "600px",
+                  maxWidth: "640px",
                   color: "#083a6b",
                 }}
               >
-                Effortlessly create personalised, professional quotes for your
-                customers and track their acceptance in real-time.
+                Send secure links - customers can accept, decline, and comment instantly. No sign-in required. Start free..
               </Typography>
             </Box>
 
@@ -438,7 +434,7 @@ const Landing = () => {
               pb: { xs: "44px", sm: "52px", md: "60px" },
             }}
           >
-            {/* Left annotation — top-left */}
+            {/* Left annotation - top-left */}
             <Box
               aria-hidden
               sx={{
@@ -479,7 +475,7 @@ const Landing = () => {
               </Box>
             </Box>
 
-            {/* Right annotation — bottom-right */}
+            {/* Right annotation - bottom-right */}
             <Box
               ref={rightAnnotationRef}
               aria-hidden
@@ -625,7 +621,7 @@ const Landing = () => {
         </Grid>
       </Box>
 
-      {/* Pricing — same plan comparison as Billing */}
+      {/* Pricing - same plan comparison as Billing */}
       <Box
         id="pricing"
         sx={{
@@ -716,54 +712,40 @@ const Landing = () => {
         }}
       >
         <Typography
+          component="h2"
           variant="h4"
           fontWeight="bold"
           className="text-center"
-          sx={{ color: "#083a6b", mb: 4 }}
+          sx={{ color: "#083a6b", mb: 1 }}
         >
-          Frequently Asked Questions
+          Frequently asked questions
+        </Typography>
+        <Typography
+          variant="body2"
+          textAlign="center"
+          sx={{ color: "#6B7280", mb: 4, maxWidth: "560px", mx: "auto" }}
+        >
+          Send a quote to your customer by email, draft quotes online for free, and more.
         </Typography>
         <Box className="flex flex-col w-full max-w-2xl mx-auto">
-          {[
-            {
-              q: "What is SendQuote?",
-              a: "SendQuote is a simple, professional tool that lets you create customisable quotes your customers can accept instantly – helping you win and manage more jobs with ease.",
-            },
-            {
-              q: "Who is SendQuote for?",
-              a: "SendQuote is ideal for individuals and small businesses who need a quick and efficient way to create, send, and manage quotes.",
-            },
-            {
-              q: "How do I get started?",
-              a: (
-                <>
-                  Click the <strong>Start your quote</strong> button below to get started. Sending your first quote takes seconds.
-             
-             
-                </>
-              ),
-         
-            },
-       
-          ].map((item, idx) => (
+          {HOMEPAGE_FAQ.map((item) => (
             <Accordion
-              key={idx}
+              key={item.question}
               sx={{ backgroundColor: "transparent", boxShadow: "none" }}
             >
-              <AccordionSummary
-                expandIcon={<FontAwesomeIcon icon={faChevronDown} />}
-              >
+              <AccordionSummary expandIcon={<FontAwesomeIcon icon={faChevronDown} />}>
                 <Typography
                   variant="h6"
+                  component="h3"
                   fontWeight="bold"
-                  sx={{ color: "#083a6b" }}
+                  sx={{ color: "#083a6b", fontSize: "1.05rem" }}
                 >
-                  {item.q}
+                  {item.question}
                 </Typography>
               </AccordionSummary>
               <AccordionDetails>
-                <Typography sx={{ color: "#6B7280" }} fontWeight={500}>
-                  {item.a}
+                <Typography sx={{ color: "#6B7280" }} fontWeight={500} component="div">
+                  {item.answer}
                 </Typography>
               </AccordionDetails>
             </Accordion>

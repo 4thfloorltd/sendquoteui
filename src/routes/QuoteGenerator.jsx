@@ -122,7 +122,7 @@ const LINE_ITEMS_TABLE_MIN_PX = 700;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Stable snapshot for leave-blocking — block only when current form differs from this baseline. */
+/** Stable snapshot for leave-blocking - block only when current form differs from this baseline. */
 function serializeQuoteForLeaveBlocker(quoteData, lineItems, vatRegistered) {
   const rows = (lineItems ?? []).map((r) => ({
     id: String(r.id ?? ""),
@@ -151,7 +151,7 @@ const QuoteGenerator = () => {
   const { quoteData, updateQuoteData, resetQuoteData } = useQuote();
   // Derive editId early so state initialisers can reference it.
   const editId = location.state?.editId ?? null;
-  /** Exact path only — `startsWith("/secured/quote")` would wrongly match `/secured/quotes`. */
+  /** Exact path only - `startsWith("/secured/quote")` would wrongly match `/secured/quotes`. */
   const isSecuredQuote = location.pathname === "/secured/quote";
   const [formErrors, setFormErrors] = useState({});
   const [waitlistOpen, setWaitlistOpen] = useState(false);
@@ -185,9 +185,9 @@ const QuoteGenerator = () => {
   const [newQuoteCustomerEmailLoading, setNewQuoteCustomerEmailLoading] = useState(false);
   /** After "Resend quote" (edit save), navigate here when the success dialog closes (view updated quote). */
   const [quoteSuccessNavigatePath, setQuoteSuccessNavigatePath] = useState(null);
-  /** Edit save + customer email: show until sendQuoteLinkToCustomer(resend) finishes — avoids "Quote updated" success dialog flash. */
+  /** Edit save + customer email: show until sendQuoteLinkToCustomer(resend) finishes - avoids "Quote updated" success dialog flash. */
   const [editResendEmailLoading, setEditResendEmailLoading] = useState(false);
-  /** Serialized snapshot after load / initial settle — leave guard compares current form to this. */
+  /** Serialized snapshot after load / initial settle - leave guard compares current form to this. */
   const [leaveBaseline, setLeaveBaseline] = useState(null);
   const [waitlistEmail, setWaitlistEmail] = useState("");
   const [waitlistEmailError, setWaitlistEmailError] = useState(false);
@@ -249,7 +249,7 @@ const QuoteGenerator = () => {
   );
 
   const [leaveDialogOpen, setLeaveDialogOpen] = useState(false);
-  /** Skip blocker when leaving after a successful save — resetQuoteData is async so isFormDirty can still look dirty. */
+  /** Skip blocker when leaving after a successful save - resetQuoteData is async so isFormDirty can still look dirty. */
   const suppressSecuredLeaveBlockerRef = useRef(false);
   /** Latest quote snapshot for capturing edit baseline after load (setTimeout 0). */
   const leaveSnapshotRef = useRef({
@@ -264,7 +264,7 @@ const QuoteGenerator = () => {
   const [businessEmailHasAccount, setBusinessEmailHasAccount] = useState(false);
   const [businessEmailChecking, setBusinessEmailChecking] = useState(false);
   const businessEmailLatestRef = useRef("");
-  /** Saved or region default — used for new rows, AI lines, and migration. */
+  /** Saved or region default - used for new rows, AI lines, and migration. */
   const lineItemDefaultVatRef = useRef(getDefaultVatPercent());
   const profileLineVatSyncedRef = useRef(false);
   const [businessProfile, setBusinessProfile] = useState(null);
@@ -343,7 +343,7 @@ const QuoteGenerator = () => {
 
   useEffect(() => {
     if (!auth.currentUser) {
-      // Public path — default to QU-0001 since there's no account sequence to peek.
+      // Public path - default to QU-0001 since there's no account sequence to peek.
       if (!editId) updateQuoteData({ quoteNumber: "0001" });
       return;
     }
@@ -518,7 +518,7 @@ const QuoteGenerator = () => {
       };
     }
 
-    // New quote on /secured/quote or public /quote — capture after profile / quote number / defaults settle.
+    // New quote on /secured/quote or public /quote - capture after profile / quote number / defaults settle.
     if (isSecuredQuote && !auth.currentUser) {
       setLeaveBaseline(null);
       return;
@@ -730,7 +730,7 @@ const QuoteGenerator = () => {
           defaultVatPercent: lineItemDefaultVatRef.current,
         });
         if (!rows.length) {
-          // AI couldn't extract anything — fall back to adding the raw text as a plain item.
+          // AI couldn't extract anything - fall back to adding the raw text as a plain item.
           rows = [{
             id: newLineItemId(),
             description: text.trim(),
@@ -897,7 +897,7 @@ const QuoteGenerator = () => {
         return;
       }
 
-      // Limit reached — show waitlist.
+      // Limit reached - show waitlist.
       setWaitlistEmail(email);
       setWaitlistEmailError(false);
       setWaitlistOpen(true);
@@ -1022,7 +1022,7 @@ const QuoteGenerator = () => {
         userId: user.uid,
         vatRegistered: isVatRegistered,
       });
-      // Record usage — fire-and-forget so a rules denial never blocks the user.
+      // Record usage - fire-and-forget so a rules denial never blocks the user.
       setDoc(doc(db, "quote_usage", email), { count: increment(1) }, { merge: true })
         .catch((e) => console.warn("Usage tracking failed (non-critical):", e));
       setSavedQuoteId(quoteId);
@@ -1200,7 +1200,7 @@ const QuoteGenerator = () => {
 
   const scrollToField = (id, focusSelector = "input, textarea") => {
     // setTimeout lets React flush the new error state before measuring.
-    // Use window.scrollTo so we control the offset explicitly — scrollIntoView
+    // Use window.scrollTo so we control the offset explicitly - scrollIntoView
     // can be blocked by a scrollable ancestor in complex fixed layouts.
     setTimeout(() => {
       const el = document.getElementById(id);
@@ -1452,7 +1452,7 @@ const QuoteGenerator = () => {
       vatRegistered: isVatRegistered,
     });
 
-    // Web Share API with file support — mobile only.
+    // Web Share API with file support - mobile only.
     if (isMobile()) {
       try {
         const blob = doc.output("blob");
@@ -1468,7 +1468,7 @@ const QuoteGenerator = () => {
       }
     }
 
-    // Desktop or unsupported mobile — direct download.
+    // Desktop or unsupported mobile - direct download.
     doc.save(filename);
     setExportPdfDialogOpen(false);
   };
@@ -1503,7 +1503,7 @@ const QuoteGenerator = () => {
         {backLabel}
       </Button>
 
-      {/* Hidden PDF file input — after back link so layout matches QuoteView (back is first row). */}
+      {/* Hidden PDF file input - after back link so layout matches QuoteView (back is first row). */}
       <input
         ref={pdfInputRef}
         type="file"
@@ -1563,7 +1563,7 @@ const QuoteGenerator = () => {
                 color="primary"
                 sx={{ fontWeight: 700, mb: 0.25 }}
               >
-                Quote number: QU-{quoteData?.quoteNumber ? quoteData.quoteNumber : "—"}
+                Quote number: QU-{quoteData?.quoteNumber ? quoteData.quoteNumber : "-"}
               </Typography>
             </Box>
 
@@ -1662,7 +1662,7 @@ const QuoteGenerator = () => {
                       : formErrors.businessEmail === "invalid"
                         ? "Enter a valid email address"
                         : formErrors.businessEmail === "existing-account"
-                          ? "Log in with this email to continue — or use a different address."
+                          ? "Log in with this email to continue - or use a different address."
                           : businessEmailChecking
                             ? "Checking…"
                             : undefined
@@ -2169,7 +2169,7 @@ const QuoteGenerator = () => {
                   }
                 }}
               >
-                {/* Drag overlay — premium + secured only */}
+                {/* Drag overlay - premium + secured only */}
                 {isDraggingPdf && isPremium && isSecuredQuote && (
                   <Box sx={{
                     position: "absolute", inset: 0, zIndex: 20, borderRadius: 2,
@@ -2263,7 +2263,7 @@ const QuoteGenerator = () => {
                 </Stack>
               </Box>
 
-              {/* PDF drop / upload — Premium + secured only; else locked teaser (public: non-interactive) */}
+              {/* PDF drop / upload - Premium + secured only; else locked teaser (public: non-interactive) */}
               {isSecuredQuote && isPremium ? (
                 <Box
                   component="button"
@@ -2326,7 +2326,7 @@ const QuoteGenerator = () => {
 
               {pdfFilled && (
                 <Alert severity="success" onClose={() => setPdfFilled(false)} sx={{ mt: 1, alignItems: "center" }}>
-                  Fields filled from PDF — review the items above and click <strong>Add to quote</strong>.
+                  Fields filled from PDF - review the items above and click <strong>Add to quote</strong>.
                 </Alert>
               )}
               {pdfImportError && (
@@ -2338,7 +2338,7 @@ const QuoteGenerator = () => {
           ) : null}
         </Stack>
         <Divider sx={{ my: 1.5 }} />
-        {/* Pricing summary — right-anchored, label + amount in fixed columns */}
+        {/* Pricing summary - right-anchored, label + amount in fixed columns */}
         <Box sx={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 0.5 }}>
           {isVatRegistered && [
             { label: "Subtotal (ex VAT)", value: formatMoney(pricing.subtotal) },
@@ -2643,7 +2643,7 @@ const QuoteGenerator = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Create account / log in step — shown after email verification */}
+      {/* Create account / log in step - shown after email verification */}
       <Dialog
         open={createAccountOpen}
         onClose={() => {
@@ -2780,7 +2780,7 @@ const QuoteGenerator = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Customer email in flight — same loader for edit resend and new-quote send (success opens after). */}
+      {/* Customer email in flight - same loader for edit resend and new-quote send (success opens after). */}
       <Dialog
         open={editResendEmailLoading || newQuoteCustomerEmailLoading}
         disableEscapeKeyDown
@@ -2805,7 +2805,7 @@ const QuoteGenerator = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Quote success — shown after account creation */}
+      {/* Quote success - shown after account creation */}
       <Dialog
         open={quoteSuccessOpen}
         onClose={() => handleCloseQuoteSuccess()}
@@ -2828,7 +2828,7 @@ const QuoteGenerator = () => {
             const cust = (quoteData.email ?? "").trim().toLowerCase();
             const afterEditSave = Boolean(quoteSuccessNavigatePath);
             if (!EMAIL_RE.test(cust)) {
-              return afterEditSave ? "Quote updated — share below" : "Quote is ready to share!";
+              return afterEditSave ? "Quote updated - share below" : "Quote is ready to share!";
             }
             if (customerInviteKind === "updated") {
               return `We've emailed an updated quote link to ${cust}`;
@@ -2851,7 +2851,7 @@ const QuoteGenerator = () => {
         </DialogTitle>
         <DialogContent sx={{ pt: 1.5, pb: 0 }} />
 
-        {/* Shareable link — sticky, always visible above buttons */}
+        {/* Shareable link - sticky, always visible above buttons */}
         <Box
           sx={{
             px: 3,

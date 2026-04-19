@@ -166,7 +166,7 @@ const Register = () => {
         throw err;
       }
     }
-    // Email already has an account — try signing in with the supplied password.
+    // Email already has an account - try signing in with the supplied password.
     try {
       const { user: existing } = await signInWithEmailAndPassword(auth, trimmedEmail, passwordValue);
       await setDoc(doc(db, "users", existing.uid), {
@@ -226,7 +226,7 @@ const Register = () => {
     } catch (err) {
       const code = String(err?.code || "");
       if (code === "functions/resource-exhausted") {
-        // Backend cooldown — skip straight to step 2 and surface the wait.
+        // Backend cooldown - skip straight to step 2 and surface the wait.
         setResendAvailableAtMs(Date.now() + RESEND_COOLDOWN_MS);
         setNowMs(Date.now());
         setStep("verify");

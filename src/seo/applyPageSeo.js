@@ -1,4 +1,5 @@
 import { DEFAULT_OG_IMAGE_URL, SITE_NAME, SITE_URL } from "../constants/site";
+import { HOMEPAGE_FAQ } from "./homepageFaq";
 
 const LD_JSON_ID = "sendquote-jsonld";
 
@@ -89,29 +90,44 @@ export function applyPageSeo({ title, description, path, noindex = false, jsonLd
 }
 
 const DEFAULT_DESCRIPTION =
-  "Create, send, and track professional quotes with AI-assisted drafting. Customers accept or decline online - no sign-in required. Free plan available; upgrade for unlimited quotes and PDF import.";
+  "Draft and send quotes to customers online - free to start (up to 3 quotes). Email a secure link so customers accept or decline without signing in. AI-assisted quoting, VAT, and Premium PDF import.";
 
-const ORG_JSON_LD = {
-  "@context": "https://schema.org",
-  "@graph": [
-    {
-      "@type": "Organization",
-      "@id": `${SITE_URL}/#organization`,
-      name: SITE_NAME,
-      url: SITE_URL,
-      description: DEFAULT_DESCRIPTION,
-      logo: `${SITE_URL}/favicon.svg`,
-    },
-    {
-      "@type": "WebSite",
-      "@id": `${SITE_URL}/#website`,
-      url: SITE_URL,
-      name: SITE_NAME,
-      description: DEFAULT_DESCRIPTION,
-      publisher: { "@id": `${SITE_URL}/#organization` },
-    },
-  ],
-};
+function getHomepageJsonLd() {
+  return {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${SITE_URL}/#organization`,
+        name: SITE_NAME,
+        url: SITE_URL,
+        description: DEFAULT_DESCRIPTION,
+        logo: `${SITE_URL}/favicon.svg`,
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${SITE_URL}/#website`,
+        url: SITE_URL,
+        name: SITE_NAME,
+        description: DEFAULT_DESCRIPTION,
+        publisher: { "@id": `${SITE_URL}/#organization` },
+      },
+      {
+        "@type": "FAQPage",
+        "@id": `${SITE_URL}/#faq`,
+        url: SITE_URL,
+        mainEntity: HOMEPAGE_FAQ.map(({ question, answer }) => ({
+          "@type": "Question",
+          name: question,
+          acceptedAnswer: {
+            "@type": "Answer",
+            text: answer,
+          },
+        })),
+      },
+    ],
+  };
+}
 
 /** Matches routes defined under Layout for /secured/* (see App.jsx). */
 const KNOWN_SECURED_PATH =
@@ -123,7 +139,7 @@ export function resolveSeoForPath(pathname) {
   if (path.startsWith("/secured")) {
     if (!KNOWN_SECURED_PATH.test(path)) {
       return {
-        title: `Page not found — ${SITE_NAME}`,
+        title: `Page not found - ${SITE_NAME}`,
         description: "This page does not exist.",
         path,
         noindex: true,
@@ -131,7 +147,7 @@ export function resolveSeoForPath(pathname) {
       };
     }
     return {
-      title: `${SITE_NAME} — Account`,
+      title: `${SITE_NAME} - Account`,
       description: "Manage your SendQuote account, quotes, billing, and profile.",
       path,
       noindex: true,
@@ -152,24 +168,24 @@ export function resolveSeoForPath(pathname) {
   switch (path) {
     case "/":
       return {
-        title: `${SITE_NAME} — Send quotes anywhere, anytime`,
+        title: `${SITE_NAME} - Send quotes to customers online | Free plan`,
         description: DEFAULT_DESCRIPTION,
         path: "/",
         noindex: false,
-        jsonLd: ORG_JSON_LD,
+        jsonLd: getHomepageJsonLd(),
       };
     case "/quote":
       return {
-        title: `Create a quote - ${SITE_NAME}`,
+        title: `Draft & create a quote online - ${SITE_NAME}`,
         description:
-          "Build a professional quote with line items, VAT, and AI-assisted descriptions. Share a secure link with your customer.",
+          "Draft a professional quote online with line items, VAT, and AI-assisted descriptions. Send a secure link or email it to your customer.",
         path: "/quote",
         noindex: false,
         jsonLd: null,
       };
     case "/pricing":
       return {
-        title: `Pricing — ${SITE_NAME}`,
+        title: `Pricing - ${SITE_NAME}`,
         description:
           "SendQuote pricing: start free with up to three quotes, or upgrade to Premium for unlimited quotes, PDF import, and priority support.",
         path: "/pricing",
@@ -178,7 +194,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/privacy":
       return {
-        title: `Privacy Policy — ${SITE_NAME}`,
+        title: `Privacy Policy - ${SITE_NAME}`,
         description: "How SendQuote collects, uses, and stores your data.",
         path: "/privacy",
         noindex: false,
@@ -186,7 +202,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/terms":
       return {
-        title: `Terms of Service — ${SITE_NAME}`,
+        title: `Terms of Service - ${SITE_NAME}`,
         description: "Terms of Service for using SendQuote.",
         path: "/terms",
         noindex: false,
@@ -194,7 +210,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/register":
       return {
-        title: `Create account — ${SITE_NAME}`,
+        title: `Create account - ${SITE_NAME}`,
         description: "Sign up for SendQuote to save quotes, track acceptances, and manage billing.",
         path: "/register",
         noindex: true,
@@ -202,7 +218,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/login":
       return {
-        title: `Sign in — ${SITE_NAME}`,
+        title: `Sign in - ${SITE_NAME}`,
         description: "Sign in to your SendQuote account.",
         path: "/login",
         noindex: true,
@@ -210,7 +226,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/forgot-password":
       return {
-        title: `Forgot password — ${SITE_NAME}`,
+        title: `Forgot password - ${SITE_NAME}`,
         description: "Reset your SendQuote account password.",
         path: "/forgot-password",
         noindex: true,
@@ -218,7 +234,7 @@ export function resolveSeoForPath(pathname) {
       };
     case "/reset-password":
       return {
-        title: `Reset password — ${SITE_NAME}`,
+        title: `Reset password - ${SITE_NAME}`,
         description: "Choose a new password for your SendQuote account.",
         path: "/reset-password",
         noindex: true,
@@ -226,7 +242,7 @@ export function resolveSeoForPath(pathname) {
       };
     default:
       return {
-        title: `Page not found — ${SITE_NAME}`,
+        title: `Page not found - ${SITE_NAME}`,
         description: "The page you are looking for does not exist.",
         path,
         noindex: true,

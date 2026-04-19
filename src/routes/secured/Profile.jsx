@@ -64,7 +64,7 @@ const Profile = () => {
   const [resendCooldown, setResendCooldown]               = useState(0);    // seconds remaining
 
 
-  // Delete account — 2-step: confirm → password
+  // Delete account - 2-step: confirm → password
   const [deleteOpen, setDeleteOpen]         = useState(false);
   const [deleteStep, setDeleteStep]         = useState(1); // 1 = confirm, 2 = password
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
@@ -147,7 +147,7 @@ const Profile = () => {
           }
 
           // If pendingEmailChange matches the current auth email the user already
-          // clicked the verification link — commit and clear (Layout.jsx may have
+          // clicked the verification link - commit and clear (Layout.jsx may have
           // already done this; setDoc is idempotent).
           if (pending && pending === authLower) {
             setBizEmail(authUserEmail);
@@ -160,7 +160,7 @@ const Profile = () => {
             }, { merge: true }).catch((err) => console.error("Profile email commit failed", err));
             setPendingVerification(null);
           } else if (!pending) {
-            // No pending change — clear any stale banner.
+            // No pending change - clear any stale banner.
             setPendingVerification(null);
           }
         } else {
@@ -193,7 +193,7 @@ const Profile = () => {
     setProfileSaving(true);
 
     // Check email availability before opening the reauth / save flow.
-    // isEmailClaimedByAnotherUser never throws — it returns false on any
+    // isEmailClaimedByAnotherUser never throws - it returns false on any
     // internal error so a Firestore permission issue never blocks a valid save.
     const claimed = await isEmailClaimedByAnotherUser(auth, db, normalizedEmail, uid);
     if (claimed) {
@@ -203,7 +203,7 @@ const Profile = () => {
     }
 
     // Guard: if this email is already awaiting verification, don't let it be
-    // written directly — treat it as a new email change requiring reauth.
+    // written directly - treat it as a new email change requiring reauth.
     const isPendingEmail = pendingVerification?.email && normalizedEmail === pendingVerification.email;
 
     try {
@@ -268,7 +268,7 @@ const Profile = () => {
       }, { merge: true });
 
       // Close the edit form and revert the displayed email to the verified one.
-      // Do NOT update originalBizEmail to the pending address — keeping it at
+      // Do NOT update originalBizEmail to the pending address - keeping it at
       // the verified value ensures emailChanged stays true if the user tries to
       // save the pending email again, preventing it from being written without
       // completing verification.
@@ -489,7 +489,7 @@ const Profile = () => {
                 {label}
               </Typography>
               <Typography variant="body2" sx={{ color: value ? "#111827" : "#CBD5E1", whiteSpace: "pre-wrap" }}>
-                {value || "—"}
+                {value || "-"}
               </Typography>
             </Box>
           ))}
@@ -809,7 +809,7 @@ const Profile = () => {
         Delete my account
       </Button>
 
-      {/* Delete account — step 1: consequences + typed confirmation */}
+      {/* Delete account - step 1: consequences + typed confirmation */}
       <Dialog open={deleteOpen && deleteStep === 1} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, color: "#EF4444" }}>
           Are you sure?
@@ -862,7 +862,7 @@ const Profile = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Delete account — step 2: password confirmation */}
+      {/* Delete account - step 2: password confirmation */}
       <Dialog open={deleteOpen && deleteStep === 2} onClose={closeDeleteDialog} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, color: "#EF4444" }}>
           Enter your password
@@ -910,7 +910,7 @@ const Profile = () => {
         </DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Enter your current password to confirm. We&apos;ll send a verification link to <strong>{pendingEmailSave}</strong> — your login email updates once you click it.
+            Enter your current password to confirm. We&apos;ll send a verification link to <strong>{pendingEmailSave}</strong> - your login email updates once you click it.
           </Typography>
           {reauthError && <Alert severity="error" sx={{ mb: 2, py: 0, alignItems: "center" }}>{reauthError}</Alert>}
           <TextField

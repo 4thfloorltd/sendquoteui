@@ -37,7 +37,7 @@ function Layout() {
       if (!user || !user.email) return;
 
       // If a pendingEmailChange in Firestore matches the current Auth email,
-      // the user just clicked their verification link — commit businessEmail +
+      // the user just clicked their verification link - commit businessEmail +
       // loginEmail and clear the pending field.
       try {
         const snap = await getDoc(doc(db, "users", user.uid));
@@ -53,7 +53,7 @@ function Layout() {
           }, { merge: true });
         }
       } catch (e) {
-        console.error("Layout: email sync read failed (check Firestore rules — users/{userId} must allow read/write by UID only)", e);
+        console.error("Layout: email sync read failed (check Firestore rules - users/{userId} must allow read/write by UID only)", e);
         try {
           await updateDoc(doc(db, "users", user.uid), {
             businessEmail:      user.email,
@@ -91,7 +91,7 @@ function Layout() {
 
   // Redirect unauthenticated users away from secured routes (not logged in,
   // session expired, signed out elsewhere, or post–email-verification when
-  // Firebase requires a fresh sign-in — not only the email-change flow).
+  // Firebase requires a fresh sign-in - not only the email-change flow).
   if (isSecuredPath && !isLoggedIn) {
     return (
       <Navigate
@@ -113,13 +113,13 @@ function Layout() {
       <SecuredQuoteNavigationBlockerProvider>
         {isSecuredPath ? (
           <>
-            {/* Fixed top bar — sits above everything */}
+            {/* Fixed top bar - sits above everything */}
             <TopNavigation />
 
             {/* Fixed sidebar */}
             <Sidebar />
 
-            {/* Main content — sidebar offset on non-mobile */}
+            {/* Main content - sidebar offset on non-mobile */}
             <Box
               component="main"
               sx={{

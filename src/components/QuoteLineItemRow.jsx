@@ -10,11 +10,11 @@ import Typography from "@mui/material/Typography";
 import { capitalizeLeadingLetter } from "../helpers/utility";
 import { lineGross, lineQuantityDisplay } from "../utils/quoteLineCalculations";
 
-/** Muted fill for computed/read-only fields — neutral gray reads as “not editable” vs white inputs */
+/** Muted fill for computed/read-only fields - neutral gray reads as “not editable” vs white inputs */
 const READONLY_FIELD_BG = "#ECEFF1";
 const READONLY_FIELD_BORDER = "#CFD8DC";
 
-/** Table column widths — must match table `minWidth` / layout in QuoteGenerator */
+/** Table column widths - must match table `minWidth` / layout in QuoteGenerator */
 const TABLE_COL = {
   desc: { width: "42%", minWidth: 176 },
   price: { width: 120 },

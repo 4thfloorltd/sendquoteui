@@ -30,7 +30,7 @@ import { formatPremiumMonthlyDisplay } from "../helpers/currency";
 
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
-/** Visitor-locale price label (e.g. £9.99 or $9.99) — same logic as landing. */
+/** Visitor-locale price label (e.g. £9.99 or $9.99) - same logic as landing. */
 const premiumMonthlyFormatted = formatPremiumMonthlyDisplay();
 
 // ─── Inner payment form (must be inside <Elements>) ───────────────────────────
@@ -147,7 +147,7 @@ function PaymentForm({ onSuccess, onCancel }) {
  * Props:
  *   open           – boolean
  *   onClose        – called on dismiss
- *   onSuccess      – called after successful payment (optional — for post-payment logic)
+ *   onSuccess      – called after successful payment (optional - for post-payment logic)
  *   quotaExhausted – show "you've used all X free quotes" banner
  *   skipOverview   – jump straight to the embedded Stripe payment form
  */
@@ -274,7 +274,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
               sx={{ textTransform: "none", fontWeight: 700, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" }, flex: 1 }}>
               {intentLoading
                 ? <CircularProgress size={18} sx={{ color: "#fff" }} />
-                : `Subscribe — ${premiumMonthlyFormatted}/mo`}
+                : `Subscribe - ${premiumMonthlyFormatted}/mo`}
             </Button>
           </DialogActions>
         </>

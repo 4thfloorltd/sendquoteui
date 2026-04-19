@@ -18,7 +18,7 @@ const iconSx = { fontSize: 22 };
  * @param {string} p.quoteUrl
  * @param {string} [p.customerName]
  * @param {string} [p.businessName]
- * @param {string} [p.quoteNumber] Raw digits (e.g. "0001") — shown as QU-0001.
+ * @param {string} [p.quoteNumber] Raw digits (e.g. "0001") - shown as QU-0001.
  * @param {string} [p.currency] ISO code (e.g. "GBP").
  * @param {number} [p.total] Quote total for the amount line.
  */
@@ -94,7 +94,7 @@ export default function QuoteShareQuickButtons({
     total,
   });
   const subject = (quoteNumber ?? "").trim()
-    ? `Quote QU-${(quoteNumber ?? "").trim()} — ready to view`
+    ? `Quote QU-${(quoteNumber ?? "").trim()} - ready to view`
     : "Your quote is ready";
   const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(shareText)}`;
 
