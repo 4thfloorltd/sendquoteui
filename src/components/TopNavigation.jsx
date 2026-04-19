@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AppBar, Toolbar, IconButton, Typography, Badge } from "@mui/material";
+import { AppBar, Toolbar, Typography, Badge, Box, ButtonBase, useMediaQuery } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBell, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
+import { faBell, faCircleUser, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
 import { Link } from "react-router-dom";
 import { collection, query, where, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
@@ -45,7 +45,67 @@ const statusLabel = (status) =>
     ? "<span style='color:#22C55E'>Accepted</span>"
     : "<span style='color:#EF4444'>Declined</span>";
 
+const NAV_LABEL_SX = {
+  fontSize: "0.68rem",
+  fontWeight: 500,
+  lineHeight: 1.15,
+  color: "rgba(255,255,255,0.92)",
+  textAlign: "center",
+};
+
+/** Keyboard focus on dark app bar (ButtonBase + Link). */
+const NAV_CONTROL_FOCUS_VISIBLE = {
+  "&.Mui-focusVisible": {
+    outline: "2px solid rgba(255,255,255,0.95)",
+    outlineOffset: 2,
+    bgcolor: "rgba(255,255,255,0.12)",
+  },
+};
+
+/** Mobile: one tap target over icon + label (WCAG-friendly min touch size). */
+const MOBILE_LABELED_NAV_SX = {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 0,
+  px: 1.5,
+  py: 0.75,
+  borderRadius: 2,
+  color: "inherit",
+  WebkitTapHighlightColor: "transparent",
+  textDecoration: "none",
+  minWidth: 48,
+  minHeight: 48,
+  ...NAV_CONTROL_FOCUS_VISIBLE,
+};
+
+const navIconWrapSx = {
+  width: 32,
+  height: 32,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+};
+
+const notificationsButtonSx = (mobile) => ({
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: 0,
+  px: mobile ? 1.5 : 1.25,
+  py: mobile ? 0.75 : 0.5,
+  borderRadius: 2,
+  color: "inherit",
+  WebkitTapHighlightColor: "transparent",
+  textDecoration: "none",
+  ...(mobile ? { minWidth: 48, minHeight: 48 } : {}),
+  ...NAV_CONTROL_FOCUS_VISIBLE,
+});
+
 const TopNavigation = () => {
+  const isMobile = useMediaQuery("(max-width:768px)");
   const bellRef = useRef(null);
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
@@ -104,7 +164,11 @@ const TopNavigation = () => {
     status: q.status.charAt(0).toUpperCase() + q.status.slice(1),
   }));
 
-  const handleOpen = (e) => setAnchorEl(e.currentTarget);
+  const handleOpen = (e) => {
+    setAnchorEl(e.currentTarget);
+    // Mouse click: drop focus so the button doesn’t stay visibly focused under the popover.
+    if (e.detail > 0) e.currentTarget.blur();
+  };
 
   return (
     <>
@@ -117,7 +181,14 @@ const TopNavigation = () => {
           borderBottom: "1px solid rgba(255,255,255,0.08)",
         }}
       >
-        <Toolbar sx={{ display: "flex", justifyContent: "space-between" }}>
+        <Toolbar
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            minHeight: 64,
+            py: 0.75,
+          }}
+        >
           <Link to="/secured/quotes" style={{ textDecoration: "none" }}>
             <Typography
               fontSize="18px"
@@ -128,22 +199,52 @@ const TopNavigation = () => {
               SendQuote
             </Typography>
           </Link>
-          <Badge
-            badgeContent={unreadCount}
-            color="error"
-            overlap="circular"
-            anchorOrigin={{ vertical: "top", horizontal: "right" }}
-          >
-            <IconButton
-              color="inherit"
-              sx={{ borderRadius: "50%", width: "32px", height: "32px" }}
-              onClick={handleOpen}
-              aria-label="Notifications"
+          <Box sx={{ display: "flex", alignItems: "center", gap: isMobile ? 1 : 0 }}>
+            {isMobile && (
+              <ButtonBase
+                component={Link}
+                to="/secured/profile"
+                aria-label="Profile"
+                disableRipple
+                sx={MOBILE_LABELED_NAV_SX}
+              >
+                <Badge
+                  overlap="circular"
+                  anchorOrigin={{ vertical: "top", horizontal: "right" }}
+                >
+                  <Box sx={navIconWrapSx}>
+                    <FontAwesomeIcon icon={faCircleUser} style={{ color: "#fff", fontSize: 18 }} />
+                  </Box>
+                </Badge>
+                <Typography component="span" sx={NAV_LABEL_SX}>
+                  Profile
+                </Typography>
+              </ButtonBase>
+            )}
+            <ButtonBase
               ref={bellRef}
+              type="button"
+              aria-label="Notifications"
+              aria-haspopup="true"
+              onClick={handleOpen}
+              disableRipple
+              sx={notificationsButtonSx(isMobile)}
             >
-              <FontAwesomeIcon icon={faBell} style={{ color: "#fff" }} />
-            </IconButton>
-          </Badge>
+              <Badge
+                badgeContent={unreadCount}
+                color="error"
+                overlap="circular"
+                anchorOrigin={{ vertical: "top", horizontal: "right" }}
+              >
+                <Box sx={navIconWrapSx}>
+                  <FontAwesomeIcon icon={faBell} style={{ color: "#fff", fontSize: 18 }} />
+                </Box>
+              </Badge>
+              <Typography component="span" sx={NAV_LABEL_SX}>
+                Notifications
+              </Typography>
+            </ButtonBase>
+          </Box>
         </Toolbar>
       </AppBar>
       <NotificationModal

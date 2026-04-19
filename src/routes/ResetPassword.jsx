@@ -128,13 +128,13 @@ const ResetPassword = () => {
         sx={{ p: 3, border: "1px solid #E5E7EB", borderRadius: 2, bgcolor: "#fff" }}
       >
         {done ? (
-          <Alert severity="success">
+          <Alert severity="success" sx={{ alignItems: "center" }}>
             Password updated! Redirecting you to log in…
           </Alert>
         ) : (
           <Box component="form" onSubmit={handleSubmit} noValidate>
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
                 {error}{" "}
                 {(error.includes("expired") || error.includes("used")) && (
                   <Link component={RouterLink} to="/forgot-password" underline="hover" fontWeight={600}>

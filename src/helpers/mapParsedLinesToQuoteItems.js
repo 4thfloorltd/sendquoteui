@@ -1,10 +1,11 @@
 import { newLineItemId } from "../context/QuoteContext";
 import { getDefaultVatPercent } from "./currency";
 
-export function mapParsedLinesToQuoteItems(lines) {
+export function mapParsedLinesToQuoteItems(lines, options = {}) {
   if (!Array.isArray(lines)) {
     throw new Error("lines must be an array");
   }
+  const fallbackVat = options.defaultVatPercent ?? getDefaultVatPercent();
   const rows = lines
     .filter((line) => line && typeof line === "object")
     .map((line) => {
@@ -13,7 +14,7 @@ export function mapParsedLinesToQuoteItems(lines) {
       const quantity = Math.max(1, Math.trunc(Number(line.quantity) || 1));
       const vatPercent = Number.isFinite(Number(line.vatPercent))
         ? Math.max(0, Number(line.vatPercent))
-        : getDefaultVatPercent();
+        : fallbackVat;
       return {
         id: newLineItemId(),
         description,

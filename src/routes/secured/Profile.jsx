@@ -25,10 +25,11 @@ import { auth, db } from "../../../firebase";
 import { useAddressAutocomplete } from "../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../utils/userEmailAvailability";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
+import { getDefaultVatPercent, resolveDefaultVatPercent } from "../../helpers/currency";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-const Settings = () => {
+const Profile = () => {
   const navigate = useNavigate();
 
   // Business profile
@@ -86,6 +87,10 @@ const Settings = () => {
   // Tax settings
   const [vatRegistered, setVatRegistered] = useState(true);
   const [vatSaving, setVatSaving] = useState(false);
+  const [defaultVatPercentInput, setDefaultVatPercentInput] = useState(() =>
+    String(getDefaultVatPercent()),
+  );
+  const defaultVatPercentCommittedRef = useRef(getDefaultVatPercent());
 
   // Snackbar
   const [snackbar, setSnackbar] = useState({ open: false, message: "", severity: "success" });
@@ -113,6 +118,9 @@ const Settings = () => {
           setBizName(d.businessName    ?? "");
           setBizAddress(d.businessAddress ?? "");
           setVatRegistered(d.vatRegistered ?? true);
+          const effVat = resolveDefaultVatPercent(d);
+          defaultVatPercentCommittedRef.current = effVat;
+          setDefaultVatPercentInput(String(effVat));
 
           const authLower  = authUserEmail.toLowerCase();
           const pending    = d.pendingEmailChange?.toLowerCase();
@@ -120,7 +128,7 @@ const Settings = () => {
           const storedLogin = (d.loginEmail    ?? "").toLowerCase();
 
           // Determine the email to show in the form.  Layout.jsx commits the
-          // pendingEmailChange when the user signs in, so by the time Settings
+          // pendingEmailChange when the user signs in, so by the time Profile
           // loads the field may already be cleared.  Fall back gracefully.
           const displayEmail = d.businessEmail ?? authUserEmail;
           setBizEmail(displayEmail);
@@ -149,7 +157,7 @@ const Settings = () => {
               loginEmail:         authUserEmail,
               pendingEmailChange: deleteField(),
               updatedAt:          serverTimestamp(),
-            }, { merge: true }).catch((err) => console.error("Settings email commit failed", err));
+            }, { merge: true }).catch((err) => console.error("Profile email commit failed", err));
             setPendingVerification(null);
           } else if (!pending) {
             // No pending change — clear any stale banner.
@@ -158,6 +166,9 @@ const Settings = () => {
         } else {
           setBizEmail(authUserEmail);
           setOriginalBizEmail(authUserEmail);
+          const effVat = getDefaultVatPercent();
+          defaultVatPercentCommittedRef.current = effVat;
+          setDefaultVatPercentInput(String(effVat));
         }
       } catch (e) {
         console.error("Failed to load profile", e);
@@ -248,7 +259,7 @@ const Settings = () => {
       // Firestore so the banner survives page navigation and onAuthStateChanged
       // can finalise businessEmail / loginEmail once the link is clicked.
       await verifyBeforeUpdateEmail(auth.currentUser, nextEmail, {
-        url: `${window.location.origin}/secured/settings`,
+        url: `${window.location.origin}/secured/profile`,
       });
 
       await setDoc(doc(db, "users", auth.currentUser.uid), {
@@ -303,7 +314,7 @@ const Settings = () => {
     setPendingVerification((p) => ({ ...p, resending: true }));
     try {
       await verifyBeforeUpdateEmail(auth.currentUser, pendingVerification.email, {
-        url: `${window.location.origin}/secured/settings`,
+        url: `${window.location.origin}/secured/profile`,
       });
       await setDoc(doc(db, "users", auth.currentUser.uid), {
         pendingEmailChange: pendingVerification.email,
@@ -399,6 +410,36 @@ const Settings = () => {
     }
   };
 
+  const handleDefaultVatPercentBlur = async () => {
+    if (!uid || profileLoading) return;
+    const raw = String(defaultVatPercentInput ?? "").trim().replace(",", ".");
+    const n = parseFloat(raw);
+    if (!Number.isFinite(n) || n < 0 || n > 100) {
+      showSnack("Enter a VAT rate between 0 and 100.", "error");
+      setDefaultVatPercentInput(String(defaultVatPercentCommittedRef.current));
+      return;
+    }
+    const v = Math.round(n * 100) / 100;
+    if (v === defaultVatPercentCommittedRef.current) return;
+    setVatSaving(true);
+    try {
+      await setDoc(
+        doc(db, "users", uid),
+        { defaultVatPercent: v, updatedAt: serverTimestamp() },
+        { merge: true },
+      );
+      defaultVatPercentCommittedRef.current = v;
+      setDefaultVatPercentInput(String(v));
+      showSnack("Default VAT rate saved.");
+    } catch (e) {
+      console.error("Failed to save default VAT rate", e);
+      showSnack("Failed to save default VAT rate. Please try again.", "error");
+      setDefaultVatPercentInput(String(defaultVatPercentCommittedRef.current));
+    } finally {
+      setVatSaving(false);
+    }
+  };
+
   if (profileLoading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", py: 8 }}>
@@ -410,7 +451,7 @@ const Settings = () => {
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
       <Typography variant="h5" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
-        Settings
+        Profile
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Manage your business profile and account security.
@@ -455,7 +496,7 @@ const Settings = () => {
           {pendingVerification && (
             <Alert
               severity="info"
-              sx={{ mt: 1.5, fontSize: "0.82rem", alignItems: "flex-start" }}
+              sx={{ mt: 1.5, fontSize: "0.82rem", alignItems: "center" }}
               onClose={() => {
                 setPendingVerification(null);
                 if (uid) setDoc(doc(db, "users", uid), { pendingEmailChange: deleteField(), updatedAt: serverTimestamp() }, { merge: true }).catch(() => {});
@@ -505,7 +546,7 @@ const Settings = () => {
             required
           />
           {emailChanged && (
-            <Alert severity="warning" sx={{ mt: 1, py: 0.5, fontSize: "0.8rem" }}>
+            <Alert severity="warning" sx={{ mt: 1, py: 0.5, fontSize: "0.8rem", alignItems: "center" }}>
               Updating your business email will also update your account login email.
             </Alert>
           )}
@@ -646,6 +687,24 @@ const Settings = () => {
           }
           labelPlacement="end"
           sx={{ m: 0, alignItems: "flex-start" }}
+        />
+        <Divider sx={{ my: 2, borderColor: "#E5E7EB" }} />
+        <TextField
+          label="Default VAT rate (%)"
+          type="number"
+          size="small"
+          value={defaultVatPercentInput}
+          onChange={(e) => setDefaultVatPercentInput(e.target.value)}
+          onBlur={handleDefaultVatPercentBlur}
+          disabled={profileLoading || vatSaving || !uid || !vatRegistered}
+          inputProps={{ min: 0, max: 100, step: 0.01 }}
+          fullWidth
+          sx={{ maxWidth: 280 }}
+          helperText={
+            vatRegistered
+              ? "Applied to new line items on quotes."
+              : "Turn on VAT registered to set a default rate for new line items."
+          }
         />
       </Box>
 
@@ -812,7 +871,7 @@ const Settings = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Enter your current password to permanently delete your account.
           </Typography>
-          {deleteError && <Alert severity="error" sx={{ mb: 2, py: 0 }}>{deleteError}</Alert>}
+          {deleteError && <Alert severity="error" sx={{ mb: 2, py: 0, alignItems: "center" }}>{deleteError}</Alert>}
           <TextField
             label="Password"
             type="password"
@@ -853,7 +912,7 @@ const Settings = () => {
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Enter your current password to confirm. We&apos;ll send a verification link to <strong>{pendingEmailSave}</strong> — your login email updates once you click it.
           </Typography>
-          {reauthError && <Alert severity="error" sx={{ mb: 2, py: 0 }}>{reauthError}</Alert>}
+          {reauthError && <Alert severity="error" sx={{ mb: 2, py: 0, alignItems: "center" }}>{reauthError}</Alert>}
           <TextField
             label="Current password"
             type="password"
@@ -889,7 +948,7 @@ const Settings = () => {
         <Alert
           severity={snackbar.severity}
           onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
-          sx={{ width: "100%" }}
+          sx={{ width: "100%", alignItems: "center" }}
         >
           {snackbar.message}
         </Alert>
@@ -898,4 +957,4 @@ const Settings = () => {
   );
 };
 
-export default Settings;
+export default Profile;

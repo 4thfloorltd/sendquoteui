@@ -33,7 +33,7 @@ export const QuoteProvider = ({ children }) => {
   const updateQuoteData = (updates) => {
     setQuoteData((prev) => ({
       ...prev,
-      ...updates,
+      ...(typeof updates === "function" ? updates(prev) : updates),
     }));
   };
 

@@ -88,15 +88,18 @@ function Layout() {
     );
   }
 
-  // Redirect unauthenticated users away from secured routes.
-  // This covers the case where Firebase revokes the session after email
-  // verification and redirects the user back to /secured/settings.
+  // Redirect unauthenticated users away from secured routes (not logged in,
+  // session expired, signed out elsewhere, or post–email-verification when
+  // Firebase requires a fresh sign-in — not only the email-change flow).
   if (isSecuredPath && !isLoggedIn) {
     return (
       <Navigate
         to="/login"
         replace
-        state={{ info: "Please sign in with your new email address." }}
+        state={{
+          from: { pathname: location.pathname, search: location.search },
+          info: "Please sign in to access your account.",
+        }}
       />
     );
   }

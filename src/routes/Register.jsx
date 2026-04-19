@@ -4,6 +4,8 @@ import {
   Box,
   Button,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   LinearProgress,
   Link,
   Paper,
@@ -11,6 +13,8 @@ import {
   Typography,
 } from "@mui/material";
 import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import { createUserWithEmailAndPassword, signInWithEmailAndPassword } from "firebase/auth";
 import { doc, serverTimestamp, setDoc } from "firebase/firestore";
@@ -100,6 +104,7 @@ const Register = () => {
   // Step 1 state
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
@@ -132,7 +137,7 @@ const Register = () => {
 
   const postRegisterState = (() => {
     const raw = location.state?.redirectAfterProfile;
-    if (raw === "/secured/billing" || raw === "/secured/settings") {
+    if (raw === "/secured/billing" || raw === "/secured/profile" || raw === "/secured/settings") {
       return { redirectAfterProfile: raw };
     }
     return undefined;
@@ -314,7 +319,7 @@ const Register = () => {
             Create account
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: "center" }}>
-            Sign up with your email to get started with SendQuote.
+            Sign up with your email to get started with <strong>SendQuote</strong>.
           </Typography>
 
           <Paper
@@ -328,7 +333,7 @@ const Register = () => {
           >
             <Box component="form" onSubmit={handleSubmit} noValidate>
               {error === "existing-account" ? (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+                <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
                   This email is already registered and the password didn&apos;t match.{" "}
                   <Link
                     component={RouterLink}
@@ -341,7 +346,7 @@ const Register = () => {
                   </Link>
                 </Alert>
               ) : error ? (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+                <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
                   {error}
                 </Alert>
               ) : null}
@@ -363,7 +368,7 @@ const Register = () => {
               />
               <TextField
                 label="Password"
-                type="password"
+                type={showPassword ? "text" : "password"}
                 name="password"
                 autoComplete="new-password"
                 value={password}
@@ -376,6 +381,31 @@ const Register = () => {
                 margin="normal"
                 disabled={submitting}
                 InputLabelProps={{ shrink: true }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        onClick={() => setShowPassword((v) => !v)}
+                        disabled={submitting}
+                        sx={{
+                          width: 32,
+                          height: 32,
+                          minWidth: 32,
+                          padding: 0,
+                          borderRadius: "50%",
+                          "&.Mui-focusVisible": {
+                            outline: "none",
+                            boxShadow: "0 0 0 2px #083a6b",
+                            backgroundColor: "rgba(8, 58, 107, 0.08)",
+                          },
+                        }}
+                      >
+                        {showPassword ? <VisibilityOff sx={{ fontSize: 20 }} /> : <Visibility sx={{ fontSize: 20 }} />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
               />
               {password.length > 0 ? (
                 <Box sx={{ mt: 0.5, mb: 0.5 }}>
@@ -426,10 +456,37 @@ const Register = () => {
                 {submitting ? (
                   <CircularProgress size={22} color="inherit" />
                 ) : (
-                  "Continue"
+                  "Create account"
                 )}
               </Button>
             </Box>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ mt: 2, textAlign: "center", display: "block", lineHeight: 1.5, px: 0.5 }}
+            >
+              By creating an account you agree to our{" "}
+              <Link
+                component={RouterLink}
+                to="/terms"
+                underline="hover"
+                fontWeight={600}
+                sx={{ color: "#083a6b", "&:hover": { color: "#062d52" } }}
+              >
+                Terms
+              </Link>
+              {" and "}
+              <Link
+                component={RouterLink}
+                to="/privacy"
+                underline="hover"
+                fontWeight={600}
+                sx={{ color: "#083a6b", "&:hover": { color: "#062d52" } }}
+              >
+                Privacy Policy
+              </Link>
+              .
+            </Typography>
           </Paper>
 
           <Typography variant="body2" sx={{ mt: 2, textAlign: "center" }}>
@@ -467,7 +524,7 @@ const Register = () => {
           >
             <Box component="form" onSubmit={handleVerify} noValidate>
               {verifyError ? (
-                <Alert severity="error" sx={{ mb: 2 }} onClose={() => setVerifyError("")}>
+                <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setVerifyError("")}>
                   {verifyError}
                 </Alert>
               ) : null}

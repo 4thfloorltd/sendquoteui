@@ -193,8 +193,24 @@ export const getDefaultVatPercent = () => {
     }
   } catch { /* ignore */ }
 
-  return 20;
+   return 20;
 };
+
+/**
+ * VAT % for new line items when a user has saved `defaultVatPercent` on their
+ * profile; otherwise {@link getDefaultVatPercent} (region-based).
+ * @param {object|null|undefined} profile - Firestore `users` doc or `{ defaultVatPercent }`
+ */
+export function resolveDefaultVatPercent(profile) {
+  const raw = profile?.defaultVatPercent;
+  if (raw !== undefined && raw !== null) {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0 && n <= 100) {
+      return Math.round(n * 100) / 100;
+    }
+  }
+  return getDefaultVatPercent();
+}
 
 /** Shown first in the picker; also listed again under “All”. */
 export const POPULAR_CURRENCY_CODES = ["GBP", "USD", "EUR"];

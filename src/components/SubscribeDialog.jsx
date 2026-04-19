@@ -116,7 +116,7 @@ function PaymentForm({ onSuccess, onCancel }) {
         />
       </Box>
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+        <Alert severity="error" sx={{ mb: 2, alignItems: "center" }}>{error}</Alert>
       )}
       <Box sx={{ display: "flex", gap: 1 }}>
         <Button
@@ -233,7 +233,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
           </DialogTitle>
           <DialogContent sx={{ pt: 2 }}>
             {quotaExhausted && (
-              <Alert severity="warning" icon={<LockOutlinedIcon fontSize="inherit" />} sx={{ mb: 2, fontWeight: 600 }}>
+              <Alert severity="warning" icon={<LockOutlinedIcon fontSize="inherit" />} sx={{ mb: 2, fontWeight: 600, alignItems: "center" }}>
                 You&apos;ve used all <strong>{FREE_QUOTE_LIMIT} free quotes</strong>. Upgrade for unlimited.
               </Alert>
             )}
@@ -262,7 +262,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
               ))}
             </Box>
             {intentError && (
-              <Alert severity="error" sx={{ mt: 1.5 }}>{intentError}</Alert>
+              <Alert severity="error" sx={{ mt: 1.5, alignItems: "center" }}>{intentError}</Alert>
             )}
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2.5, gap: 1 }}>
@@ -291,7 +291,7 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
               🔒 Secure payment powered by Stripe
             </Typography>
             {intentError && (
-              <Alert severity="error" sx={{ mb: 2 }}>{intentError}</Alert>
+              <Alert severity="error" sx={{ mb: 2, alignItems: "center" }}>{intentError}</Alert>
             )}
             {clientSecret ? (
               <Elements

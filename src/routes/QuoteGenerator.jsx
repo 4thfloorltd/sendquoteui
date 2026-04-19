@@ -56,6 +56,7 @@ import {
   getDefaultCurrency,
   getDefaultVatPercent,
   getFlagEmoji,
+  resolveDefaultVatPercent,
 } from "../helpers/currency";
 import { getAddressSearchCountryHint } from "../helpers/addressSearch";
 import { useAddressAutocomplete } from "../hooks/useAddressAutocomplete";
@@ -73,6 +74,8 @@ import {
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
 import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
+import { APP_PAGE_CONTENT_MAX_WIDTH } from "../constants/site";
+import { SECURED_BACK_TO_QUOTES_BUTTON_SX } from "../constants/quoteUi";
 
 const currencyMenuRow = (opt) => (
   <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "1.0625rem" }}>
@@ -212,6 +215,9 @@ const QuoteGenerator = () => {
   const [businessEmailHasAccount, setBusinessEmailHasAccount] = useState(false);
   const [businessEmailChecking, setBusinessEmailChecking] = useState(false);
   const businessEmailLatestRef = useRef("");
+  /** Saved or region default — used for new rows, AI lines, and migration. */
+  const lineItemDefaultVatRef = useRef(getDefaultVatPercent());
+  const profileLineVatSyncedRef = useRef(false);
   const [businessProfile, setBusinessProfile] = useState(null);
   const [pastCustomers, setPastCustomers] = useState([]);
 
@@ -310,11 +316,23 @@ const QuoteGenerator = () => {
 
     // Load business profile and plan
     getDoc(doc(db, "users", uid)).then((snap) => {
-      if (!snap.exists()) return;
-      const p = snap.data();
+      const p = snap.exists() ? snap.data() : {};
       setIsPremium(p?.plan === "premium");
       setIsVatRegistered(p?.vatRegistered ?? true);
-      if (p?.profileComplete) {
+      const def = resolveDefaultVatPercent(p);
+      lineItemDefaultVatRef.current = def;
+      if (!editId && !profileLineVatSyncedRef.current) {
+        profileLineVatSyncedRef.current = true;
+        const vatReg = p?.vatRegistered ?? true;
+        updateQuoteData((prev) => ({
+          ...prev,
+          lineItems: prev.lineItems.map((row) => ({
+            ...row,
+            vatPercent: vatReg ? def : 0,
+          })),
+        }));
+      }
+      if (snap.exists() && p?.profileComplete) {
         setBusinessProfile(p);
         updateQuoteData({
           businessName:    p.businessName    ?? "",
@@ -440,7 +458,7 @@ const QuoteGenerator = () => {
             description: r.label ?? "",
             unitPrice: Number(r.amount) || 0,
             quantity: 1,
-            vatPercent: getDefaultVatPercent(),
+            vatPercent: lineItemDefaultVatRef.current,
           };
         }),
       });
@@ -552,7 +570,7 @@ const QuoteGenerator = () => {
           description: "",
           unitPrice: 0,
           quantity: 1,
-          vatPercent: isVatRegistered ? getDefaultVatPercent() : 0,
+          vatPercent: isVatRegistered ? lineItemDefaultVatRef.current : 0,
         },
       ],
     });
@@ -569,10 +587,18 @@ const QuoteGenerator = () => {
       setAiParseLoading(true);
       try {
         const data = await parseQuoteLinesWithAi(text);
-        let rows = mapParsedLinesToQuoteItems(data.lines);
+        let rows = mapParsedLinesToQuoteItems(data.lines, {
+          defaultVatPercent: lineItemDefaultVatRef.current,
+        });
         if (!rows.length) {
           // AI couldn't extract anything — fall back to adding the raw text as a plain item.
-          rows = [{ id: newLineItemId(), description: text.trim(), unitPrice: 0, quantity: 1, vatPercent: getDefaultVatPercent() }];
+          rows = [{
+            id: newLineItemId(),
+            description: text.trim(),
+            unitPrice: 0,
+            quantity: 1,
+            vatPercent: lineItemDefaultVatRef.current,
+          }];
         }
         // Strip empty placeholder rows before appending so AI items start at position 1
         const existingNonEmpty = lineItems.filter(
@@ -806,7 +832,7 @@ const QuoteGenerator = () => {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, createAccountPassword);
 
-      // Create the user profile document so Settings pre-populates with the
+      // Create the user profile document so Profile pre-populates with the
       // business name, email and address the user already filled in.
       await setDoc(doc(db, "users", user.uid), {
         businessName:    (quoteData.businessName    ?? "").trim(),
@@ -1220,12 +1246,12 @@ const QuoteGenerator = () => {
     <Box
       sx={{
         width: "100%",
-        maxWidth: "1024px",
+        maxWidth: isSecuredQuote ? APP_PAGE_CONTENT_MAX_WIDTH : "1024px",
         minWidth: 0,
         mx: "auto",
         boxSizing: "border-box",
         px: isSecuredQuote ? 0 : { xs: 2, sm: 3 },
-        pb: { xs: 2, md: 4 },
+        pb: isSecuredQuote ? 0 : { xs: 2, md: 4 },
         animation: "fadeIn 300ms ease",
         "@keyframes fadeIn": {
           from: { opacity: 0, transform: "translateY(8px)" },
@@ -1233,7 +1259,20 @@ const QuoteGenerator = () => {
         },
       }}
     >
-      {/* Hidden PDF file input */}
+      <Button
+        component={Link}
+        to={backPath}
+        startIcon={<ArrowBackIcon />}
+        variant="text"
+        color={isSecuredQuote ? "inherit" : "primary"}
+        size={isSecuredQuote ? "medium" : "large"}
+        onClick={handleHomeClick}
+        sx={isSecuredQuote ? SECURED_BACK_TO_QUOTES_BUTTON_SX : { pl: 0, mt: 2, mb: 2 }}
+      >
+        {backLabel}
+      </Button>
+
+      {/* Hidden PDF file input — after back link so layout matches QuoteView (back is first row). */}
       <input
         ref={pdfInputRef}
         type="file"
@@ -1242,16 +1281,10 @@ const QuoteGenerator = () => {
         onChange={handlePdfFileChange}
       />
 
-      {!isSecuredQuote && (
-        <Button component={Link} to={backPath} startIcon={<ArrowBackIcon />} variant="text" color="primary" size="large" onClick={handleHomeClick} sx={{ pl: 0, mt: 2, mb: 2 }}>
-          {backLabel}
-        </Button>
-      )}
-
       {editId && editQuoteStatus && (
         <Alert
           severity={editQuoteStatus === "pending" ? "info" : "warning"}
-          sx={{ mt: 2,mb: 2 }}
+          sx={{ mt: 2, mb: 2, alignItems: "center" }}
         >
           {editQuoteStatus === "pending"
             ? <>You are editing an existing quote. Saving changes will <strong>reset the status to pending</strong> so the customer can review it again.</>
@@ -1324,7 +1357,7 @@ const QuoteGenerator = () => {
                 <Button
                   size="small"
                   component={Link}
-                  to="/secured/settings"
+                  to="/secured/profile"
                   sx={{ textTransform: "none", fontSize: "12px", color: "#6B7280", p: 0, minWidth: 0, "&:hover": { bgcolor: "transparent", color: "#083a6b" } }}
                 >
                   Edit
@@ -1409,7 +1442,7 @@ const QuoteGenerator = () => {
                 {businessEmailHasAccount && !auth.currentUser ? (
                   <Alert
                     severity="info"
-                    sx={{ mb: 1.5 }}
+                    sx={{ mb: 1.5, alignItems: "center" }}
                     action={
                       <Button
                         component={Link}
@@ -1694,17 +1727,6 @@ const QuoteGenerator = () => {
         </TextField>
 
         <Divider sx={{ my: 2 }} />
-
-        {auth.currentUser ? (
-          <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 2 }}>
-            VAT follows your{" "}
-            <Link to="/secured/settings" style={{ fontWeight: 600, color: "#083a6b" }}>
-              Settings
-            </Link>{" "}
-            (VAT registered).
-          </Typography>
-        ) : null}
-
         <Box id="field-lineItems" ref={lineItemsLayoutRef} sx={{ width: "100%", minWidth: 0 }}>
           <Typography variant="subtitle1" fontWeight={700} color="primary" mb={1}>
             Quote items
@@ -1715,7 +1737,7 @@ const QuoteGenerator = () => {
           {formErrors.lineItems && (
             <Alert
               severity="error"
-              sx={{ mb: 1.5 }}
+              sx={{ mb: 1.5, alignItems: "center" }}
               onClose={() => setFormErrors((prev) => { const n = { ...prev }; delete n.lineItems; return n; })}
             >
               Add at least one line item with a description.
@@ -1881,7 +1903,7 @@ const QuoteGenerator = () => {
                 </Typography>
               </Stack>
               {aiParseError && (
-                <Alert severity="error" sx={{ mt: 1 }}>
+                <Alert severity="error" sx={{ mt: 1, alignItems: "center" }}>
                   {aiParseError}
                 </Alert>
               )}
@@ -2072,12 +2094,12 @@ const QuoteGenerator = () => {
               )}
 
               {pdfFilled && (
-                <Alert severity="success" onClose={() => setPdfFilled(false)} sx={{ mt: 1 }}>
+                <Alert severity="success" onClose={() => setPdfFilled(false)} sx={{ mt: 1, alignItems: "center" }}>
                   Fields filled from PDF — review the items above and click <strong>Add to quote</strong>.
                 </Alert>
               )}
               {pdfImportError && (
-                <Alert severity="error" onClose={() => setPdfImportError("")} sx={{ mt: 1 }}>
+                <Alert severity="error" onClose={() => setPdfImportError("")} sx={{ mt: 1, alignItems: "center" }}>
                   {pdfImportError}
                 </Alert>
               )}
@@ -2428,7 +2450,7 @@ const QuoteGenerator = () => {
         </DialogTitle>
         <DialogContent sx={{ ...quoteFormFieldDensitySx, pt: 0 }}>
           {createAccountIsLoginMode ? (
-            <Alert severity="info" sx={{ mb: 2 }}>
+            <Alert severity="info" sx={{ mb: 2, alignItems: "center" }}>
               <strong>{verificationEmail}</strong> already has an account. Enter your password to log in and save your quote.
             </Alert>
           ) : (
@@ -2439,7 +2461,7 @@ const QuoteGenerator = () => {
             </Typography>
           )}
           {createAccountError ? (
-            <Alert severity="error" sx={{ mb: 1.5 }}>
+            <Alert severity="error" sx={{ mb: 1.5, alignItems: "center" }}>
               {createAccountError}
               {createAccountIsLoginMode && (
                 <Box sx={{ mt: 0.5 }}>
@@ -2619,7 +2641,7 @@ const QuoteGenerator = () => {
               onClick={() => { handleCloseQuoteSuccess(); navigate("/secured/quotes"); }}
               sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
             >
-              Go to my quotes →
+              Go to quotes →
             </Button>
           </Box>
         </Box>

@@ -278,7 +278,7 @@ const Support = () => {
             sx={{ border: "1px solid #E5E7EB", borderRadius: 2, bgcolor: "#F8FAFC", p: 3 }}
           >
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
                 {error}
               </Alert>
             )}
@@ -370,7 +370,7 @@ const Support = () => {
             )}
 
             {fileError && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setFileError("")}>
+              <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setFileError("")}>
                 {fileError}
               </Alert>
             )}
@@ -412,7 +412,7 @@ const Support = () => {
         onClose={() => setSnackbar((s) => ({ ...s, open: false }))}
         anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
       >
-        <Alert severity={snackbar.severity} onClose={() => setSnackbar((s) => ({ ...s, open: false }))}>
+        <Alert severity={snackbar.severity} sx={{ alignItems: "center" }} onClose={() => setSnackbar((s) => ({ ...s, open: false }))}>
           {snackbar.message}
         </Alert>
       </Snackbar>

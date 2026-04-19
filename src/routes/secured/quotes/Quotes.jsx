@@ -56,10 +56,12 @@ const STATUS_CONFIG = {
 };
 
 /** Allowed post-onboarding redirects from registration flow (no open redirect). */
-const ALLOWED_REDIRECT_AFTER_PROFILE = new Set(["/secured/billing", "/secured/settings"]);
+const ALLOWED_REDIRECT_AFTER_PROFILE = new Set(["/secured/billing", "/secured/profile", "/secured/settings"]);
 
-const sanitizeProfileRedirect = (path) =>
-  typeof path === "string" && ALLOWED_REDIRECT_AFTER_PROFILE.has(path) ? path : null;
+const sanitizeProfileRedirect = (path) => {
+  if (typeof path !== "string" || !ALLOWED_REDIRECT_AFTER_PROFILE.has(path)) return null;
+  return path === "/secured/settings" ? "/secured/profile" : path;
+};
 
 const Quotes = () => {
   const theme = useTheme();
@@ -198,7 +200,7 @@ const Quotes = () => {
       }
       // If profileData is null (read failed or doc missing), skip onboarding —
       // the profile likely exists but is temporarily unreadable (e.g. mid email
-      // change).  The user can access Settings directly to fix their profile.
+      // change).  The user can access Profile directly to fix their profile.
 
       // Primary: quotes owned by this UID (covers all quotes regardless of email).
       unsubByUid = onSnapshot(
@@ -339,7 +341,7 @@ const Quotes = () => {
             Add your business details once and we&apos;ll pre-fill them on every quote you create.
           </Typography>
 
-          {saveError && <Alert severity="error" sx={{ py: 0 }}>{saveError}</Alert>}
+          {saveError && <Alert severity="error" sx={{ py: 0, alignItems: "center" }}>{saveError}</Alert>}
 
           <TextField
             label="Business name"
@@ -463,7 +465,7 @@ const Quotes = () => {
       <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
-            My Quotes
+            Quotes
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Create quotes, and manage sent quotes.

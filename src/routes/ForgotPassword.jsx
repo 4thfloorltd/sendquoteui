@@ -88,14 +88,14 @@ const ForgotPassword = () => {
         sx={{ p: 3, border: "1px solid #E5E7EB", borderRadius: 2, bgcolor: "#fff" }}
       >
         {sent ? (
-          <Alert severity="success" sx={{ mb: 0 }}>
+          <Alert severity="success" sx={{ mb: 0, alignItems: "center" }}>
             If an account with that email exists, a reset link has been sent.
             Check your inbox (and spam folder).
           </Alert>
         ) : (
           <Box component="form" onSubmit={handleSubmit} noValidate>
             {error && (
-              <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+              <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
                 {error}
               </Alert>
             )}

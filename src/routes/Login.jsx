@@ -1,9 +1,13 @@
 import { useState, useEffect } from "react";
+import Visibility from "@mui/icons-material/Visibility";
+import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import {
   Alert,
   Box,
   Button,
   CircularProgress,
+  IconButton,
+  InputAdornment,
   Link,
   Paper,
   TextField,
@@ -34,11 +38,12 @@ const Login = () => {
   const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const navigate = useNavigate();
 
-  // Info banner passed via navigation state (e.g. redirected after email change)
+  // Info banner passed via navigation state (e.g. redirected from a secured route)
   const infoMessage = location.state?.info ?? null;
 
   useEffect(() => {
@@ -70,7 +75,11 @@ const Login = () => {
     setSubmitting(true);
     try {
       await signInWithEmailAndPassword(auth, emailValue, passwordValue);
-      const dest = location.state?.from?.pathname;
+      const from = location.state?.from;
+      const dest =
+        typeof from?.pathname === "string"
+          ? `${from.pathname}${from.search ?? ""}`
+          : null;
       const safe =
         typeof dest === "string" && dest.startsWith("/") && !dest.startsWith("//");
       navigate(safe ? dest : "/secured/quotes", { replace: true });
@@ -112,12 +121,12 @@ const Login = () => {
       >
         <Box component="form" onSubmit={handleSubmit} noValidate>
           {infoMessage && (
-            <Alert severity="info" sx={{ mb: 2 }}>
+            <Alert severity="info" sx={{ mb: 2, alignItems: "center" }}>
               {infoMessage}
             </Alert>
           )}
           {error ? (
-            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError("")}>
+            <Alert severity="error" sx={{ mb: 2, alignItems: "center" }} onClose={() => setError("")}>
               {error}
             </Alert>
           ) : null}
@@ -136,7 +145,7 @@ const Login = () => {
           />
           <TextField
             label="Password"
-            type="password"
+            type={showPassword ? "text" : "password"}
             name="password"
             autoComplete="current-password"
             value={password}
@@ -146,6 +155,31 @@ const Login = () => {
             margin="normal"
             disabled={submitting}
             InputLabelProps={{ shrink: true }}
+            InputProps={{
+              endAdornment: (
+                <InputAdornment position="end">
+                  <IconButton
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    onClick={() => setShowPassword((v) => !v)}
+                    disabled={submitting}
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      padding: 0,
+                      borderRadius: "50%",
+                      "&.Mui-focusVisible": {
+                        outline: "none",
+                        boxShadow: "0 0 0 2px #083a6b",
+                        backgroundColor: "rgba(8, 58, 107, 0.08)",
+                      },
+                    }}
+                  >
+                    {showPassword ? <VisibilityOff sx={{ fontSize: 20 }} /> : <Visibility sx={{ fontSize: 20 }} />}
+                  </IconButton>
+                </InputAdornment>
+              ),
+            }}
           />
           <Box sx={{ textAlign: "right", mt: 0.5, mb: 0.5 }}>
             <Link

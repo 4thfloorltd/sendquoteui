@@ -5,8 +5,9 @@ import { Box, List, ListItem, Typography, useMediaQuery } from "@mui/material";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faCog,
+  faCircleUser,
   faCreditCard,
+  faFileInvoice,
   faPaperPlane,
   faHeadphones,
   faPlus,
@@ -85,9 +86,10 @@ const Sidebar = () => {
 
   const menuItems = [
     { label: "Quotes",   icon: faPaperPlane, path: "/secured/quotes" },
-    { label: "Billing",  icon: faCreditCard, path: "/secured/billing" },
-    { label: "Settings", icon: faCog,        path: "/secured/settings" },
-    { label: "Support",  icon: faHeadphones, path: "/secured/support" },
+    { label: "Invoices", icon: faFileInvoice, path: "/secured/invoices" },
+    { label: "Billing",  icon: faCreditCard,  path: "/secured/billing" },
+    { label: "Profile",  icon: faCircleUser,  path: "/secured/profile" },
+    { label: "Support",  icon: faHeadphones,  path: "/secured/support" },
   ];
 
   const isItemActive = (item) => {
@@ -205,33 +207,52 @@ const Sidebar = () => {
                   display: "flex",
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: "10px",
+                  gap: "12px",
                   padding: "10px 16px",
                   color: isItemActive(item) ? "#fff" : "#6B7280",
                   backgroundColor: isItemActive(item) ? "#083a6b" : "inherit",
                   "&:hover": {
                     backgroundColor: "#E5E7EB", // Hover effect for background
                     color: "#083a6b", // Change text color on hover
-                    "& svg": {
-                      color: "#083a6b", // Change SVG icon color on hover
-                      fill: "#083a6b", // Ensure the fill color is also updated
+                    "& .sidebar-nav-icon": {
+                      color: "#083a6b",
+                    },
+                    "& .sidebar-nav-icon svg": {
+                      color: "#083a6b",
                     },
                   },
                 }}
               >
-                <FontAwesomeIcon
-                  icon={item.icon}
-                  className="fa-icon"
-                  style={{
-                    fontSize: "20px",
+                <Box
+                  className="sidebar-nav-icon"
+                  aria-hidden
+                  sx={{
+                    width: 24,
+                    height: 24,
+                    flexShrink: 0,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "inherit",
                   }}
-                />
+                >
+                  <FontAwesomeIcon
+                    icon={item.icon}
+                    style={{
+                      fontSize: "18px",
+                      color: "inherit",
+                    }}
+                  />
+                </Box>
                 <Typography
                   variant="body1"
+                  component="span"
                   sx={{
                     fontSize: "16px",
-                    fontWeight: "bold",
-                    marginLeft: "8px",
+                    fontWeight: 700,
+                    lineHeight: 1.2,
+                    flex: 1,
+                    minWidth: 0,
                   }}
                 >
                   {item.label}

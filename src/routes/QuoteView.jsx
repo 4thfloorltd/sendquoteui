@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useParams, useNavigate, useLocation } from "react-router-dom";
+import { useParams, useNavigate, useLocation, Link } from "react-router-dom";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import EditIcon from "@mui/icons-material/Edit";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
@@ -31,6 +31,7 @@ import { buildQuotePdfDocument, getQuotePdfFilename } from "../utils/buildQuoteP
 import { formatDateLong, createFormatMoney } from "../utils/quoteDisplay";
 import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../constants/site";
+import { SECURED_BACK_TO_QUOTES_BUTTON_SX } from "../constants/quoteUi";
 
 const isMobileDevice = () =>
   typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
@@ -192,27 +193,17 @@ const QuoteView = () => {
     }
   };
 
-  const backToQuotesButtonSx = {
-    alignSelf: "flex-start",
-    mb: 2,
-    color: "#083a6b",
-    textTransform: "none",
-    fontWeight: 600,
-    px: 0.5,
-    pt: 0,
-    minWidth: 0,
-    "&:hover": { bgcolor: "rgba(8, 58, 107, 0.06)" },
-  };
-
   if (loading) {
     return (
-      <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
+      <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto", width: "100%", boxSizing: "border-box" }}>
         {isSecuredQuoteView ? (
           <Button
+            component={Link}
+            to="/secured/quotes"
             variant="text"
+            color="inherit"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/secured/quotes")}
-            sx={backToQuotesButtonSx}
+            sx={SECURED_BACK_TO_QUOTES_BUTTON_SX}
           >
             Back to quotes
           </Button>
@@ -226,32 +217,36 @@ const QuoteView = () => {
 
   if (error) {
     return (
-      <Box sx={{ maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500, mx: "auto", px: isSecuredQuoteView ? 0 : 2, py: 6, pt: isSecuredQuoteView ? 0 : 6 }}>
+      <Box sx={{ maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500, mx: "auto", width: isSecuredQuoteView ? "100%" : undefined, boxSizing: "border-box", px: isSecuredQuoteView ? 0 : 2, py: 6, pt: isSecuredQuoteView ? 0 : 6 }}>
         {isSecuredQuoteView ? (
           <Button
+            component={Link}
+            to="/secured/quotes"
             variant="text"
+            color="inherit"
             startIcon={<ArrowBackIcon />}
-            onClick={() => navigate("/secured/quotes")}
-            sx={backToQuotesButtonSx}
+            sx={SECURED_BACK_TO_QUOTES_BUTTON_SX}
           >
             Back to quotes
           </Button>
         ) : null}
-        <Alert severity="error">{error}</Alert>
+        <Alert severity="error" sx={{ alignItems: "center" }}>{error}</Alert>
       </Box>
     );
   }
 
   if (quote?.deleted) {
     return (
-      <Box sx={{ maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500, mx: "auto", px: isSecuredQuoteView ? 0 : 2, py: isSecuredQuoteView ? 4 : 10, pt: isSecuredQuoteView ? 1 : 10, textAlign: "center" }}>
+      <Box sx={{ maxWidth: isSecuredQuoteView ? APP_PAGE_CONTENT_MAX_WIDTH : 500, mx: "auto", width: isSecuredQuoteView ? "100%" : undefined, boxSizing: "border-box", px: isSecuredQuoteView ? 0 : 2, py: isSecuredQuoteView ? 4 : 10, pt: isSecuredQuoteView ? 0 : 10, textAlign: "center" }}>
         {isSecuredQuoteView ? (
           <Box sx={{ textAlign: "left" }}>
             <Button
+              component={Link}
+              to="/secured/quotes"
               variant="text"
+              color="inherit"
               startIcon={<ArrowBackIcon />}
-              onClick={() => navigate("/secured/quotes")}
-              sx={backToQuotesButtonSx}
+              sx={SECURED_BACK_TO_QUOTES_BUTTON_SX}
             >
               Back to quotes
             </Button>
@@ -298,15 +293,19 @@ const QuoteView = () => {
       sx={{
         maxWidth: APP_PAGE_CONTENT_MAX_WIDTH,
         mx: "auto",
+        width: "100%",
+        boxSizing: "border-box",
         pb: { xs: isOwner ? 14 : 3, md: 5 },
       }}
     >
       {isSecuredQuoteView ? (
         <Button
+          component={Link}
+          to="/secured/quotes"
           variant="text"
+          color="inherit"
           startIcon={<ArrowBackIcon />}
-          onClick={() => navigate("/secured/quotes")}
-          sx={backToQuotesButtonSx}
+          sx={SECURED_BACK_TO_QUOTES_BUTTON_SX}
         >
           Back to quotes
         </Button>
@@ -693,7 +692,7 @@ const QuoteView = () => {
                 )}
 
                 {submitError ? (
-                  <Alert severity="error" sx={{ mt: 1.5 }}>{submitError}</Alert>
+                  <Alert severity="error" sx={{ mt: 1.5, alignItems: "center" }}>{submitError}</Alert>
                 ) : null}
               </>
             )}

@@ -151,7 +151,7 @@ export default function Terms() {
 
         <Section title="11. Termination">
           <P>
-            You may delete your account at any time from the Settings page. Upon deletion,
+            You may delete your account at any time from the Profile page. Upon deletion,
             all your data is permanently removed within 30 days.
           </P>
           <P>

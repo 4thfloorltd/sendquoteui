@@ -4,7 +4,7 @@ import { Box, Typography } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPaperPlane,
-  faCog,
+  faFileInvoice,
   faHeadphones,
   faPlus,
   faCreditCard,
@@ -51,6 +51,57 @@ const NavItem = ({ icon, label, active, onClick }) => (
   </Box>
 );
 
+/** Same visual language as the old centered FAB: raised circle + label, aligned in the bar row. */
+const CreateNavItem = ({ active, onClick }) => (
+  <Box
+    onClick={onClick}
+    sx={{
+      flex: 1,
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+      justifyContent: "flex-end",
+      pb: "6px",
+      cursor: "pointer",
+      WebkitTapHighlightColor: "transparent",
+      userSelect: "none",
+      position: "relative",
+      zIndex: 1,
+      "&:active .create-fab-circle": { transform: "scale(0.93)" },
+    }}
+  >
+    <Box
+      className="create-fab-circle"
+      sx={{
+        width: 48,
+        height: 48,
+        borderRadius: "50%",
+        bgcolor: active ? "#062d52" : "#083a6b",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        boxShadow: "0 2px 10px rgba(8,58,107,0.4)",
+        border: "3px solid #fff",
+        transition: "background 0.15s, transform 0.15s",
+        mt: "-12px",
+      }}
+    >
+      <FontAwesomeIcon icon={faPlus} style={{ color: "#fff", fontSize: 18 }} />
+    </Box>
+    <Typography
+      sx={{
+        fontSize: LABEL_SIZE,
+        fontWeight: active ? 700 : 500,
+        color: active ? ACTIVE : INACTIVE,
+        lineHeight: 1,
+        mt: "4px",
+      }}
+    >
+      Create
+    </Typography>
+  </Box>
+);
+
 const BottomNav = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -93,54 +144,17 @@ const BottomNav = () => {
     }
   };
 
-  const isQuotes   = location.pathname.startsWith("/secured/quotes");
-  const isBilling  = location.pathname.startsWith("/secured/billing");
-  const isCreate   = location.pathname === "/secured/quote";
-  const isSettings = location.pathname.startsWith("/secured/settings");
+  const path = location.pathname;
+  const isQuotes =
+    path.startsWith("/secured/quotes") ||
+    /^\/secured\/quote\/.+/.test(path);
+  const isInvoices  = path.startsWith("/secured/invoices");
+  const isBilling   = path.startsWith("/secured/billing");
+  const isCreate    = path === "/secured/quote";
+  const isSupport   = path.startsWith("/secured/support");
 
   return (
     <>
-      {/* FAB — Create */}
-      <Box
-        onClick={handleCreateQuote}
-        sx={{
-          position: "fixed",
-          bottom: 10,
-          left: "50%",
-          transform: "translateX(-50%)",
-          zIndex: 1100,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          gap: "4px",
-          cursor: "pointer",
-          WebkitTapHighlightColor: "transparent",
-          userSelect: "none",
-        }}
-      >
-        <Box
-          sx={{
-            width: 48,
-            height: 48,
-            borderRadius: "50%",
-            bgcolor: isCreate ? "#062d52" : "#083a6b",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            boxShadow: "0 2px 10px rgba(8,58,107,0.4)",
-            border: "3px solid #fff",
-            transition: "background 0.15s",
-            "&:active": { transform: "scale(0.93)" },
-          }}
-        >
-          <FontAwesomeIcon icon={faPlus} style={{ color: "#fff", fontSize: 18 }} />
-        </Box>
-        <Typography sx={{ fontSize: LABEL_SIZE, fontWeight: isCreate ? 700 : 500, color: isCreate ? ACTIVE : INACTIVE, lineHeight: 1 }}>
-          Create
-        </Typography>
-      </Box>
-
-      {/* Bar */}
       <Box
         sx={{
           position: "fixed",
@@ -156,14 +170,11 @@ const BottomNav = () => {
           alignItems: "stretch",
         }}
       >
-        <NavItem icon={faPaperPlane} label="Quotes"   active={isQuotes}   onClick={() => navigate("/secured/quotes")} />
-        <NavItem icon={faCreditCard} label="Billing"  active={isBilling}  onClick={() => navigate("/secured/billing")} />
-
-        {/* Spacer for the FAB */}
-        <Box sx={{ flex: 1 }} />
-
-        <NavItem icon={faCog}        label="Settings" active={isSettings} onClick={() => navigate("/secured/settings")} />
-        <NavItem icon={faHeadphones} label="Support"  active={location.pathname.startsWith("/secured/support")} onClick={() => navigate("/secured/support")} />
+        <NavItem icon={faPaperPlane} label="Quotes" active={isQuotes} onClick={() => navigate("/secured/quotes")} />
+        <NavItem icon={faFileInvoice} label="Invoices" active={isInvoices} onClick={() => navigate("/secured/invoices")} />
+        <CreateNavItem active={isCreate} onClick={handleCreateQuote} />
+        <NavItem icon={faCreditCard} label="Billing" active={isBilling} onClick={() => navigate("/secured/billing")} />
+        <NavItem icon={faHeadphones} label="Support" active={isSupport} onClick={() => navigate("/secured/support")} />
       </Box>
 
       <SubscribeDialog

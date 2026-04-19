@@ -65,10 +65,10 @@ const Footer = () => {
               </Link>
             </Typography>
             <Box sx={{ display: "flex", gap: 2, justifyContent: { xs: "flex-start", md: "flex-end" }, mb: 1 }}>
-              <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
+              <Link component={RouterLink} to="/privacy" underline="hover" sx={{ color: "rgba(255, 255, 255)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
                 Privacy Policy
               </Link>
-              <Link component={RouterLink} to="/terms" underline="hover" sx={{ color: "rgba(255,255,255,0.75)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
+              <Link component={RouterLink} to="/terms" underline="hover" sx={{ color: "rgba(255,255,255)", fontSize: "0.8rem", "&:hover": { color: "#fff" } }}>
                 Terms of Service
               </Link>
             </Box>

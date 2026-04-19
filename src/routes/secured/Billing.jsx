@@ -135,12 +135,12 @@ export default function Billing() {
       </Typography>
 
       {checkoutResult.current === "success" && (
-        <Alert severity="success" sx={{ mb: 3 }}>
+        <Alert severity="success" sx={{ mb: 3, alignItems: "center" }}>
           Payment successful — you&apos;re now on Premium! It may take a few seconds to reflect.
         </Alert>
       )}
       {checkoutResult.current === "cancel" && (
-        <Alert severity="info" sx={{ mb: 3 }}>
+        <Alert severity="info" sx={{ mb: 3, alignItems: "center" }}>
           Checkout was cancelled. You can upgrade any time below.
         </Alert>
       )}
@@ -155,7 +155,7 @@ export default function Billing() {
               {portalLoading ? <CircularProgress size={14} /> : "Update payment"}
             </Button>
           }
-          sx={{ mb: 3 }}
+          sx={{ mb: 3, alignItems: "center" }}
         >
           Your last payment failed. Please update your payment method to keep Premium access.
         </Alert>
@@ -187,7 +187,7 @@ export default function Billing() {
       )}
 
       {actionError && (
-        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setActionError("")}>
+        <Alert severity="error" sx={{ mb: 3, alignItems: "center" }} onClose={() => setActionError("")}>
           {actionError}
         </Alert>
       )}

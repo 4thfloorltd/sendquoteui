@@ -89,7 +89,7 @@ export function applyPageSeo({ title, description, path, noindex = false, jsonLd
 }
 
 const DEFAULT_DESCRIPTION =
-  "Create, send, and track professional quotes with AI-assisted drafting. Customers accept or decline online — no sign-in required. Free plan available; upgrade for unlimited quotes and PDF import.";
+  "Create, send, and track professional quotes with AI-assisted drafting. Customers accept or decline online - no sign-in required. Free plan available; upgrade for unlimited quotes and PDF import.";
 
 const ORG_JSON_LD = {
   "@context": "https://schema.org",
@@ -115,7 +115,7 @@ const ORG_JSON_LD = {
 
 /** Matches routes defined under Layout for /secured/* (see App.jsx). */
 const KNOWN_SECURED_PATH =
-  /^\/secured\/(dashboard|quotes|quote(?:\/[^/]+)?|quoteReview|settings|billing|support)$/;
+  /^\/secured\/(dashboard|quotes|invoices|quote(?:\/[^/]+)?|quoteReview|profile|settings|billing|support)$/;
 
 export function resolveSeoForPath(pathname) {
   const path = pathname || "/";
@@ -132,7 +132,7 @@ export function resolveSeoForPath(pathname) {
     }
     return {
       title: `${SITE_NAME} — Account`,
-      description: "Manage your SendQuote account, quotes, billing, and settings.",
+      description: "Manage your SendQuote account, quotes, billing, and profile.",
       path,
       noindex: true,
       jsonLd: null,

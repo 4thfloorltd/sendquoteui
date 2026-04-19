@@ -17,8 +17,9 @@ import ResetPassword from "./routes/ResetPassword";
 import Dashboard from "./routes/secured/Dashboard";
 import Quotes from "./routes/secured/quotes/Quotes";
 import QuoteReview from "./routes/secured/quotes/QuoteReview";
-import Settings from "./routes/secured/Settings";
+import Profile from "./routes/secured/Profile";
 import Billing from "./routes/secured/Billing";
+import Invoices from "./routes/secured/Invoices";
 import Support from "./routes/secured/Support";
 import theme from "./theme";
 import Pricing from "./routes/Pricing";
@@ -64,10 +65,12 @@ const router = createBrowserRouter([
       { path: "reset-password", element: <ResetPassword /> },
       { path: "secured/dashboard", element: <Dashboard /> },
       { path: "secured/quotes", element: <Quotes /> },
+      { path: "secured/invoices", element: <Invoices /> },
       { path: "secured/quote/:quoteId", element: <QuoteView /> },
       { path: "secured/quote", element: <QuoteGenerator /> },
       { path: "secured/quoteReview", element: <QuoteReview /> },
-      { path: "secured/settings", element: <Settings /> },
+      { path: "secured/profile", element: <Profile /> },
+      { path: "secured/settings", element: <Navigate to="/secured/profile" replace /> },
       { path: "secured/billing", element: <Billing /> },
       { path: "secured/support", element: <Support /> },
       { path: "*", element: <NotFound /> },
