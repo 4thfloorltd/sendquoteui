@@ -53,7 +53,7 @@ export default function Terms() {
           </P>
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
             <Li>AI-assisted quote drafting from a plain-language description or uploaded PDF.</Li>
-            <Li>Sharing quotes with customers via a secure link, email, or WhatsApp - no customer sign-in required.</Li>
+            <Li>Sharing quotes with customers via a secure link, optional automated emails to the customer&apos;s address when you send or resend from the app, or other channels (e.g. WhatsApp) — no customer sign-in required.</Li>
             <Li>Real-time notifications when a customer views, accepts, or declines a quote.</Li>
             <Li>Billing and subscription management via Stripe.</Li>
           </Box>

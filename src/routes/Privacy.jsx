@@ -52,7 +52,7 @@ export default function Privacy() {
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
             <Li><strong>Account information</strong> - your email address, business name, and any business profile details you provide.</Li>
             <Li><strong>Email verification codes</strong> - a one-time 6-digit code sent to your email at registration to verify your address. Codes are short-lived and not stored after verification.</Li>
-            <Li><strong>Quote data</strong> - customer names, email addresses, line items, pricing, and any other information you enter when creating a quote.</Li>
+            <Li><strong>Quote data</strong> - customer names, email addresses, line items, pricing, and any other information you enter when creating a quote. If you use Send or Resend quote, we use the customer email and quote content you provided to deliver that message; the customer does not need a SendQuote account.</Li>
             <Li><strong>Quote usage counters</strong> - a count of quotes created, associated with your email, used to enforce free plan limits.</Li>
             <Li><strong>Usage data</strong> - pages visited, features used, and interactions with the service, collected via Firebase Analytics.</Li>
             <Li><strong>Payment data</strong> - handled entirely by Stripe. We store only your Stripe customer ID and subscription status; we never see or store card details.</Li>
@@ -64,7 +64,7 @@ export default function Privacy() {
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
             <Li>To provide, operate, and improve the SendQuote service.</Li>
             <Li>To verify your email address at registration and when generating public quotes.</Li>
-            <Li>To send transactional emails (verification codes, quote notifications).</Li>
+            <Li>To send transactional emails (verification codes, emails to you when a customer accepts or declines a quote, and emails to your customers with a link to view or review an updated quote when you choose to send or resend from the app).</Li>
             <Li>To process and manage your subscription via Stripe.</Li>
             <Li>To investigate and resolve bug reports submitted through the Support page.</Li>
             <Li>To respond to support requests.</Li>
@@ -78,7 +78,7 @@ export default function Privacy() {
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
             <Li><strong>Firebase (Google)</strong> - authentication, database (Firestore), file storage (Firebase Storage), and cloud functions. Data is stored in the <em>us-central1</em> region.</Li>
             <Li><strong>Stripe</strong> - payment processing and subscription management. Stripe's privacy policy applies to data they process: <em>stripe.com/gb/privacy</em>.</Li>
-            <Li><strong>SMTP email provider</strong> - used to send email verification codes, quote notifications, and internal bug report alerts. Only your email address and the relevant message content are transmitted.</Li>
+            <Li><strong>SMTP email provider</strong> - used to send verification codes, customer quote invite and revision emails (including the public quote link and your business details as shown on the quote), owner notifications when a customer responds, and internal bug report alerts. Only the addresses and message content required for each email are transmitted.</Li>
             <Li><strong>Anthropic</strong> - optional AI-powered PDF extraction (Claude). Only the content of PDFs you explicitly upload for parsing is sent; no other data is shared.</Li>
           </Box>
         </Section>
