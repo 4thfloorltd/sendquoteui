@@ -270,7 +270,7 @@ const Landing = () => {
                   marginTop={{ xs: 2, sm: 4 }}
                   sx={{ color: "#083a6b", lineHeight: 1.15, px: { xs: 0.5, sm: 0 } }}
                 >
-                Send Quotes Online & Get Faster Customer Approvals
+                  Send Quotes Online and Get Customer Approvals Faster
                 </Typography>
               </Box>
               <Typography
@@ -288,7 +288,7 @@ const Landing = () => {
                   color: "#083a6b",
                 }}
               >
-                Send secure links - customers can accept, decline, and comment instantly. No sign-in required. Start free..
+                Send secure links - customers can accept, decline, or comment. No sign-in required. Start free today.
               </Typography>
             </Box>
 

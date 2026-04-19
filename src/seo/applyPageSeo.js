@@ -133,6 +133,22 @@ function getHomepageJsonLd() {
 const KNOWN_SECURED_PATH =
   /^\/secured\/(dashboard|quotes|invoices|quote(?:\/[^/]+)?|quoteReview|profile|settings|billing|support)$/;
 
+/** Visible page name for `Page - SendQuote` titles on secured routes. */
+function titleForSecuredPath(pathname) {
+  const path = (pathname || "").replace(/\/$/, "");
+  const rest = path.replace(/^\/secured\/?/, "");
+  if (rest === "dashboard") return "Dashboard";
+  if (rest === "quotes") return "Quotes";
+  if (rest === "invoices") return "Invoices";
+  if (rest === "quote") return "Quote";
+  if (/^quote\//.test(rest)) return "Quote";
+  if (rest === "quoteReview") return "Quote Review";
+  if (rest === "profile" || rest === "settings") return "Profile";
+  if (rest === "billing") return "Billing";
+  if (rest === "support") return "Support";
+  return SITE_NAME;
+}
+
 export function resolveSeoForPath(pathname) {
   const path = pathname || "/";
 
@@ -146,8 +162,9 @@ export function resolveSeoForPath(pathname) {
         jsonLd: null,
       };
     }
+    const pageTitle = titleForSecuredPath(path);
     return {
-      title: `${SITE_NAME} - Account`,
+      title: `${pageTitle} - ${SITE_NAME}`,
       description: "Manage your SendQuote account, quotes, billing, and profile.",
       path,
       noindex: true,
