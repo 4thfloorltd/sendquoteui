@@ -2,7 +2,7 @@
 User-agent: *
 Allow: /
 
-# App and auth — avoid indexing duplicate or private flows
+# App and auth - avoid indexing duplicate or private flows
 Disallow: /secured/
 Disallow: /login
 Disallow: /register
