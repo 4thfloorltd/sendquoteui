@@ -48,13 +48,14 @@ export default function Terms() {
 
         <Section title="2. Description of service">
           <P>
-            SendQuote is a web-based quote management tool that allows businesses to create,
-            send, and track quotes. Features include:
+            SendQuote is a web-based tool that allows businesses to create, send, and track{" "}
+            <strong>quotes</strong> and <strong>invoices</strong>. Features include:
           </P>
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
-            <Li>AI-assisted quote drafting from a plain-language description or uploaded PDF.</Li>
-            <Li>Sharing quotes with customers via a secure link, optional automated emails to the customer&apos;s address when you send or resend from the app, or other channels (e.g. WhatsApp) - no customer sign-in required.</Li>
-            <Li>Real-time notifications when a customer views, accepts, or declines a quote.</Li>
+            <Li>AI-assisted drafting of quotes from a plain-language description or uploaded PDF.</Li>
+            <Li>Creating and managing invoices, including converting an accepted quote into an invoice where the product supports it.</Li>
+            <Li>Sharing quotes (and invoices where applicable) with customers via a secure link, optional automated emails to the customer&apos;s address when you send or resend from the app, or other channels (e.g. WhatsApp) - no customer sign-in required.</Li>
+            <Li>Real-time notifications when a customer views, accepts, or declines a quote (and equivalent invoice-related notifications where the product provides them).</Li>
             <Li>Billing and subscription management via Stripe.</Li>
           </Box>
           <P>The Service is provided on both a free and paid (Premium) subscription basis.</P>
@@ -75,7 +76,9 @@ export default function Terms() {
             The free plan allows you to create up to <strong>3 quotes</strong> in total. Each
             quote you create - whether pending, accepted, or declined - counts toward this limit.
             Only permanently deleting a quote frees up a slot. Once the limit is reached you must
-            upgrade to Premium or delete existing quotes before creating new ones. The free plan
+            upgrade to Premium or delete existing quotes before creating new ones. If the product
+            offers <strong>invoices</strong>, any limits or counting rules for invoices are as
+            shown in the app and form part of these Terms. The free plan
             is provided as-is with no guarantee of availability or support response times.
           </P>
         </Section>
@@ -94,7 +97,7 @@ export default function Terms() {
         <Section title="6. Acceptable use">
           <P>You agree not to use SendQuote to:</P>
           <Box component="ul" sx={{ pl: 3, mt: 0 }}>
-            <Li>Create or send fraudulent, misleading, or illegal quotes.</Li>
+            <Li>Create or send fraudulent, misleading, or illegal quotes or invoices.</Li>
             <Li>Harass, spam, or send unsolicited communications to third parties.</Li>
             <Li>Attempt to gain unauthorised access to any part of the Service or its infrastructure.</Li>
             <Li>Violate any applicable law or regulation.</Li>
@@ -109,7 +112,7 @@ export default function Terms() {
         <Section title="7. Intellectual property">
           <P>
             All content, branding, and software comprising SendQuote are owned by us or
-            our licensors. You retain ownership of all quote data and customer information
+            our licensors. You retain ownership of all quote and invoice data and customer information
             you input into the Service.
           </P>
           <P>

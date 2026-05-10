@@ -80,7 +80,7 @@ const Quotes = () => {
   /** `null` = show all; otherwise filter by quote status */
   const [statusFilter, setStatusFilter] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const PAGE_SIZE = 10;
+  const PAGE_SIZE = 7;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const {
@@ -330,7 +330,23 @@ const Quotes = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
+    <Box
+      sx={{
+        width: "100%",
+        maxWidth: APP_PAGE_CONTENT_MAX_WIDTH,
+        mx: "auto",
+        boxSizing: "border-box",
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        // Layout secured main: padding top ~86px + bottom ~80px — match visible content height
+        minHeight: "calc(100dvh - 166px)",
+        // Desktop: lock height so the table region scrolls; don't overflow:hidden here — Grid spacing
+        // uses negative gutters and would clip metric cards (horizontal + vertical).
+        height: { xs: "auto", sm: "calc(100dvh - 166px)" },
+        maxHeight: { sm: "calc(100dvh - 166px)" },
+      }}
+    >
       {/* ── Onboarding modal ── */}
       <Dialog open={showOnboarding} fullWidth maxWidth="xs" disableEscapeKeyDown>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 0 }}>
@@ -462,7 +478,7 @@ const Quotes = () => {
       </Dialog>
 
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2 }}>
+      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2, flexShrink: 0 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
             Quotes
@@ -471,47 +487,80 @@ const Quotes = () => {
           Create quotes, and manage sent quotes.
           </Typography>
         </Box>
-        <TextField
-          size="small"
-          placeholder="Search by name, email or quote ID…"
-          value={searchQuery}
-          onChange={(e) => handleSearchChange(e.target.value)}
-          sx={{ width: { xs: "100%", sm: 340 } }}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} />
-              </InputAdornment>
-            ),
-            endAdornment: searchQuery ? (
-              <InputAdornment position="end">
-                <IconButton
-                  onClick={() => handleSearchChange("")}
-                  edge="end"
-                  aria-label="Clear search"
-                  sx={{
-                    width: 32,
-                    height: 32,
-                    minWidth: 32,
-                    padding: 0,
-                    borderRadius: "50%",
-                    "&.Mui-focusVisible": {
-                      outline: "none",
-                      boxShadow: "0 0 0 2px #083a6b",
-                      backgroundColor: "rgba(8, 58, 107, 0.08)",
-                    },
-                  }}
-                >
-                  <CloseIcon sx={{ fontSize: 18 }} />
-                </IconButton>
-              </InputAdornment>
-            ) : null,
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "stretch", sm: "center" },
+            gap: 1.5,
+            width: { xs: "100%", sm: "auto" },
+            flexShrink: 0,
           }}
-        />
+        >
+          <TextField
+            size="small"
+            placeholder="Search by name, email or quote ID…"
+            value={searchQuery}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            sx={{
+              order: { xs: 1, sm: 0 },
+              width: { xs: "100%", sm: 340 },
+            }}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon sx={{ fontSize: 18, color: "#9CA3AF" }} />
+                </InputAdornment>
+              ),
+              endAdornment: searchQuery ? (
+                <InputAdornment position="end">
+                  <IconButton
+                    onClick={() => handleSearchChange("")}
+                    edge="end"
+                    aria-label="Clear search"
+                    sx={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      padding: 0,
+                      borderRadius: "50%",
+                      "&.Mui-focusVisible": {
+                        outline: "none",
+                        boxShadow: "0 0 0 2px #083a6b",
+                        backgroundColor: "rgba(8, 58, 107, 0.08)",
+                      },
+                    }}
+                  >
+                    <CloseIcon sx={{ fontSize: 18 }} />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            }}
+          />
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleCreateQuote}
+            sx={{
+              order: { xs: 0, sm: 1 },
+              textTransform: "none",
+              fontWeight: 600,
+              bgcolor: "#083a6b",
+              "&:hover": { bgcolor: "#062d52" },
+              borderRadius: 2,
+              px: 3,
+              display: "inline-flex",
+              flexShrink: 0,
+              alignSelf: { xs: "stretch", sm: "auto" },
+            }}
+          >
+            Create a quote
+          </Button>
+        </Box>
       </Box>
 
       {/* Metrics */}
-      <Grid container spacing={2} sx={{ mb: 4 }}>
+      <Grid container spacing={2} sx={{ mb: 4, flexShrink: 0, width: "100%", minWidth: 0, boxSizing: "border-box" }}>
         {metrics.map((m, i) => {
           const selected =
             (m.filterKey === null && statusFilter === null) ||
@@ -567,42 +616,89 @@ const Quotes = () => {
         })}
       </Grid>
 
-      {/* Quotes table */}
+      {/* Quotes table + load more — desktop: flex fill + table scroll only; mobile: page scroll */}
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          flex: { sm: 1 },
+          minHeight: { sm: 0 },
+          overflow: { xs: "visible", sm: "hidden" },
+        }}
+      >
       {loading ? (
-        <Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            py: { xs: 6, sm: 0 },
+            flex: { sm: 1 },
+            minHeight: { sm: 0 },
+          }}
+        >
           <CircularProgress />
         </Box>
       ) : quotes.length === 0 ? (
-        <Paper elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: 2, p: 6, textAlign: "center" }}>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
-            You haven&apos;t sent any quotes yet.
-          </Typography>
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateQuote}
-            sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
-          >
-            Create your first quote
-          </Button>
-        </Paper>
+        <Box
+          sx={{
+            flex: { sm: 1 },
+            minHeight: { sm: 0 },
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: { sm: "auto" },
+          }}
+        >
+          <Paper elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: 2, p: 6, textAlign: "center" }}>
+            <Typography color="text.secondary" sx={{ mb: 1 }}>
+              You haven&apos;t sent any quotes yet.
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Use <Box component="span" sx={{ fontWeight: 700, color: "#083a6b" }}>Create a quote</Box>{" "}
+              above to build your first one.
+            </Typography>
+          </Paper>
+        </Box>
       ) : filteredQuotes.length === 0 ? (
-        <Paper elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: 2, p: 4, textAlign: "center" }}>
-          <Typography color="text.secondary" sx={{ mb: 2 }}>
-            {searchQuery
-              ? `No quotes found for "${searchQuery}".`
-              : `No ${STATUS_CONFIG[statusFilter]?.label?.toLowerCase() ?? statusFilter} quotes.`}
-          </Typography>
-          <Button
-            variant="outlined"
-            onClick={() => { setStatusFilter(null); setSearchQuery(""); setVisibleCount(PAGE_SIZE); }}
-            sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b" }}
+        <Box
+          sx={{
+            flex: { sm: 1 },
+            minHeight: { sm: 0 },
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            overflow: { sm: "auto" },
+          }}
+        >
+          <Paper elevation={0} sx={{ border: "1px solid #E5E7EB", borderRadius: 2, p: 4, textAlign: "center" }}>
+            <Typography color="text.secondary" sx={{ mb: 2 }}>
+              {searchQuery
+                ? `No quotes found for "${searchQuery}".`
+                : `No ${STATUS_CONFIG[statusFilter]?.label?.toLowerCase() ?? statusFilter} quotes.`}
+            </Typography>
+            <Button
+              variant="outlined"
+              onClick={() => { setStatusFilter(null); setSearchQuery(""); setVisibleCount(PAGE_SIZE); }}
+              sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b" }}
+            >
+              Clear filters
+            </Button>
+          </Paper>
+        </Box>
+      ) : (
+        <>
+          <Box
+            sx={{
+              width: "100%",
+              minHeight: 0,
+              flex: { sm: 1 },
+              display: { sm: "flex" },
+              flexDirection: { sm: "column" },
+              overflow: { sm: "hidden" },
+            }}
           >
-            Clear filters
-          </Button>
-        </Paper>
-      ) : isXs ? (
-        /* ── Mobile: card list ── */
+      {isXs ? (
         <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
           {displayedQuotes.map((quote) => {
             const cfg = STATUS_CONFIG[quote.status] ?? STATUS_CONFIG.pending;
@@ -649,11 +745,20 @@ const Quotes = () => {
           })}
         </Box>
       ) : (
-        /* ── Desktop: table ── */
-        <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2, border: "1px solid #E5E7EB", overflowX: "auto" }}>
-          <Table>
+        <TableContainer
+          component={Paper}
+          elevation={0}
+          sx={{
+            borderRadius: 2,
+            border: "1px solid #E5E7EB",
+            flex: 1,
+            minHeight: 0,
+            overflow: "auto",
+          }}
+        >
+          <Table stickyHeader size="small">
             <TableHead>
-              <TableRow sx={{ bgcolor: "#F8FAFC" }}>
+              <TableRow>
                 {[
                   { label: "Customer", align: "left" },
                   { label: "Quote ID", align: "left" },
@@ -665,7 +770,15 @@ const Quotes = () => {
                   <TableCell
                     key={h.label}
                     align={h.align}
-                    sx={{ fontWeight: 700, color: "#083a6b", fontSize: "13px", whiteSpace: "nowrap", borderBottom: "2px solid #E5E7EB", py: 1.5 }}
+                    sx={{
+                      fontWeight: 700,
+                      color: "#083a6b",
+                      fontSize: "13px",
+                      whiteSpace: "nowrap",
+                      borderBottom: "2px solid #E5E7EB",
+                      py: 1.5,
+                      backgroundColor: "#F8FAFC",
+                    }}
                   >
                     {h.label}
                   </TableCell>
@@ -748,44 +861,33 @@ const Quotes = () => {
           </Table>
         </TableContainer>
       )}
-
-      {/* Load more + result count + create CTA */}
-      {!loading && quotes.length > 0 && (
-        <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1.5, mt: 2.5 }}>
-          {hasMore && (
-            <Button
-              variant="outlined"
-              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-              sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", minWidth: 160 }}
-            >
-              Load more
-            </Button>
-          )}
-          {filteredQuotes.length > 0 && (
+          </Box>
+          <Box
+            sx={{
+              flexShrink: 0,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              gap: 1.5,
+              pt: 2.5,
+            }}
+          >
+            {hasMore && (
+              <Button
+                variant="outlined"
+                onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+                sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", minWidth: 160 }}
+              >
+                Load more
+              </Button>
+            )}
             <Typography variant="caption" color="text.secondary">
               Showing {Math.min(visibleCount, filteredQuotes.length)} of {filteredQuotes.length} quote{filteredQuotes.length !== 1 ? "s" : ""}
             </Typography>
-          )}
-          <Button
-            variant="contained"
-            startIcon={<AddIcon />}
-            onClick={handleCreateQuote}
-            sx={{
-              textTransform: "none",
-              fontWeight: 600,
-              bgcolor: "#083a6b",
-              "&:hover": { bgcolor: "#062d52" },
-              borderRadius: 2,
-              px: 3,
-              display: "inline-flex",
-              mb: 2, 
-            }}
-          >
-            Create a quote
-          </Button>
-     
-        </Box>
+          </Box>
+        </>
       )}
+      </Box>
 
       <SubscribeDialog
         open={subscribeOpen}
