@@ -291,54 +291,91 @@ export function buildQuotePdfDocument({
   const hasBankDetails =
     documentKind === "invoice" &&
     (bankName || bankAccountNumber || bankSortCode);
+  const showInvoicePaymentNote = documentKind === "invoice";
 
-  if (hasBankDetails) {
+  if (showInvoicePaymentNote) {
     y += space.md;
-    const bankBlockMinH =
-      space.md + lineH + space.xs +
-      (String(quoteData.businessName ?? "").trim() ? lineH + 2 : 0) +
-      (bankName ? lineH + 2 : 0) +
-      (bankAccountNumber ? lineH + 2 : 0) +
-      (bankSortCode ? lineH + 2 : 0);
-    ensureSpace(bankBlockMinH);
+    const noteLines = wrapText(
+      "Payment can be made by bank transfer to the bank details below. Please use your name and invoice number as your payment reference.",
+      innerW,
+    );
+    const noteBlockH =
+      space.md +
+      lineH +
+      space.xs +
+      noteLines.length * lineH +
+      (hasBankDetails
+        ? space.md +
+          lineH +
+          space.xs +
+          (String(quoteData.businessName ?? "").trim() ? lineH + 2 : 0) +
+          (bankName ? lineH + 2 : 0) +
+          (bankAccountNumber ? lineH + 2 : 0) +
+          (bankSortCode ? lineH + 2 : 0)
+        : space.xs + lineH);
+    ensureSpace(noteBlockH);
     drawRule();
     y += space.md;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(12);
     doc.setTextColor(75, 85, 99);
-    doc.text("BANK DETAILS", M.l, y);
+    doc.text("PAYMENT", M.l, y);
     y += space.md;
 
-    const bizTitle = String(quoteData.businessName ?? "").trim();
-    if (bizTitle) {
-      doc.setFontSize(11);
-      doc.setTextColor(33, 37, 41);
-      doc.text(bizTitle, M.l, y);
-      y += lineH + space.xs;
-    }
-
+    doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
-    const labelW = 42;
-    const valueX = M.l + labelW;
+    doc.setTextColor(33, 37, 41);
+    noteLines.forEach((ln) => {
+      doc.text(ln, M.l, y);
+      y += lineH;
+    });
 
-    const bankRow = (label, value) => {
-      if (!value) return;
+    if (hasBankDetails) {
+      y += space.md;
       doc.setFont("helvetica", "bold");
+      doc.setFontSize(12);
       doc.setTextColor(75, 85, 99);
-      doc.text(label, M.l, y);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(33, 37, 41);
-      const wrapped = wrapText(value, innerW - labelW);
-      wrapped.forEach((ln, i) => {
-        doc.text(ln, valueX, y + i * lineH);
-      });
-      y += wrapped.length * lineH + space.xs;
-    };
+      doc.text("BANK DETAILS", M.l, y);
+      y += space.md;
 
-    bankRow("Bank", bankName);
-    bankRow("Account Number", bankAccountNumber);
-    bankRow("Sort Code", bankSortCode);
+      const bizTitle = String(quoteData.businessName ?? "").trim();
+      if (bizTitle) {
+        doc.setFontSize(11);
+        doc.setTextColor(33, 37, 41);
+        doc.text(bizTitle, M.l, y);
+        y += lineH + space.xs;
+      }
+
+      doc.setFontSize(11);
+      const labelW = 42;
+      const valueX = M.l + labelW;
+
+      const bankRow = (label, value) => {
+        if (!value) return;
+        doc.setFont("helvetica", "bold");
+        doc.setTextColor(75, 85, 99);
+        doc.text(label, M.l, y);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(33, 37, 41);
+        const wrapped = wrapText(value, innerW - labelW);
+        wrapped.forEach((ln, i) => {
+          doc.text(ln, valueX, y + i * lineH);
+        });
+        y += wrapped.length * lineH + space.xs;
+      };
+
+      bankRow("Bank", bankName);
+      bankRow("Account Number", bankAccountNumber);
+      bankRow("Sort Code", bankSortCode);
+    } else {
+      y += space.xs;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(10);
+      doc.setTextColor(75, 85, 99);
+      doc.text("Contact the sender for bank account details.", M.l, y);
+      y += lineH;
+    }
   }
 
   // ── FOOTER ──────────────────────────────────────────────────────────────────

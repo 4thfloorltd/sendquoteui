@@ -985,7 +985,6 @@ exports.convertQuoteToInvoice = onCall(
     region: "us-central1",
     timeoutSeconds: 60,
     memory: "256MiB",
-    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
   },
   async (request) => {
     if (!request.auth?.uid) {
@@ -1062,51 +1061,8 @@ exports.convertQuoteToInvoice = onCall(
       throw new HttpsError("internal", "Could not convert quote. Please try again.");
     }
 
-    // Email the customer the new invoice link (same as Send invoice).
-    // Conversion already succeeded — email failure must not roll it back.
-    let emailed = false;
-    try {
-      const invRef = db.collection("invoices").doc(invoiceId);
-      const invSnap = await invRef.get();
-      const data = invSnap.exists ? (invSnap.data() || {}) : {};
-      const to = String(data.customerEmail ?? "").trim().toLowerCase();
-
-      if (validateEmailAddress(to)) {
-        const invoiceUrl = `${getPublicAppOrigin()}/invoice/${invoiceId}`;
-        const { textBody, subject, greeting, invoiceSentence, businessSignoff } = buildCustomerInvoiceInviteCopy({
-          invoiceUrl,
-          customerName: data.customerName,
-          businessName: data.businessName,
-          invoiceNumber: data.invoiceNumber,
-          currency: data.currency,
-          total: data.pricing?.total,
-          isRevision: false,
-        });
-
-        await sendCustomerInvoiceInviteSmtp({
-          to,
-          subject,
-          textBody,
-          invoiceUrl,
-          businessName: data.businessName ?? "",
-          businessEmail: data.businessEmail ?? "",
-          emailHeading: "Your invoice is ready",
-          greeting,
-          invoiceSentence,
-          businessSignoff,
-        });
-
-        await invRef.update({
-          customerInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
-        emailed = true;
-      }
-    } catch (e) {
-      console.error("convertQuoteToInvoice: customer email failed", e);
-    }
-
-    return { invoiceId, emailed };
+    // Do not email on convert — owner reviews/edits in the invoice editor, then sends.
+    return { invoiceId, emailed: false };
   },
 );
 

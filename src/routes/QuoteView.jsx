@@ -218,7 +218,7 @@ const QuoteView = () => {
     setConvertError("");
     try {
       const newId = await createInvoiceFromQuote({ quoteId: quoteIdParam });
-      navigate(`/secured/invoice/${newId}`);
+      navigate("/secured/invoice", { state: { editId: newId, from: "quoteConvert" } });
     } catch (e) {
       console.error("Convert to invoice failed", e);
       setConvertError(e?.message || "Could not create invoice. Please try again.");

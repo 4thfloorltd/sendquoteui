@@ -26,12 +26,13 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import CheckIcon from "@mui/icons-material/Check";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faDownload } from "@fortawesome/free-solid-svg-icons";
-import { siVisa, siMastercard, siAmericanexpress, siApplepay, siGooglepay, siStripe } from "simple-icons";
+// Stripe pay UI hidden for now — uncomment to restore card payments:
+// import { siVisa, siMastercard, siAmericanexpress, siApplepay, siGooglepay, siStripe } from "simple-icons";
+// import InvoicePayDialog from "../components/InvoicePayDialog";
+// import { confirmInvoicePayment } from "../api/confirmInvoicePayment";
 import { buildQuotePdfDocument } from "../utils/buildQuotePdfDocument";
 import { formatDateLong, createFormatMoney } from "../utils/quoteDisplay";
 import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
-import InvoicePayDialog from "../components/InvoicePayDialog";
-import { confirmInvoicePayment } from "../api/confirmInvoicePayment";
 import { getCustomerKey } from "../utils/customerRecords";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../constants/site";
 import {
@@ -42,7 +43,7 @@ import {
 const isMobileDevice = () =>
   typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
 
-/** Renders an official simple-icons brand SVG inside a card-style badge chip. */
+/* Stripe pay UI hidden for now — uncomment BrandBadge + pay panel to restore:
 const BrandBadge = ({ icon, bgColor = "#fff", fgColor }) => (
   <Box
     sx={{
@@ -69,6 +70,7 @@ const BrandBadge = ({ icon, bgColor = "#fff", fgColor }) => (
     </svg>
   </Box>
 );
+*/
 
 /** Touch-friendly 48px row height; normalizes Link-as-button with outlined siblings. */
 const SMALL_OUTLINED_ACTION_PADDING_SX = {
@@ -93,61 +95,59 @@ const InvoiceView = () => {
   const [deleteWorking, setDeleteWorking] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
   const pdfBlobUrlRef = useRef(null);
-  const [invoicePayError, setInvoicePayError] = useState("");
-  const [paymentReturnBanner, setPaymentReturnBanner] = useState(null);
-  const [invoicePayOpen, setInvoicePayOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
-  const optimisticPaidRef = useRef(false);
-
-  const markInvoicePaidLocally = () => {
-    optimisticPaidRef.current = true;
-    setInvoice((prev) => (prev && prev.status !== "paid" ? { ...prev, status: "paid" } : prev));
-    setPaymentReturnBanner("success");
-  };
-
-  const finalizePaidPayment = async (paymentIntentId) => {
-    markInvoicePaidLocally();
-    const pi = String(paymentIntentId ?? "").trim();
-    if (!pi || !invoiceId) return;
-    try {
-      await confirmInvoicePayment(invoiceId, pi);
-    } catch (e) {
-      console.error("confirmInvoicePayment failed", e);
-    }
-  };
-
-  // Handle Stripe payment return redirects
-  useEffect(() => {
-    const q = new URLSearchParams(location.search);
-    const p = q.get("payment");
-    const redirectStatus = q.get("redirect_status");
-    const pi = q.get("payment_intent");
-
-    if (p === "success") {
-      markInvoicePaidLocally();
-      navigate({ pathname: location.pathname, search: "" }, { replace: true });
-      return;
-    }
-    if (p === "cancel") {
-      setPaymentReturnBanner("cancel");
-      navigate({ pathname: location.pathname, search: "" }, { replace: true });
-      return;
-    }
-    if (redirectStatus && pi) {
-      const next = new URLSearchParams(location.search);
-      next.delete("payment_intent");
-      next.delete("payment_intent_client_secret");
-      next.delete("redirect_status");
-      const s = next.toString();
-      navigate({ pathname: location.pathname, search: s ? `?${s}` : "" }, { replace: true });
-      if (redirectStatus === "succeeded") {
-        void finalizePaidPayment(pi);
-      } else if (redirectStatus === "failed") {
-        setInvoicePayError("Your bank did not authorise this payment.");
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot URL handling
-  }, [location.pathname, location.search, navigate, invoiceId]);
+  // Stripe pay UI hidden for now — uncomment to restore:
+  // const [invoicePayError, setInvoicePayError] = useState("");
+  // const [paymentReturnBanner, setPaymentReturnBanner] = useState(null);
+  // const [invoicePayOpen, setInvoicePayOpen] = useState(false);
+  // const optimisticPaidRef = useRef(false);
+  //
+  // const markInvoicePaidLocally = () => {
+  //   optimisticPaidRef.current = true;
+  //   setInvoice((prev) => (prev && prev.status !== "paid" ? { ...prev, status: "paid" } : prev));
+  //   setPaymentReturnBanner("success");
+  // };
+  //
+  // const finalizePaidPayment = async (paymentIntentId) => {
+  //   markInvoicePaidLocally();
+  //   const pi = String(paymentIntentId ?? "").trim();
+  //   if (!pi || !invoiceId) return;
+  //   try {
+  //     await confirmInvoicePayment(invoiceId, pi);
+  //   } catch (e) {
+  //     console.error("confirmInvoicePayment failed", e);
+  //   }
+  // };
+  //
+  // useEffect(() => {
+  //   const q = new URLSearchParams(location.search);
+  //   const p = q.get("payment");
+  //   const redirectStatus = q.get("redirect_status");
+  //   const pi = q.get("payment_intent");
+  //   if (p === "success") {
+  //     markInvoicePaidLocally();
+  //     navigate({ pathname: location.pathname, search: "" }, { replace: true });
+  //     return;
+  //   }
+  //   if (p === "cancel") {
+  //     setPaymentReturnBanner("cancel");
+  //     navigate({ pathname: location.pathname, search: "" }, { replace: true });
+  //     return;
+  //   }
+  //   if (redirectStatus && pi) {
+  //     const next = new URLSearchParams(location.search);
+  //     next.delete("payment_intent");
+  //     next.delete("payment_intent_client_secret");
+  //     next.delete("redirect_status");
+  //     const s = next.toString();
+  //     navigate({ pathname: location.pathname, search: s ? `?${s}` : "" }, { replace: true });
+  //     if (redirectStatus === "succeeded") {
+  //       void finalizePaidPayment(pi);
+  //     } else if (redirectStatus === "failed") {
+  //       setInvoicePayError("Your bank did not authorise this payment.");
+  //     }
+  //   }
+  // }, [location.pathname, location.search, navigate, invoiceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,14 +166,7 @@ const InvoiceView = () => {
             return;
           }
           const data = snap.data();
-          if (data.status === "paid") {
-            optimisticPaidRef.current = true;
-          }
-          setInvoice(
-            optimisticPaidRef.current && data.status !== "paid"
-              ? { ...data, status: "paid" }
-              : data,
-          );
+          setInvoice(data);
           setError("");
 
           if (!pdfGenerated.current) {
@@ -641,26 +634,70 @@ const InvoiceView = () => {
                 </Box>
               </>
             ) : (
-              /* ── Customer payment view ── */
+              /* ── Customer payment view (bank transfer; Stripe pay hidden for now) ── */
               <Box sx={{ py: { xs: 1, md: 2 } }}>
-                {invoice.status === "paid" || paymentReturnBanner === "success" ? (
+                {invoice.status === "paid" ? (
                   <Alert severity="success" sx={{ mb: 2 }}>
                     This invoice has been paid. Thank you!
                   </Alert>
                 ) : (
                   <>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>
+                      How to pay
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                      Amount due:{" "}
+                      <Box component="span" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Box>
+                    </Typography>
+                    <Alert severity="info" sx={{ mb: 2, alignItems: "flex-start" }}>
+                      Payment can be made by bank transfer using the bank details below.
+                      Please use your name and invoice number{" "}
+                      <Box component="span" fontWeight={700}>INV-{displayNumber}</Box>
+                      {" "}as your payment reference.
+                    </Alert>
+
+                    {(invoice.bankName || invoice.bankAccountNumber || invoice.bankSortCode) ? (
+                      <Box sx={{ mb: 2 }}>
+                        <Typography variant="subtitle2" fontWeight={700} sx={{ mb: 1, color: "#083a6b" }}>
+                          Bank details
+                        </Typography>
+                        {invoice.businessName ? (
+                          <Typography variant="body2" fontWeight={600} sx={{ mb: 0.75 }}>
+                            {invoice.businessName}
+                          </Typography>
+                        ) : null}
+                        {invoice.bankName ? (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
+                            Bank:{" "}
+                            <Box component="span" fontWeight={600} color="text.primary">{invoice.bankName}</Box>
+                          </Typography>
+                        ) : null}
+                        {invoice.bankAccountNumber ? (
+                          <Typography variant="body2" color="text.secondary" sx={{ mb: 0.35 }}>
+                            Account number:{" "}
+                            <Box component="span" fontWeight={600} color="text.primary">{invoice.bankAccountNumber}</Box>
+                          </Typography>
+                        ) : null}
+                        {invoice.bankSortCode ? (
+                          <Typography variant="body2" color="text.secondary">
+                            Sort code:{" "}
+                            <Box component="span" fontWeight={600} color="text.primary">{invoice.bankSortCode}</Box>
+                          </Typography>
+                        ) : null}
+                      </Box>
+                    ) : (
+                      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                        Bank details are not listed on this invoice. Please contact the sender for payment instructions.
+                      </Typography>
+                    )}
+
+                    {/* Stripe Pay Online (hidden for now — uncomment to restore card payments)
                     {paymentReturnBanner === "cancel" ? (
                       <Alert severity="info" sx={{ mb: 2 }} onClose={() => setPaymentReturnBanner(null)}>
                         Payment was cancelled. You can pay anytime with the button below.
                       </Alert>
                     ) : null}
-
                     <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>Pay Online</Typography>
-                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                      Amount due:{" "}
-                      <Box component="span" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Box>
-                    </Typography>
-
                     {invoice.status === "unpaid" && Number(pricing.total) > 0 ? (
                       <>
                         {invoicePayError ? (
@@ -677,8 +714,6 @@ const InvoiceView = () => {
                         >
                           Pay now
                         </Button>
-
-                        {/* Accepted card brands */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 1.25 }}>
                           <BrandBadge icon={siVisa} />
                           <BrandBadge icon={siMastercard} />
@@ -686,18 +721,8 @@ const InvoiceView = () => {
                           <BrandBadge icon={siApplepay} bgColor="#000" fgColor="#fff" />
                           <BrandBadge icon={siGooglepay} />
                         </Box>
-
-                        {/* Powered by Stripe */}
                         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
-                          <svg
-                            role="img"
-                            viewBox="0 0 24 24"
-                            width={14}
-                            height={14}
-                            fill={`#${siStripe.hex}`}
-                            xmlns="http://www.w3.org/2000/svg"
-                            aria-label="Stripe"
-                          >
+                          <svg role="img" viewBox="0 0 24 24" width={14} height={14} fill={`#${siStripe.hex}`} xmlns="http://www.w3.org/2000/svg" aria-label="Stripe">
                             <path d={siStripe.path} />
                           </svg>
                           <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
@@ -707,6 +732,7 @@ const InvoiceView = () => {
                         </Box>
                       </>
                     ) : null}
+                    */}
                   </>
                 )}
 
@@ -726,13 +752,13 @@ const InvoiceView = () => {
                     </>
                   ) : null}.
                 </Typography>
-           
               </Box>
             )}
           </Box>
         </Box>
       </Paper>
 
+      {/* Stripe pay dialog (hidden for now — uncomment to restore)
       <InvoicePayDialog
         open={invoicePayOpen}
         onClose={() => setInvoicePayOpen(false)}
@@ -741,6 +767,7 @@ const InvoiceView = () => {
         businessName={invoice.businessName ?? ""}
         onPaid={(paymentIntentId) => { void finalizePaidPayment(paymentIntentId); }}
       />
+      */}
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b" }}>Delete this invoice?</DialogTitle>

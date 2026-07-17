@@ -3104,19 +3104,19 @@ const QuoteGenerator = () => {
           <CircularProgress size={40} />
           <Typography variant="body1" fontWeight={600} color="text.primary" textAlign="center">
             {isSecuredInvoice
-              ? (editResendEmailLoading
+              ? (editResendEmailLoading && editCustomerInviteSent
                 ? "Emailing your customer the updated invoice"
                 : "Emailing your customer a link to your invoice")
-              : (editResendEmailLoading
+              : (editResendEmailLoading && editCustomerInviteSent
                 ? "Emailing your customer the updated quote"
                 : "Emailing your customer a link to your quote")}
           </Typography>
           <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ maxWidth: 320 }}>
             {isSecuredInvoice
-              ? (editResendEmailLoading
+              ? (editResendEmailLoading && editCustomerInviteSent
                 ? "They’ll get an email with a fresh link to the latest invoice. This usually takes a few seconds."
                 : "They’ll get an email they can open on any device to view or pay. This usually takes a few seconds.")
-              : (editResendEmailLoading
+              : (editResendEmailLoading && editCustomerInviteSent
                 ? "They’ll get an email with a fresh link to the latest version. This usually takes a few seconds."
                 : "They’ll get an email they can open on any device to review, accept, or comment. This usually takes a few seconds.")}
           </Typography>
