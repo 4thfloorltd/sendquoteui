@@ -49,8 +49,10 @@ const BUILT_FOR_INDUSTRIES_CHIPS = [
   { emoji: "💻", label: "Agencies" },
 ];
 
-/** Consistent offset when scrolling to in-page anchors (nav, footer CTA) */
+/** Breathing room below the top of the viewport when jumping to landing anchors */
 const LANDING_ANCHOR_SCROLL_MARGIN = "5rem";
+/** Mobile prompt CTA: keep the input near the top (center leaves it below the fold) */
+const LANDING_PROMPT_SCROLL_TOP_OFFSET_PX = 16;
 
 const Landing = () => {
   const [projectMessage, setProjectMessage] = useState("");
@@ -77,11 +79,21 @@ const Landing = () => {
   const scrollToPrompt = () => {
     const entry = document.getElementById("project-chat-entry");
     const promptInput = document.getElementById("projectPromptInput");
-    (entry ?? promptInput)?.scrollIntoView({
-      behavior: "smooth",
-      block: "center",
-    });
-    promptInput?.focus({ preventScroll: true });
+    const el = entry ?? promptInput;
+    if (el) {
+      const top =
+        window.scrollY +
+        el.getBoundingClientRect().top -
+        LANDING_PROMPT_SCROLL_TOP_OFFSET_PX;
+      window.scrollTo({
+        top: Math.max(0, top),
+        behavior: prefersReducedMotion ? "auto" : "smooth",
+      });
+    }
+    // Defer focus so iOS/Android don’t fight the scroll with keyboard jump
+    window.setTimeout(() => {
+      promptInput?.focus({ preventScroll: true });
+    }, prefersReducedMotion ? 0 : 350);
   };
 
   const scrollToFaq = () => {
