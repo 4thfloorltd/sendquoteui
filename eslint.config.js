@@ -28,11 +28,31 @@ export default [
       ...react.configs.recommended.rules,
       ...react.configs['jsx-runtime'].rules,
       ...reactHooks.configs.recommended.rules,
+      'react/prop-types': 'off',
       'react/jsx-no-target-blank': 'off',
+      'react/no-unescaped-entities': 'off',
       'react-refresh/only-export-components': [
         'warn',
         { allowConstantExport: true },
       ],
+    },
+  },
+  {
+    files: ['functions/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
+      parserOptions: {
+        sourceType: 'commonjs',
+      },
+    },
+    rules: {
+      'no-control-regex': 'off',
+    },
+  },
+  {
+    files: ['src/context/**/*.jsx'],
+    rules: {
+      'react-refresh/only-export-components': 'off',
     },
   },
 ]

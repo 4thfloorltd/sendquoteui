@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo, useState } from "react";
+import { createContext, useContext, useMemo, useState } from "react";
 import { getDefaultCurrency, getDefaultVatPercent } from "../helpers/currency";
 
 const QuoteContext = createContext(null);
@@ -18,7 +18,12 @@ export const createDefaultLineItems = () => [
 export const createInitialQuoteData = () => ({
   businessName: "",
   businessPhone: "",
+  businessEmail: "",
   businessAddress: "",
+  /** Shown on invoice PDF bank transfer section; from Profile. */
+  bankName: "",
+  bankAccountNumber: "",
+  bankSortCode: "",
   quoteNumber: "",
   quoteDate: isoToday(),
   customerName: "",
@@ -45,7 +50,6 @@ export const QuoteProvider = ({ children }) => {
       updateQuoteData,
       resetQuoteData,
     }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [quoteData],
   );
 

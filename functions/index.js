@@ -633,6 +633,69 @@ function buildCustomerQuoteInviteCopy({
   return { textBody, subject, greeting, quoteSentence, businessSignoff };
 }
 
+/** Customer invoice invite (view + pay online). */
+function buildCustomerInvoiceInviteCopy({
+  invoiceUrl,
+  customerName,
+  businessName,
+  invoiceNumber,
+  currency,
+  total,
+  isRevision = false,
+}) {
+  const name = String(customerName ?? "").trim();
+  const greeting = name ? `Hi ${name},` : "Hi,";
+  const biz = String(businessName ?? "").trim();
+  const cur = (String(currency ?? "GBP").trim() || "GBP").toUpperCase();
+  const totalNum = Number(total);
+  const amountLine = Number.isFinite(totalNum) ? `${cur} ${totalNum.toFixed(2)}` : null;
+  const num = String(invoiceNumber ?? "").trim();
+  const invRef = num ? `INV-${num}` : null;
+
+  let invoiceSentence;
+  if (isRevision) {
+    if (invRef && amountLine) {
+      invoiceSentence = `Here's your updated invoice ${invRef} for ${amountLine}.`;
+    } else if (invRef) {
+      invoiceSentence = `Here's your updated invoice ${invRef}.`;
+    } else if (amountLine) {
+      invoiceSentence = `Here's your updated invoice for ${amountLine}.`;
+    } else {
+      invoiceSentence = "Here's your updated invoice.";
+    }
+  } else if (invRef && amountLine) {
+    invoiceSentence = `Here's invoice ${invRef} for ${amountLine}.`;
+  } else if (invRef) {
+    invoiceSentence = `Here's invoice ${invRef}.`;
+  } else if (amountLine) {
+    invoiceSentence = `Here's your invoice for ${amountLine}.`;
+  } else {
+    invoiceSentence = "Here's your invoice.";
+  }
+
+  const textParagraphs = [
+    greeting,
+    "Thank you for your business.",
+    invoiceSentence,
+    ["View your invoice online:", invoiceUrl].join("\n"),
+    "You can review the details, download a PDF, and pay securely with card where available.",
+    "If you have any questions, please let us know.",
+    ["Thanks,", biz || null].filter(Boolean).join("\n"),
+  ].filter(Boolean);
+  const textBody = textParagraphs.join("\n\n");
+  const subject = num
+    ? (isRevision
+        ? (biz
+            ? `Updated Invoice INV-${num} from ${biz}`
+            : `Updated Invoice INV-${num}`)
+        : (biz
+            ? `Invoice INV-${num} from ${biz}`
+            : `Invoice INV-${num}`))
+    : (isRevision ? "Your updated invoice" : "Your invoice");
+  const businessSignoff = biz || null;
+  return { textBody, subject, greeting, invoiceSentence, businessSignoff };
+}
+
 async function sendCustomerQuoteInviteSmtp({
   to,
   subject,
@@ -727,6 +790,110 @@ async function sendCustomerQuoteInviteSmtp({
   });
 }
 
+async function sendCustomerInvoiceInviteSmtp({
+  to,
+  subject,
+  textBody,
+  invoiceUrl,
+  businessName,
+  businessEmail,
+  emailHeading = "Your invoice is ready",
+  greeting,
+  invoiceSentence,
+  businessSignoff,
+}) {
+  const host = smtpHost.value();
+  const port = Number.parseInt(String(smtpPort.value() || "587"), 10);
+  const user = smtpUser.value();
+  const pass = smtpPass.value();
+  const fromSecret = smtpFrom.value();
+  if (!host || !Number.isFinite(port) || !user || !pass || !fromSecret) {
+    throw new HttpsError("failed-precondition", "Email is not configured.");
+  }
+
+  const { address: envelopeAddr, fallbackDisplayName } = parseSmtpFromSecret(fromSecret);
+  if (!validateEmailAddress(envelopeAddr)) {
+    throw new HttpsError("failed-precondition", "SMTP_FROM must include a valid envelope address.");
+  }
+
+  const bizDisplay = sanitizeEmailDisplayName(businessName);
+  const fromName = bizDisplay || fallbackDisplayName;
+  const replyTo = validateEmailAddress(businessEmail)
+    ? String(businessEmail).trim().toLowerCase()
+    : undefined;
+
+  const transporter = nodemailer.createTransport({
+    host,
+    port,
+    secure: port === 465,
+    auth: { user, pass },
+  });
+
+  const safeBiz = escapeHtmlText(businessName || "your supplier");
+  const safeHeading = escapeHtmlText(emailHeading);
+  const safeHref = escapeHtmlText(invoiceUrl);
+  const replyHint = replyTo
+    ? `<p style="margin:8px 0 0;font-size:12px;color:#64748b;text-align:center">Replies are sent to <a href="mailto:${escapeHtmlText(replyTo)}" style="color:#083a6b">${escapeHtmlText(replyTo)}</a>.</p>`
+    : "";
+  const bodyHtml = `
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">${escapeHtmlText(greeting)}</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">Thank you for your business.</p>
+        <p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#111827"><strong>${escapeHtmlText(invoiceSentence)}</strong></p>
+        <p style="margin:0 0 6px;font-size:15px;line-height:1.55;color:#374151"><strong>View your invoice online</strong></p>
+        <p style="margin:0 0 18px;font-size:15px;line-height:1.55;word-break:break-word"><a href="${safeHref}" style="color:#083a6b;font-weight:600;text-decoration:underline">${escapeHtmlText(invoiceUrl)}</a></p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">You can review the details, download a PDF, and <strong>pay securely with card</strong> on the invoice page.</p>
+        <p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#374151">If you have any questions, please let us know.</p>
+        <p style="margin:0 0 4px;font-size:15px;line-height:1.55;color:#374151">Thanks,</p>
+        ${businessSignoff ? `<p style="margin:0;font-size:15px;line-height:1.55;color:#111827;font-weight:600">${escapeHtmlText(businessSignoff)}</p>` : ""}`;
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#F1F5F9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:32px 16px">
+    <tr><td align="center">
+      <table width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#fff;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden">
+        <tr><td style="background:#083a6b;padding:20px 24px">
+          <p style="margin:0;font-size:18px;font-weight:700;color:#fff">${safeHeading}</p>
+        </td></tr>
+        <tr><td style="padding:24px 24px 8px">
+          ${bodyHtml}
+        </td></tr>
+        <tr><td style="padding:8px 24px 28px;text-align:center">
+          <a href="${safeHref}" style="display:inline-block;background:#083a6b;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 28px;border-radius:8px">View invoice online</a>
+        </td></tr>
+        <tr><td style="padding:16px 24px 24px;border-top:1px solid #F1F5F9">
+          <p style="margin:0;font-size:12px;color:#9CA3AF;text-align:center">Sent via SendQuote on behalf of ${safeBiz}</p>
+          ${replyHint}
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+  await transporter.sendMail({
+    from: { name: fromName, address: envelopeAddr },
+    replyTo,
+    to,
+    subject,
+    text: textBody,
+    html,
+  });
+}
+
+/** Stripe: unit amount (minor units) for Checkout line_items.price_data. */
+const STRIPE_ZERO_DECIMAL_CURRENCIES = new Set([
+  "BIF", "CLP", "DJF", "GNF", "JPY", "KMF", "KRW", "MGA", "PYG", "RWF", "UGX", "VND", "VUV", "XAF", "XOF", "XPF",
+]);
+
+function stripeUnitAmountForTotal(total, currencyCode) {
+  const cur = String(currencyCode ?? "gbp").trim().toUpperCase();
+  const n = Number(total);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (STRIPE_ZERO_DECIMAL_CURRENCIES.has(cur)) return Math.round(n);
+  return Math.round(n * 100);
+}
+
 exports.sendQuoteLinkToCustomer = onCall(
   {
     region: "us-central1",
@@ -809,6 +976,363 @@ exports.sendQuoteLinkToCustomer = onCall(
     });
 
     return { ok: true, sent: true, isRevision };
+  },
+);
+
+/** Convert quote → invoice in one transaction (Admin SDK; avoids client rules gaps). */
+exports.convertQuoteToInvoice = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 60,
+    memory: "256MiB",
+    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+    const quoteId = String(request.data?.quoteId ?? "").trim();
+    if (!quoteId) {
+      throw new HttpsError("invalid-argument", "quoteId is required.");
+    }
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const quoteRef = db.collection("quotes").doc(quoteId);
+    const counterRef = db.collection("invoice_counters").doc(uid);
+
+    let invoiceId;
+    try {
+      invoiceId = await db.runTransaction(async (tx) => {
+        const quoteSnap = await tx.get(quoteRef);
+        if (!quoteSnap.exists) {
+          throw new HttpsError("not-found", "Quote not found.");
+        }
+        const q = quoteSnap.data() || {};
+        if (q.userId !== uid) {
+          throw new HttpsError("permission-denied", "You do not have access to this quote.");
+        }
+        if (q.deleted) {
+          throw new HttpsError("not-found", "Quote was deleted.");
+        }
+        if (q.convertedToInvoiceId) {
+          throw new HttpsError("failed-precondition", "This quote has already been converted to an invoice.");
+        }
+
+        const counterSnap = await tx.get(counterRef);
+        const nextNumber = counterSnap.exists ? (counterSnap.data().n ?? 1) : 1;
+
+        const userSnap = await tx.get(db.collection("users").doc(uid));
+        const u = userSnap.exists ? userSnap.data() || {} : {};
+
+        const invoiceRef = db.collection("invoices").doc();
+        tx.set(invoiceRef, {
+          invoiceNumber: String(nextNumber).padStart(4, "0"),
+          invoiceDate: q.quoteDate ?? null,
+          businessName: q.businessName ?? "",
+          businessEmail: q.businessEmail ?? "",
+          businessAddress: q.businessAddress ?? "",
+          bankName: u.bankName ?? "",
+          bankAccountNumber: u.bankAccountNumber ?? "",
+          bankSortCode: u.bankSortCode ?? "",
+          customerName: q.customerName ?? "",
+          customerEmail: q.customerEmail ?? "",
+          currency: q.currency ?? "GBP",
+          lineItems: q.lineItems ?? [],
+          pricing: q.pricing ?? { subtotal: 0, tax: 0, total: 0 },
+          vatRegistered: q.vatRegistered ?? true,
+          status: "unpaid",
+          sourceQuoteId: quoteId,
+          userId: uid,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        tx.set(counterRef, { n: nextNumber + 1 }, { merge: true });
+
+        tx.update(quoteRef, {
+          convertedToInvoiceId: invoiceRef.id,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return invoiceRef.id;
+      });
+    } catch (e) {
+      if (e instanceof HttpsError) throw e;
+      console.error("convertQuoteToInvoice transaction failed", e);
+      throw new HttpsError("internal", "Could not convert quote. Please try again.");
+    }
+
+    // Email the customer the new invoice link (same as Send invoice).
+    // Conversion already succeeded — email failure must not roll it back.
+    let emailed = false;
+    try {
+      const invRef = db.collection("invoices").doc(invoiceId);
+      const invSnap = await invRef.get();
+      const data = invSnap.exists ? (invSnap.data() || {}) : {};
+      const to = String(data.customerEmail ?? "").trim().toLowerCase();
+
+      if (validateEmailAddress(to)) {
+        const invoiceUrl = `${getPublicAppOrigin()}/invoice/${invoiceId}`;
+        const { textBody, subject, greeting, invoiceSentence, businessSignoff } = buildCustomerInvoiceInviteCopy({
+          invoiceUrl,
+          customerName: data.customerName,
+          businessName: data.businessName,
+          invoiceNumber: data.invoiceNumber,
+          currency: data.currency,
+          total: data.pricing?.total,
+          isRevision: false,
+        });
+
+        await sendCustomerInvoiceInviteSmtp({
+          to,
+          subject,
+          textBody,
+          invoiceUrl,
+          businessName: data.businessName ?? "",
+          businessEmail: data.businessEmail ?? "",
+          emailHeading: "Your invoice is ready",
+          greeting,
+          invoiceSentence,
+          businessSignoff,
+        });
+
+        await invRef.update({
+          customerInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+        emailed = true;
+      }
+    } catch (e) {
+      console.error("convertQuoteToInvoice: customer email failed", e);
+    }
+
+    return { invoiceId, emailed };
+  },
+);
+
+exports.sendInvoiceLinkToCustomer = onCall(
+  {
+    region: "us-central1",
+    secrets: [smtpHost, smtpPort, smtpUser, smtpPass, smtpFrom],
+    timeoutSeconds: 30,
+    memory: "256MiB",
+  },
+  async (request) => {
+    if (!request.auth?.uid) {
+      throw new HttpsError("unauthenticated", "You must be signed in.");
+    }
+
+    const invoiceId = String(request.data?.invoiceId ?? "").trim();
+    if (!invoiceId) {
+      throw new HttpsError("invalid-argument", "invoiceId is required.");
+    }
+    const resend = Boolean(request.data?.resend);
+
+    const uid = request.auth.uid;
+    const db = admin.firestore();
+    const ref = db.collection("invoices").doc(invoiceId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Invoice not found.");
+    }
+
+    const data = snap.data() || {};
+    if (data.deleted) {
+      throw new HttpsError("not-found", "Invoice has been deleted.");
+    }
+    if (data.userId !== uid) {
+      throw new HttpsError("permission-denied", "You do not have access to this invoice.");
+    }
+    if (data.customerInviteSentAt && !resend) {
+      return { ok: true, skipped: true, reason: "already_sent" };
+    }
+
+    const to = String(data.customerEmail ?? "").trim().toLowerCase();
+    if (!validateEmailAddress(to)) {
+      return { ok: true, skipped: true, reason: "no_email" };
+    }
+
+    const isRevision = Boolean(resend && data.customerInviteSentAt);
+
+    const invoiceUrl = `${getPublicAppOrigin()}/invoice/${invoiceId}`;
+
+    const { textBody, subject, greeting, invoiceSentence, businessSignoff } = buildCustomerInvoiceInviteCopy({
+      invoiceUrl,
+      customerName: data.customerName,
+      businessName: data.businessName,
+      invoiceNumber: data.invoiceNumber,
+      currency: data.currency,
+      total: data.pricing?.total,
+      isRevision,
+    });
+
+    try {
+      await sendCustomerInvoiceInviteSmtp({
+        to,
+        subject,
+        textBody,
+        invoiceUrl,
+        businessName: data.businessName ?? "",
+        businessEmail: data.businessEmail ?? "",
+        emailHeading: isRevision ? "Your updated invoice" : "Your invoice is ready",
+        greeting,
+        invoiceSentence,
+        businessSignoff,
+      });
+    } catch (e) {
+      console.error("sendInvoiceLinkToCustomer SMTP failed", e);
+      if (e instanceof HttpsError) throw e;
+      throw mapSmtpErrorToHttpsError(e);
+    }
+
+    await ref.update({
+      customerInviteSentAt: admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    return { ok: true, sent: true, isRevision };
+  },
+);
+
+/** Public: Stripe Checkout (one-time) for an unpaid Firestore invoice — no auth required. */
+exports.createInvoicePaymentCheckout = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [stripeSecretKey],
+    // v2 runs on Cloud Run; without this, only requests with a Google-signed identity
+    // pass IAM — unauthenticated customers see a browser CORS error on the preflight.
+    invoker: "public",
+  },
+  async (request) => {
+    const invoiceId = String(request.data?.invoiceId ?? "").trim();
+    if (!invoiceId) {
+      throw new HttpsError("invalid-argument", "invoiceId is required.");
+    }
+
+    const db = admin.firestore();
+    const ref = db.collection("invoices").doc(invoiceId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Invoice not found.");
+    }
+
+    const data = snap.data() || {};
+    if (data.deleted) {
+      throw new HttpsError("not-found", "Invoice has been removed.");
+    }
+    if (data.status !== "unpaid") {
+      throw new HttpsError("failed-precondition", "This invoice is already paid or cannot be paid online.");
+    }
+
+    const total = Number(data.pricing?.total);
+    const currency = String(data.currency ?? "gbp").trim().toLowerCase();
+    const unitAmount = stripeUnitAmountForTotal(total, currency);
+    if (unitAmount == null || unitAmount < 1) {
+      throw new HttpsError("invalid-argument", "Invoice total is missing or too small to pay online.");
+    }
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+    const appUrl = getPublicAppOrigin();
+    const num = String(data.invoiceNumber ?? "").trim();
+    const invLabel = num ? `INV-${num}` : invoiceId.slice(0, 8);
+    const biz = String(data.businessName ?? "").trim().slice(0, 120);
+
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      line_items: [
+        {
+          price_data: {
+            currency,
+            unit_amount: unitAmount,
+            product_data: {
+              name: `Invoice ${invLabel}`,
+              ...(biz ? { description: `From ${biz}` } : {}),
+            },
+          },
+          quantity: 1,
+        },
+      ],
+      success_url: `${appUrl}/invoice/${invoiceId}?payment=success`,
+      cancel_url: `${appUrl}/invoice/${invoiceId}?payment=cancel`,
+      metadata: {
+        type: "invoice_payment",
+        invoiceId,
+      },
+      ...(validateEmailAddress(data.customerEmail)
+        ? { customer_email: String(data.customerEmail).trim().toLowerCase() }
+        : {}),
+    });
+
+    if (!session.url) {
+      throw new HttpsError("internal", "Could not create payment session.");
+    }
+
+    return { url: session.url };
+  },
+);
+
+/** Public: PaymentIntent for embedded Stripe (Elements) — same rules as hosted Checkout. */
+exports.createInvoicePaymentIntent = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [stripeSecretKey],
+    invoker: "public",
+  },
+  async (request) => {
+    const invoiceId = String(request.data?.invoiceId ?? "").trim();
+    if (!invoiceId) {
+      throw new HttpsError("invalid-argument", "invoiceId is required.");
+    }
+
+    const db = admin.firestore();
+    const ref = db.collection("invoices").doc(invoiceId);
+    const snap = await ref.get();
+
+    if (!snap.exists) {
+      throw new HttpsError("not-found", "Invoice not found.");
+    }
+
+    const data = snap.data() || {};
+    if (data.deleted) {
+      throw new HttpsError("not-found", "Invoice has been removed.");
+    }
+    if (data.status !== "unpaid") {
+      throw new HttpsError("failed-precondition", "This invoice is already paid or cannot be paid online.");
+    }
+
+    const total = Number(data.pricing?.total);
+    const currency = String(data.currency ?? "gbp").trim().toLowerCase();
+    const unitAmount = stripeUnitAmountForTotal(total, currency);
+    if (unitAmount == null || unitAmount < 1) {
+      throw new HttpsError("invalid-argument", "Invoice total is missing or too small to pay online.");
+    }
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: unitAmount,
+      currency,
+      metadata: {
+        type: "invoice_payment",
+        invoiceId,
+      },
+      automatic_payment_methods: { enabled: true },
+      ...(validateEmailAddress(data.customerEmail)
+        ? { receipt_email: String(data.customerEmail).trim().toLowerCase() }
+        : {}),
+    });
+
+    if (!paymentIntent.client_secret) {
+      throw new HttpsError("internal", "Could not create payment.");
+    }
+
+    return { clientSecret: paymentIntent.client_secret };
   },
 );
 
@@ -1163,7 +1687,7 @@ Rules:
       description: String(item.description ?? ""),
       quantity: Number(item.quantity) || 1,
       unitPrice: Number(item.unitPrice) || 0,
-      vatRate: Number(item.vatRate) ?? 20,
+      vatRate: Number(item.vatRate ?? 20),
     }));
 
     return { ok: true, data: parsed };
@@ -1400,6 +1924,24 @@ exports.stripeWebhook = onRequest(
         // ── Hosted Checkout completed ──────────────────────────────────────
         case "checkout.session.completed": {
           const session = event.data.object;
+          const md = session.metadata || {};
+
+          if (md.type === "invoice_payment" && md.invoiceId) {
+            const invRef = db.collection("invoices").doc(String(md.invoiceId));
+            const invSnap = await invRef.get();
+            if (invSnap.exists && !(invSnap.data() || {}).deleted) {
+              const payIntent = session.payment_intent;
+              await invRef.set({
+                status: "paid",
+                stripeCheckoutSessionId: session.id,
+                stripePaymentIntentId: typeof payIntent === "string" ? payIntent : (payIntent && payIntent.id) ? payIntent.id : null,
+                paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              }, { merge: true });
+            }
+            break;
+          }
+
           const uid = session.client_reference_id;
           if (!uid) break;
           await db.collection("users").doc(uid).set({
@@ -1409,6 +1951,28 @@ exports.stripeWebhook = onRequest(
             stripeSubscriptionId: session.subscription,
             planUpdatedAt: admin.firestore.FieldValue.serverTimestamp(),
           }, { merge: true });
+          break;
+        }
+
+        // ── Embedded invoice payment (PaymentIntent) ─────────────────────────
+        case "payment_intent.succeeded": {
+          const pi = event.data.object;
+          const md = pi.metadata || {};
+          if (md.type === "invoice_payment" && md.invoiceId) {
+            const invRef = db.collection("invoices").doc(String(md.invoiceId));
+            const invSnap = await invRef.get();
+            if (invSnap.exists && !(invSnap.data() || {}).deleted) {
+              const cur = invSnap.data() || {};
+              if (cur.status === "unpaid") {
+                await invRef.set({
+                  status: "paid",
+                  stripePaymentIntentId: pi.id,
+                  paidAt: admin.firestore.FieldValue.serverTimestamp(),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                }, { merge: true });
+              }
+            }
+          }
           break;
         }
 
@@ -1521,7 +2085,9 @@ exports.submitBugReport = onCall(
     try {
       const userRecord = await admin.auth().getUser(uid);
       reporterEmail = userRecord.email ?? "";
-    } catch (_) { }
+    } catch (error) {
+      console.warn("Could not resolve support reporter email", error);
+    }
 
     // Build a download URL using the Firebase download token embedded in the
     // file's metadata - no IAM signBlob permission required.

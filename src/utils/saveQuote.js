@@ -1,4 +1,4 @@
-import { collection, doc, runTransaction, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, getDoc, runTransaction, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
 
 /**
@@ -74,8 +74,11 @@ export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pr
  * without consuming it.  Used to show an accurate preview in the form.
  */
 export async function peekNextQuoteNumber(userId) {
-  const counterRef  = doc(db, "quote_counters", userId);
-  const { getDoc }  = await import("firebase/firestore");
-  const snap        = await getDoc(counterRef);
-  return snap.exists() ? String(snap.data().n ?? 1).padStart(4, "0") : "0001";
+  try {
+    const snap = await getDoc(doc(db, "quote_counters", userId));
+    return snap.exists() ? String(snap.data().n ?? 1).padStart(4, "0") : "0001";
+  } catch (e) {
+    console.warn("peekNextQuoteNumber: could not read quote_counters", e);
+    return "0001";
+  }
 }

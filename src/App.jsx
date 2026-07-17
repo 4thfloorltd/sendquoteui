@@ -20,10 +20,13 @@ import QuoteReview from "./routes/secured/quotes/QuoteReview";
 import Profile from "./routes/secured/Profile";
 import Billing from "./routes/secured/Billing";
 import Invoices from "./routes/secured/Invoices";
+import Customers from "./routes/secured/Customers";
+import CustomerView from "./routes/secured/CustomerView";
 import Support from "./routes/secured/Support";
 import theme from "./theme";
 import Pricing from "./routes/Pricing";
 import QuoteView from "./routes/QuoteView";
+import InvoiceView from "./routes/InvoiceView";
 import Privacy from "./routes/Privacy";
 import Terms from "./routes/Terms";
 import NotFound from "./routes/NotFound";
@@ -56,6 +59,7 @@ const router = createBrowserRouter([
       { index: true, element: <RootRedirect /> },
       { path: "quote", element: <QuoteGenerator /> },
       { path: "quote/:quoteId", element: <QuoteView /> },
+      { path: "invoice/:invoiceId", element: <InvoiceView /> },
       { path: "pricing", element: <Pricing /> },
       { path: "privacy", element: <Privacy /> },
       { path: "terms", element: <Terms /> },
@@ -66,6 +70,10 @@ const router = createBrowserRouter([
       { path: "secured/dashboard", element: <Dashboard /> },
       { path: "secured/quotes", element: <Quotes /> },
       { path: "secured/invoices", element: <Invoices /> },
+      { path: "secured/customers", element: <Customers /> },
+      { path: "secured/customer/:customerId", element: <CustomerView /> },
+      { path: "secured/invoice/:invoiceId", element: <InvoiceView /> },
+      { path: "secured/invoice", element: <QuoteGenerator /> },
       { path: "secured/quote/:quoteId", element: <QuoteView /> },
       { path: "secured/quote", element: <QuoteGenerator /> },
       { path: "secured/quoteReview", element: <QuoteReview /> },

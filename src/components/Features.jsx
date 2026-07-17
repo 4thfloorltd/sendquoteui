@@ -1,4 +1,3 @@
-import React from "react";
 import { Box, Typography } from "@mui/material";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUser, faReply, faThumbsUp } from "@fortawesome/free-solid-svg-icons";
@@ -17,7 +16,7 @@ export const FeatureItem = ({ icon, title, description }) => {
           justifyContent: "center",
         }}
       >
-        <FontAwesomeIcon icon={icon} />
+        <FontAwesomeIcon icon={icon} style={{ color: "white", fontSize: "24px" }} />
       </Box>
       {/* Title and Description Section */}
       <Box className="flex flex-col">
@@ -45,17 +44,17 @@ const Features = () => {
     <Box className="flex flex-col md:flex-row m-4 mb-24">
       <Box className="flex flex-col justify-around bg-blue-100 md:w-1/2 md:pr-4 p-8">
         <FeatureItem
-          icon={<faUser sx={{ color: "white", fontSize: "24px" }} />}
+          icon={faUser}
           title="Customer Requests Quote"
           description="The customer submits a request for a quote, providing necessary details and requirements."
         />
         <FeatureItem
-          icon={<faReply sx={{ color: "white", fontSize: "24px" }} />}
+          icon={faReply}
           title="Business Sends Quote"
           description="The business reviews the request and returns a professional quote to the customer."
         />
         <FeatureItem
-          icon={<faThumbsUp sx={{ color: "white", fontSize: "24px" }} />}
+          icon={faThumbsUp}
           title="Customer Reviews Quote"
           description="The customer reviews the quote and accepts it, initiating the next steps in the process."
         />

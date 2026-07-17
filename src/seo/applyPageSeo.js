@@ -131,7 +131,7 @@ function getHomepageJsonLd() {
 
 /** Matches routes defined under Layout for /secured/* (see App.jsx). */
 const KNOWN_SECURED_PATH =
-  /^\/secured\/(dashboard|quotes|invoices|quote(?:\/[^/]+)?|quoteReview|profile|settings|billing|support)$/;
+  /^\/secured\/(dashboard|quotes|invoices|invoice(?:\/[^/]+)?|quote(?:\/[^/]+)?|quoteReview|profile|settings|billing|support)$/;
 
 /** Visible page name for `Page - SendQuote` titles on secured routes. */
 function titleForSecuredPath(pathname) {
@@ -140,6 +140,8 @@ function titleForSecuredPath(pathname) {
   if (rest === "dashboard") return "Dashboard";
   if (rest === "quotes") return "Quotes";
   if (rest === "invoices") return "Invoices";
+  if (rest === "invoice") return "Invoice";
+  if (/^invoice\//.test(rest)) return "Invoice";
   if (rest === "quote") return "Quote";
   if (/^quote\//.test(rest)) return "Quote";
   if (rest === "quoteReview") return "Quote Review";
@@ -176,6 +178,16 @@ export function resolveSeoForPath(pathname) {
     return {
       title: `Quote - ${SITE_NAME}`,
       description: "View and respond to a quote sent via SendQuote.",
+      path,
+      noindex: true,
+      jsonLd: null,
+    };
+  }
+
+  if (/^\/invoice\/[^/]+$/.test(path)) {
+    return {
+      title: `Invoice - ${SITE_NAME}`,
+      description: "View an invoice shared via SendQuote.",
       path,
       noindex: true,
       jsonLd: null,

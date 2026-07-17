@@ -1,0 +1,21 @@
+// Paste these blocks inside: service cloud.firestore { match /databases/{database}/documents { ... } }
+// Keep your existing users, quotes, quote_counters, etc.
+
+// Invoices — align with quotes: public read (anyone with the link), owner write.
+// If you use ONLY owner read instead of "read: if true", the invoice doc MUST have
+// field userId == request.auth.uid or reads will fail with permission-denied.
+
+    match /invoices/{invoiceId} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid;
+      allow delete: if false;
+    }
+
+    match /invoice_counters/{userId} {
+      allow read: if true;
+      allow write: if request.auth == null
+        || request.auth != null && request.auth.uid == userId;
+    }

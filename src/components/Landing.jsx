@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import {
   Box,
   Button,
@@ -289,7 +289,7 @@ const Landing = () => {
                     px: { xs: 0.5, sm: 0 },
                   }}
                 >
-                  Send Professional Quotes & Invoices that get accepted
+                  Send Professional Quotes & Invoices
                 </Typography>
               </Box>
               <Typography
@@ -307,10 +307,9 @@ const Landing = () => {
                   color: "#083a6b",
                 }}
               >
-                Stop losing quotes and invoices in chats and emails. Send them,
-                track responses in real time, and get paid instantly.
+               Stop losing quotes and invoices in emails and chats. Track customer activity in real time and stay on top of every quote and invoice.
               </Typography>
-             </Box>
+            </Box>
           </Box>
         </Box>
         {/** AI quote entry — primary CTA before product visual */}
@@ -338,137 +337,140 @@ const Landing = () => {
               scrollMarginTop: LANDING_ANCHOR_SCROLL_MARGIN,
             }}
           >
-          <Box
-            sx={{
-              display: "flex",
-              flexDirection: "column",
-              width: "100%",
-            }}
-          >
-            <FormHelperText
-              id="project-prompt-helper"
-              component="p"
-              sx={{
-                mx: 0,
-                mt: 0,
-                mb: 1.5,
-                color: "#64748B",
-                lineHeight: 1.45,
-                fontWeight: 500,
-                fontSize: "0.875rem",
-              }}
-            >
-          <strong>Add items</strong> for your quote below and <strong>we’ll turn them into a professional quote in seconds.</strong>
-            </FormHelperText>
             <Box
               sx={{
                 display: "flex",
-                alignItems: "flex-start",
-                gap: 1,
+                flexDirection: "column",
                 width: "100%",
-                minWidth: 0,
               }}
             >
+              <FormHelperText
+                id="project-prompt-helper"
+                component="p"
+                sx={{
+                  mx: 0,
+                  mt: 0,
+                  mb: 1.5,
+                  color: "#64748B",
+                  lineHeight: 1.45,
+                  fontWeight: 500,
+                  fontSize: "0.875rem",
+                }}
+              >
+                <strong>Add items</strong> for your quote below and{" "}
+                <strong>
+                  we’ll turn them into a professional quote in seconds.
+                </strong>
+              </FormHelperText>
               <Box
                 sx={{
-                  mt: 0.75,
-                  color: "#083a6b",
-                  backgroundColor: "#E0ECFF",
-                  borderRadius: "999px",
-                  width: 40,
-                  height: 40,
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  flexShrink: 0,
-                }}
-                aria-hidden
-              >
-                <AutoAwesome sx={{ fontSize: 22 }} />
-              </Box>
-              <AiPromptField
-                value={projectMessage}
-                onChange={setProjectMessage}
-                onSubmit={handleSendMessage}
-                currencySymbol={landingCurrencySymbol}
-                variant="standard"
-                minRows={3}
-                maxRows={7}
-                id="projectPromptInput"
-                InputProps={{ disableUnderline: true }}
-                inputProps={{
-                  "aria-label": "Describe your project or needs",
-                  "aria-describedby": "project-prompt-helper",
-                }}
-                rootSx={{ flex: "1 1 0" }}
-                textFieldSx={(theme) => ({
+                  alignItems: "flex-start",
+                  gap: 1,
                   width: "100%",
-                  maxWidth: "100%",
-                  "& .MuiInputBase-root": {
+                  minWidth: 0,
+                }}
+              >
+                <Box
+                  sx={{
+                    mt: 0.75,
+                    color: "#083a6b",
+                    backgroundColor: "#E0ECFF",
+                    borderRadius: "999px",
+                    width: 40,
+                    height: 40,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                  aria-hidden
+                >
+                  <AutoAwesome sx={{ fontSize: 22 }} />
+                </Box>
+                <AiPromptField
+                  value={projectMessage}
+                  onChange={setProjectMessage}
+                  onSubmit={handleSendMessage}
+                  currencySymbol={landingCurrencySymbol}
+                  variant="standard"
+                  minRows={3}
+                  maxRows={7}
+                  id="projectPromptInput"
+                  InputProps={{ disableUnderline: true }}
+                  inputProps={{
+                    "aria-label": "Describe your project or needs",
+                    "aria-describedby": "project-prompt-helper",
+                  }}
+                  rootSx={{ flex: "1 1 0" }}
+                  textFieldSx={(theme) => ({
                     width: "100%",
                     maxWidth: "100%",
-                    padding: 0,
-                    backgroundColor: "transparent",
-                  },
-                  "& .MuiInputBase-input": {
-                    width: "100%",
-                    boxSizing: "border-box",
-                    padding: theme.spacing(1),
-                    fontFamily: theme.typography.fontFamily,
-                    fontWeight: theme.typography.body1.fontWeight,
-                    fontSize: theme.typography.body1.fontSize,
-                    lineHeight: theme.typography.body1.lineHeight,
-                    letterSpacing: theme.typography.body1.letterSpacing,
-                    backgroundColor: "transparent",
-                  },
-                })}
-              />
-            </Box>
+                    "& .MuiInputBase-root": {
+                      width: "100%",
+                      maxWidth: "100%",
+                      padding: 0,
+                      backgroundColor: "transparent",
+                    },
+                    "& .MuiInputBase-input": {
+                      width: "100%",
+                      boxSizing: "border-box",
+                      padding: theme.spacing(1),
+                      fontFamily: theme.typography.fontFamily,
+                      fontWeight: theme.typography.body1.fontWeight,
+                      fontSize: theme.typography.body1.fontSize,
+                      lineHeight: theme.typography.body1.lineHeight,
+                      letterSpacing: theme.typography.body1.letterSpacing,
+                      backgroundColor: "transparent",
+                    },
+                  })}
+                />
+              </Box>
 
-            <Divider
-              sx={{
-                borderColor: "#E5E7EB",
-                my: 1.25,
-              }}
-            />
-
-            <Box
-              sx={{
-                display: "flex",
-                justifyContent: "flex-end",
-                width: "100%",
-              }}
-            >
-              <Button
-                aria-label="Send project description"
-                onClick={handleSendMessage}
-                disabled={!projectMessage.trim()}
-                variant="contained"
+              <Divider
                 sx={{
-                  color: "#fff",
-                  backgroundColor: "#083a6b",
-                  borderRadius: "10px",
-                  height: 48,
-                  px: 3,
-                  display: "flex",
-                  alignItems: "center",
-                  boxShadow: 2,
-                  fontWeight: 700,
-                  fontSize: "1.05rem",
-                  gap: 0.5,
-                  letterSpacing: 0.2,
-                  "&:hover": { backgroundColor: "#0A4C88" },
-                  "&.Mui-disabled": {
-                    backgroundColor: "#D1D5DB",
-                    color: "#fff",
-                  },
+                  borderColor: "#E5E7EB",
+                  my: 1.25,
                 }}
-                endIcon={<AutoAwesome sx={{ fontSize: 22 }} />}
+              />
+
+              <Box
+                sx={{
+                  display: "flex",
+                  justifyContent: "flex-end",
+                  width: "100%",
+                }}
               >
-                Create a Quote
-              </Button>
+                <Button
+                  aria-label="Send project description"
+                  onClick={handleSendMessage}
+                  disabled={!projectMessage.trim()}
+                  variant="contained"
+                  sx={{
+                    color: "#fff",
+                    backgroundColor: "#083a6b",
+                    borderRadius: "10px",
+                    height: 48,
+                    px: 3,
+                    display: "flex",
+                    alignItems: "center",
+                    boxShadow: 2,
+                    fontWeight: 700,
+                    fontSize: "1.05rem",
+                    gap: 0.5,
+                    letterSpacing: 0.2,
+                    "&:hover": { backgroundColor: "#0A4C88" },
+                    "&.Mui-disabled": {
+                      backgroundColor: "#D1D5DB",
+                      color: "#fff",
+                    },
+                  }}
+                  endIcon={<AutoAwesome sx={{ fontSize: 22 }} />}
+                >
+                  Create a Quote
+                </Button>
+              </Box>
             </Box>
-          </Box>
           </Box>
           {/** Scrolling built-for chips */}
           <Box
@@ -512,22 +514,27 @@ const Landing = () => {
                   "linear-gradient(to right, transparent, black 6%, black 94%, transparent)",
               }}
             >
-            <Box
-              sx={{
-                display: "flex",
-                width: prefersReducedMotion ? "100%" : "max-content",
-                gap: 1.25,
-                flexWrap: prefersReducedMotion ? "wrap" : "nowrap",
-                justifyContent: prefersReducedMotion ? "center" : "flex-start",
-                ...(!prefersReducedMotion && {
-                  animation: `${industriesMarquee} 45s linear infinite`,
-                }),
-              }}
-            >
-              {(prefersReducedMotion
-                ? BUILT_FOR_INDUSTRIES_CHIPS
-                : [...BUILT_FOR_INDUSTRIES_CHIPS, ...BUILT_FOR_INDUSTRIES_CHIPS]
-              ).map((item, i) => (
+              <Box
+                sx={{
+                  display: "flex",
+                  width: prefersReducedMotion ? "100%" : "max-content",
+                  gap: 1.25,
+                  flexWrap: prefersReducedMotion ? "wrap" : "nowrap",
+                  justifyContent: prefersReducedMotion
+                    ? "center"
+                    : "flex-start",
+                  ...(!prefersReducedMotion && {
+                    animation: `${industriesMarquee} 45s linear infinite`,
+                  }),
+                }}
+              >
+                {(prefersReducedMotion
+                  ? BUILT_FOR_INDUSTRIES_CHIPS
+                  : [
+                      ...BUILT_FOR_INDUSTRIES_CHIPS,
+                      ...BUILT_FOR_INDUSTRIES_CHIPS,
+                    ]
+                ).map((item, i) => (
                   <Chip
                     key={`${item.label}-${i}`}
                     label={
@@ -539,7 +546,11 @@ const Landing = () => {
                           gap: 0.75,
                         }}
                       >
-                        <Box component="span" aria-hidden sx={{ fontSize: "1.1rem", lineHeight: 1 }}>
+                        <Box
+                          component="span"
+                          aria-hidden
+                          sx={{ fontSize: "1.1rem", lineHeight: 1 }}
+                        >
                           {item.emoji}
                         </Box>
                         {item.label}
@@ -557,8 +568,8 @@ const Landing = () => {
                     }}
                     variant="outlined"
                   />
-              ))}
-            </Box>
+                ))}
+              </Box>
             </Box>
           </Box>
         </Box>
@@ -597,7 +608,6 @@ const Landing = () => {
             />
           </Box>
         </Box>
-
       </Box>
 
       {/* How It Works Section */}
@@ -628,7 +638,6 @@ const Landing = () => {
               title: "Track Responses in Real Time",
               text: "Get notified as soon as a quote or invoice is viewed, accepted, declined, or paid, so you can follow up and get paid faster.",
             },
-       
           ].map((item, idx) => (
             <Grid key={idx} item xs={12} md={4} sx={{ textAlign: "center" }}>
               <Box className="flex flex-col items-center text-center">
@@ -780,14 +789,6 @@ const Landing = () => {
           sx={{ color: "#083a6b", mb: 1 }}
         >
           Frequently asked questions
-        </Typography>
-        <Typography
-          variant="body2"
-          textAlign="center"
-          sx={{ color: "#6B7280", mb: 4, maxWidth: "560px", mx: "auto" }}
-        >
-          Send a quote to your customer by email, draft quotes online for free,
-          and more.
         </Typography>
         <Box className="flex flex-col w-full max-w-2xl mx-auto">
           {HOMEPAGE_FAQ.map((item) => (

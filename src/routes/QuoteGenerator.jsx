@@ -5,7 +5,6 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutline";
 import CloseIcon from "@mui/icons-material/Close";
 import UploadFileIcon from "@mui/icons-material/UploadFile";
 import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
-import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPaperPlane, faShare, faDownload } from "@fortawesome/free-solid-svg-icons";
@@ -21,17 +20,18 @@ import {
   DialogContent,
   DialogTitle,
   Divider,
+  FormControlLabel,
   IconButton,
   LinearProgress,
   ListSubheader,
   MenuItem,
   Paper,
   Stack,
+  Switch,
   Table,
   TableBody,
   TableContainer,
   TextField,
-  Tooltip,
   Typography,
 } from "@mui/material";
 import AutoAwesome from "@mui/icons-material/AutoAwesome";
@@ -42,6 +42,7 @@ import ReCAPTCHA from "react-google-recaptcha";
 import { useLocation, Link, useNavigate } from "react-router-dom";
 import { auth, db } from "../../firebase";
 import { saveQuoteToFirestore, updateQuoteInFirestore, peekNextQuoteNumber } from "../utils/saveQuote";
+import { saveInvoiceToFirestore, updateInvoiceInFirestore, peekNextInvoiceNumber } from "../utils/saveInvoice";
 import SubscribeDialog from "../components/SubscribeDialog";
 import {
   useQuote,
@@ -59,7 +60,6 @@ import {
   getFlagEmoji,
   resolveDefaultVatPercent,
 } from "../helpers/currency";
-import { getAddressSearchCountryHint } from "../helpers/addressSearch";
 import { useAddressAutocomplete } from "../hooks/useAddressAutocomplete";
 import { AiPromptField } from "../components/AiPromptField";
 import { QuoteLineItemRow } from "../components/QuoteLineItemRow";
@@ -73,11 +73,18 @@ import {
   verifyQuoteVerificationCode,
 } from "../api/quoteVerification";
 import { sendQuoteLinkToCustomer } from "../api/sendQuoteLinkToCustomer";
+import { sendInvoiceLinkToCustomer } from "../api/sendInvoiceLinkToCustomer";
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
 import { capitaliseWords } from "../helpers/utility";
 import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
+import {
+  clearGuestTaxPrefs,
+  parseDefaultVatPercentInput,
+  readGuestTaxPrefs,
+  writeGuestTaxPrefs,
+} from "../utils/guestTaxPrefs";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../constants/site";
-import { SECURED_BACK_TO_QUOTES_BUTTON_SX } from "../constants/quoteUi";
+import { SECURED_BACK_TO_QUOTES_BUTTON_SX, SECURED_BACK_TO_INVOICES_BUTTON_SX } from "../constants/quoteUi";
 
 const currencyMenuRow = (opt) => (
   <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, fontSize: "1.0625rem" }}>
@@ -138,6 +145,9 @@ function serializeQuoteForLeaveBlocker(quoteData, lineItems, vatRegistered) {
     businessName: String(quoteData?.businessName ?? "").trim(),
     businessEmail: String(quoteData?.businessEmail ?? "").trim(),
     businessAddress: String(quoteData?.businessAddress ?? "").trim(),
+    bankName: String(quoteData?.bankName ?? "").trim(),
+    bankAccountNumber: String(quoteData?.bankAccountNumber ?? "").trim(),
+    bankSortCode: String(quoteData?.bankSortCode ?? "").trim(),
     customerName: String(quoteData?.customerName ?? "").trim(),
     email: String(quoteData?.email ?? "").trim().toLowerCase(),
     currency: String(quoteData?.currency || "GBP"),
@@ -153,6 +163,30 @@ const QuoteGenerator = () => {
   const editId = location.state?.editId ?? null;
   /** Exact path only - `startsWith("/secured/quote")` would wrongly match `/secured/quotes`. */
   const isSecuredQuote = location.pathname === "/secured/quote";
+  const isSecuredInvoice = location.pathname === "/secured/invoice";
+  const isSecuredDoc = isSecuredQuote || isSecuredInvoice;
+  /** User-facing copy on /secured/invoice (form still uses quote* field names internally). */
+  const docFormUi = isSecuredInvoice
+    ? {
+        numberTitle: "Invoice number",
+        numberPrefix: "INV",
+        dateCaption: "Invoice date",
+        itemsHeading: "Invoice items",
+        sendPrimary: "Send invoice",
+        resendPrimary: "Resend invoice",
+        leaveNewBody: "Your invoice will be cleared and cannot be recovered.",
+        aiLineHeading: "AI-powered add invoice line",
+      }
+    : {
+        numberTitle: "Quote number",
+        numberPrefix: "QU",
+        dateCaption: "Date",
+        itemsHeading: "Quote items",
+        sendPrimary: "Send quote",
+        resendPrimary: "Resend quote",
+        leaveNewBody: "Your quote will be cleared and cannot be recovered.",
+        aiLineHeading: "AI-powered add quote item",
+      };
   const [formErrors, setFormErrors] = useState({});
   const [waitlistOpen, setWaitlistOpen] = useState(false);
   const [usageChecking, setUsageChecking] = useState(false);
@@ -178,7 +212,7 @@ const QuoteGenerator = () => {
   const [savedQuoteId, setSavedQuoteId] = useState(null);
   const [savedPdfBlobUrl, setSavedPdfBlobUrl] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
-  const [customerInviteNotice, setCustomerInviteNotice] = useState(null);
+  const [, setCustomerInviteNotice] = useState(null);
   /** null until invite API returns; then "new" | "updated" for dialog copy (first invite vs revision email). */
   const [customerInviteKind, setCustomerInviteKind] = useState(null);
   /** New quote save + customer email: full-screen loader until sendQuoteLinkToCustomer finishes (same pattern as edit resend). */
@@ -193,7 +227,7 @@ const QuoteGenerator = () => {
   const [waitlistEmailError, setWaitlistEmailError] = useState(false);
   const [waitlistSuccess, setWaitlistSuccess] = useState(false);
   const [waitlistSubmitting, setWaitlistSubmitting] = useState(false);
-  const [waitlistFailCount, setWaitlistFailCount] = useState(0);
+  const [, setWaitlistFailCount] = useState(0);
   // Subscription / paywall dialog
   const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [recaptchaVerified, setRecaptchaVerified] = useState(false);
@@ -202,10 +236,14 @@ const QuoteGenerator = () => {
   // Edit mode state
   const [editQuoteStatus, setEditQuoteStatus] = useState(null); // "pending"|"accepted"|"declined"
   const [editLoading, setEditLoading]         = useState(!!editId);
+  /** From Firestore `customerInviteSentAt` after load; updated after a successful invite email in this session. */
+  const [editCustomerInviteSent, setEditCustomerInviteSent] = useState(false);
 
   // PDF import state
   const pdfInputRef = useRef(null);
   const pdfDragCounter = useRef(0);
+  /** Invalidates in-flight peek when auth/path re-inits (ignore stale promise). */
+  const peekNumberStampRef = useRef(0);
   const [pdfImporting, setPdfImporting]       = useState(false);
   const [pdfImportError, setPdfImportError]   = useState("");
   const [pdfFilled, setPdfFilled]             = useState(false); // banner shown after import
@@ -213,6 +251,9 @@ const QuoteGenerator = () => {
 
   const [isPremium, setIsPremium] = useState(false);
   const [isVatRegistered, setIsVatRegistered] = useState(true);
+  const [defaultVatPercentInput, setDefaultVatPercentInput] = useState(() =>
+    String(getDefaultVatPercent()),
+  );
   const {
     options: addressOptions,
     loading: addressLoading,
@@ -266,6 +307,7 @@ const QuoteGenerator = () => {
   const businessEmailLatestRef = useRef("");
   /** Saved or region default - used for new rows, AI lines, and migration. */
   const lineItemDefaultVatRef = useRef(getDefaultVatPercent());
+  const guestTaxPrefsHydratedRef = useRef(false);
   const profileLineVatSyncedRef = useRef(false);
   const [businessProfile, setBusinessProfile] = useState(null);
   const [pastCustomers, setPastCustomers] = useState([]);
@@ -282,10 +324,20 @@ const QuoteGenerator = () => {
     return () => clearInterval(timer);
   }, [verifyDialogOpen, resendBlocked]);
 
-  const backPath = editId ? `/secured/quote/${editId}` : isSecuredQuote ? "/secured/quotes" : "/";
+  const backPath = editId
+    ? (isSecuredInvoice ? `/secured/invoice/${editId}` : `/secured/quote/${editId}`)
+    : isSecuredQuote
+      ? "/secured/quotes"
+      : isSecuredInvoice
+        ? "/secured/invoices"
+        : "/";
   const backLabel = editId
-    ? `Back to QU-${quoteData.quoteNumber ?? "…"}`
-    : isSecuredQuote ? "Back to quotes" : "Back to homepage";
+    ? (isSecuredInvoice ? `Back to INV-${quoteData.quoteNumber ?? "…"}` : `Back to QU-${quoteData.quoteNumber ?? "…"}`)
+    : isSecuredQuote
+      ? "Back to quotes"
+      : isSecuredInvoice
+        ? "Back to invoices"
+        : "Back to homepage";
 
   businessEmailLatestRef.current = quoteData.businessEmail ?? "";
 
@@ -342,16 +394,27 @@ const QuoteGenerator = () => {
   }, [quoteData.businessEmail, isSecuredQuote]);
 
   useEffect(() => {
-    if (!auth.currentUser) {
-      // Public path - default to QU-0001 since there's no account sequence to peek.
-      if (!editId) updateQuoteData({ quoteNumber: "0001" });
-      return;
+    const user = auth.currentUser;
+    const isPublicQuoteRoute = location.pathname === "/quote";
+
+    if (!user) {
+      // Only the public `/quote` builder uses a fixed preview number before sign-in.
+      // Secured `/secured/quote` and `/secured/invoice` must wait for auth so we can
+      // peek the real counter — do not apply QU-0001 here (matches quote counter UX).
+      if (isPublicQuoteRoute && !editId) updateQuoteData({ quoteNumber: "0001" });
+      return () => {
+        peekNumberStampRef.current += 1;
+      };
     }
+
     // Clear any stale data from a previous public quote session so the
     // new-quote form always starts blank (business profile is re-applied below).
-    if (!editId) resetQuoteData();
+    if (!editId) {
+      profileLineVatSyncedRef.current = false;
+      resetQuoteData();
+    }
 
-    const uid = auth.currentUser.uid;
+    const uid = user.uid;
 
     // Load business profile and plan
     getDoc(doc(db, "users", uid)).then((snap) => {
@@ -379,6 +442,9 @@ const QuoteGenerator = () => {
             businessName:    p.businessName    ?? "",
             businessEmail:   p.businessEmail   ?? "",
             businessAddress: p.businessAddress ?? "",
+            bankName:            p.bankName            ?? "",
+            bankAccountNumber:  p.bankAccountNumber   ?? "",
+            bankSortCode:       p.bankSortCode        ?? "",
           });
         }
       }
@@ -399,15 +465,77 @@ const QuoteGenerator = () => {
       })
       .catch((e) => console.error("Failed to load past customers", e));
 
-    // Prefetch the next sequential quote number only when creating a new quote.
-    // In edit mode the number is loaded from the existing document.
+    // Prefetch the next sequential number when creating a new document.
     if (!editId) {
-      peekNextQuoteNumber(uid)
-        .then((n) => updateQuoteData({ quoteNumber: n }))
-        .catch((e) => console.error("Failed to peek quote number", e));
+      const stamp = ++peekNumberStampRef.current;
+      const peek = isSecuredInvoice ? peekNextInvoiceNumber(uid) : peekNextQuoteNumber(uid);
+      peek.then((n) => {
+        if (stamp !== peekNumberStampRef.current) return;
+        updateQuoteData({ quoteNumber: n });
+      });
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+
+    return () => {
+      peekNumberStampRef.current += 1;
+    };
+    // Re-run when auth hydrates or secured document kind changes so invoice vs quote peek runs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- quote context setters omitted (stable enough; avoids every-keystroke re-init)
+  }, [auth.currentUser?.uid, location.pathname, editId, isSecuredInvoice]);
+
+  // Guest `/quote`: restore VAT settings from localStorage (synced to profile on sign-in).
+  useEffect(() => {
+    const isPublicQuoteRoute = location.pathname === "/quote";
+    if (auth.currentUser || !isPublicQuoteRoute || editId) {
+      guestTaxPrefsHydratedRef.current = false;
+      return;
+    }
+    if (guestTaxPrefsHydratedRef.current) return;
+    guestTaxPrefsHydratedRef.current = true;
+
+    const guest = readGuestTaxPrefs();
+    const vatReg = guest?.vatRegistered ?? true;
+    const def = guest?.defaultVatPercent ?? getDefaultVatPercent();
+    lineItemDefaultVatRef.current = def;
+    setDefaultVatPercentInput(String(def));
+    setIsVatRegistered(vatReg);
+    updateQuoteData((prev) => ({
+      ...prev,
+      lineItems: (prev.lineItems ?? []).map((row) => ({
+        ...row,
+        vatPercent: vatReg ? def : 0,
+      })),
+    }));
+    writeGuestTaxPrefs({ vatRegistered: vatReg, defaultVatPercent: def });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- run once per guest session on /quote
+  }, [auth.currentUser?.uid, location.pathname, editId]);
+
+  const handleGuestVatToggle = (checked) => {
+    setIsVatRegistered(checked);
+    const def = lineItemDefaultVatRef.current;
+    updateQuoteData((prev) => ({
+      ...prev,
+      lineItems: (prev.lineItems ?? []).map((row) => ({
+        ...row,
+        vatPercent: checked ? def : 0,
+      })),
+    }));
+    if (!auth.currentUser && location.pathname === "/quote") {
+      writeGuestTaxPrefs({ vatRegistered: checked, defaultVatPercent: def });
+    }
+  };
+
+  const handleGuestDefaultVatBlur = () => {
+    const v = parseDefaultVatPercentInput(defaultVatPercentInput);
+    if (v === null) {
+      setDefaultVatPercentInput(String(lineItemDefaultVatRef.current));
+      return;
+    }
+    lineItemDefaultVatRef.current = v;
+    setDefaultVatPercentInput(String(v));
+    if (!auth.currentUser && location.pathname === "/quote") {
+      writeGuestTaxPrefs({ vatRegistered: isVatRegistered, defaultVatPercent: v });
+    }
+  };
 
   useEffect(() => {
     const incoming = location.state?.projectDescription?.trim();
@@ -418,33 +546,65 @@ const QuoteGenerator = () => {
       runAiParseRef.current(incoming, { replace: true });
     }
     // runAiParseRef is a ref – intentionally omitted from deps.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.state]);
 
   useEffect(() => {
     // In edit mode, load the existing quote data instead of starting fresh
     if (!editId) {
+      setEditCustomerInviteSent(false);
       updateQuoteData({ quoteDate: isoToday() });
       return;
     }
     let cancelled = false;
     setEditLoading(true);
-    getDoc(doc(db, "quotes", editId))
-      .then((snap) => {
+    const coll = isSecuredInvoice ? "invoices" : "quotes";
+    getDoc(doc(db, coll, editId))
+      .then(async (snap) => {
         if (cancelled || !snap.exists()) return;
         const d = snap.data();
-        setEditQuoteStatus(d.status ?? "pending");
+        setEditCustomerInviteSent(Boolean(d.customerInviteSentAt));
+        setEditQuoteStatus(isSecuredInvoice ? (d.status ?? "unpaid") : (d.status ?? "pending"));
+        const dateField = isSecuredInvoice ? (d.invoiceDate ?? isoToday()) : (d.quoteDate ?? isoToday());
+        const numField = isSecuredInvoice ? (d.invoiceNumber ?? "") : (d.quoteNumber ?? "");
+        let bankName = d.bankName ?? "";
+        let bankAccountNumber = d.bankAccountNumber ?? "";
+        let bankSortCode = d.bankSortCode ?? "";
+        if (
+          isSecuredInvoice
+          && !String(bankName).trim()
+          && !String(bankAccountNumber).trim()
+          && !String(bankSortCode).trim()
+        ) {
+          const u = auth.currentUser;
+          if (u) {
+            try {
+              const uSnap = await getDoc(doc(db, "users", u.uid));
+              const ud = uSnap.data() || {};
+              bankName = ud.bankName ?? "";
+              bankAccountNumber = ud.bankAccountNumber ?? "";
+              bankSortCode = ud.bankSortCode ?? "";
+            } catch { /* ignore */ }
+          }
+        }
+        if (!isSecuredInvoice) {
+          bankName = "";
+          bankAccountNumber = "";
+          bankSortCode = "";
+        }
         const loaded = {
-          quoteDate:       d.quoteDate       ?? isoToday(),
+          quoteDate:       dateField,
           businessName:    d.businessName    ?? "",
           businessEmail:   d.businessEmail   ?? "",
           businessAddress: d.businessAddress ?? "",
           customerName:    d.customerName    ?? "",
           email:           d.customerEmail   ?? "",
           currency:        d.currency        ?? "GBP",
+          bankName,
+          bankAccountNumber,
+          bankSortCode,
         };
         updateQuoteData({
-          quoteNumber:     d.quoteNumber     ?? "",
+          quoteNumber:     numField,
           quoteDate:       loaded.quoteDate,
           businessName:    loaded.businessName,
           businessEmail:   loaded.businessEmail,
@@ -452,6 +612,9 @@ const QuoteGenerator = () => {
           customerName:    loaded.customerName,
           email:           loaded.email,
           currency:        loaded.currency,
+          bankName:        loaded.bankName,
+          bankAccountNumber: loaded.bankAccountNumber,
+          bankSortCode:    loaded.bankSortCode,
           lineItems:       d.lineItems ?? [],
         });
       })
@@ -459,6 +622,7 @@ const QuoteGenerator = () => {
       .finally(() => { if (!cancelled) setEditLoading(false); });
     return () => {
       cancelled = true;
+      setEditCustomerInviteSent(false);
       // Clear context when leaving edit mode so new-quote form starts blank.
       resetQuoteData();
     };
@@ -498,7 +662,7 @@ const QuoteGenerator = () => {
 
   useEffect(() => {
     if (editId) {
-      if (!isSecuredQuote) {
+      if (!isSecuredDoc) {
         setLeaveBaseline(null);
         return;
       }
@@ -519,7 +683,7 @@ const QuoteGenerator = () => {
     }
 
     // New quote on /secured/quote or public /quote - capture after profile / quote number / defaults settle.
-    if (isSecuredQuote && !auth.currentUser) {
+    if (isSecuredDoc && !auth.currentUser) {
       setLeaveBaseline(null);
       return;
     }
@@ -533,33 +697,33 @@ const QuoteGenerator = () => {
       cancelled = true;
       clearTimeout(t);
     };
-  }, [editId, editLoading, isSecuredQuote, auth.currentUser?.uid]);
+  }, [editId, editLoading, isSecuredDoc]);
 
   const shouldWarnOnLeave = useMemo(() => {
     if (editId) {
-      if (!isSecuredQuote) return isFormDirty;
+      if (!isSecuredDoc) return isFormDirty;
       if (leaveBaseline == null) return false;
       return serializeQuoteForLeaveBlocker(quoteData, lineItems, isVatRegistered) !== leaveBaseline;
     }
     if (leaveBaseline == null) return isFormDirty;
     return serializeQuoteForLeaveBlocker(quoteData, lineItems, isVatRegistered) !== leaveBaseline;
-  }, [editId, isSecuredQuote, leaveBaseline, quoteData, lineItems, isVatRegistered, isFormDirty]);
+  }, [editId, isSecuredDoc, leaveBaseline, quoteData, lineItems, isVatRegistered, isFormDirty]);
 
   const securedFormHasUnsavedChanges = useMemo(
-    () => isSecuredQuote && shouldWarnOnLeave,
-    [isSecuredQuote, shouldWarnOnLeave],
+    () => isSecuredDoc && shouldWarnOnLeave,
+    [isSecuredDoc, shouldWarnOnLeave],
   );
 
   const shouldBlockSecuredLeave = useCallback(
     ({ currentLocation, nextLocation }) => {
       if (suppressSecuredLeaveBlockerRef.current) return false;
       return (
-        isSecuredQuote &&
+        isSecuredDoc &&
         securedFormHasUnsavedChanges &&
         currentLocation.pathname !== nextLocation.pathname
       );
     },
-    [isSecuredQuote, securedFormHasUnsavedChanges],
+    [isSecuredDoc, securedFormHasUnsavedChanges],
   );
 
   useEffect(() => {
@@ -582,7 +746,7 @@ const QuoteGenerator = () => {
   }, [shouldWarnOnLeave]);
 
   const handleHomeClick = (e) => {
-    if (isSecuredQuote) {
+    if (isSecuredDoc) {
       // useBlocker intercepts in-app navigation when the form is dirty.
       return;
     }
@@ -776,7 +940,6 @@ const QuoteGenerator = () => {
         setAiParseLoading(false);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [lineItems, updateQuoteData],
   );
 
@@ -867,49 +1030,6 @@ const QuoteGenerator = () => {
     }
   };
 
-  // Final usage consume step after successful email PIN verification.
-  const consumeUsageAndAllowSend = async (email) => {
-    setUsageChecking(true);
-
-    try {
-      const ref = doc(db, "quote_usage", email);
-      const snap = await getDoc(ref);
-
-      if (!snap.exists()) {
-        await setDoc(ref, { count: 1, since: serverTimestamp() });
-        allowExportAfterChecks();
-        return;
-      }
-
-      const data = snap.data();
-      const sinceMs = data.since?.toMillis?.() ?? Date.now();
-      const withinWindow = Date.now() - sinceMs < USAGE_RESET_MS;
-
-      if (!withinWindow) {
-        await setDoc(ref, { count: 1, since: serverTimestamp() });
-        allowExportAfterChecks();
-        return;
-      }
-
-      if (data.count < FREE_USES) {
-        await setDoc(ref, { count: increment(1) }, { merge: true });
-        allowExportAfterChecks();
-        return;
-      }
-
-      // Limit reached - show waitlist.
-      setWaitlistEmail(email);
-      setWaitlistEmailError(false);
-      setWaitlistOpen(true);
-    } catch (e) {
-      console.error("Usage check failed", e);
-      allowExportAfterChecks();
-    } finally {
-      setUsageChecking(false);
-    }
-  };
-  
-
   const openVerifyDialogWithFreshCode = async (email) => {
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
     // Keep email available even if request fails, so "Resend code" can still work.
@@ -993,6 +1113,38 @@ const QuoteGenerator = () => {
     }
   };
 
+  const runNewInvoiceCustomerInvite = async (invoiceId) => {
+    const cust = (quoteData.email ?? "").trim().toLowerCase();
+    if (!EMAIL_RE.test(cust)) return;
+    setNewQuoteCustomerEmailLoading(true);
+    try {
+      const data = await sendInvoiceLinkToCustomer(invoiceId);
+      if (data?.sent) {
+        const isRevision = Boolean(data.isRevision);
+        setCustomerInviteKind(isRevision ? "updated" : "new");
+        setCustomerInviteNotice({
+          severity: "success",
+          message: isRevision
+            ? `We've emailed an updated invoice link to ${cust}.`
+            : `We've emailed your invoice link to ${cust}.`,
+        });
+      } else if (data?.skipped && data.reason === "already_sent") {
+        setCustomerInviteNotice({
+          severity: "info",
+          message: "A link was already emailed for this invoice.",
+        });
+      }
+    } catch (e) {
+      console.warn("Auto-send invoice to customer failed", e);
+      setCustomerInviteNotice({
+        severity: "warning",
+        message: "Could not email the customer automatically. Share the link using the options below.",
+      });
+    } finally {
+      setNewQuoteCustomerEmailLoading(false);
+    }
+  };
+
   const handleCreateAccountAndSave = async () => {
     if (createAccountPassword.length < 6) {
       setCreateAccountError("Password must be at least 6 characters.");
@@ -1012,8 +1164,11 @@ const QuoteGenerator = () => {
         businessAddress: (quoteData.businessAddress ?? "").trim(),
         loginEmail:      email,
         profileComplete: true,
+        vatRegistered:   isVatRegistered,
+        defaultVatPercent: lineItemDefaultVatRef.current,
         updatedAt:       serverTimestamp(),
       }, { merge: true });
+      clearGuestTaxPrefs();
 
       const quoteId = await saveQuoteToFirestore({
         quoteData,
@@ -1060,6 +1215,12 @@ const QuoteGenerator = () => {
     setCreateAccountError("");
     try {
       const { user } = await signInWithEmailAndPassword(auth, email, createAccountPassword);
+      await setDoc(doc(db, "users", user.uid), {
+        vatRegistered: isVatRegistered,
+        defaultVatPercent: lineItemDefaultVatRef.current,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
+      clearGuestTaxPrefs();
       const quoteId = await saveQuoteToFirestore({
         quoteData,
         lineItems,
@@ -1144,7 +1305,7 @@ const QuoteGenerator = () => {
         const lines = d.lineItems.map((item) => {
           const qty = Number(item.quantity) || 1;
           const price = Number(item.unitPrice) || 0;
-          const vat = Number(item.vatRate) ?? 20;
+          const vat = Number(item.vatRate ?? 20);
           return `${item.description}${qty !== 1 ? ` x${qty}` : ""} ${symbol}${price.toFixed(2)}${vat !== 20 ? ` ${vat}% VAT` : ""}`;
         });
         setNlLineChatInput(lines.join("\n"));
@@ -1163,11 +1324,6 @@ const QuoteGenerator = () => {
     }
   };
 
-  const handleDownloadSuccessPdf = () => {
-    const doc = buildQuotePdfDocument({ quoteData, lineItems, pricing, formatMoney, formatDateLong, vatRegistered: isVatRegistered });
-    doc.save(getQuotePdfFilename(quoteData));
-  };
-
   const handleCloseQuoteSuccess = (opts = {}) => {
     const { navigateTo } = opts;
     const pathToOpen = navigateTo !== undefined ? navigateTo : quoteSuccessNavigatePath;
@@ -1184,6 +1340,8 @@ const QuoteGenerator = () => {
     setQuoteSuccessOpen(false);
     setEditResendEmailLoading(false);
     if (pathToOpen) {
+      // Document already saved/sent — don't show the unsaved-leave warning.
+      suppressSecuredLeaveBlockerRef.current = true;
       resetQuoteData();
       navigate(pathToOpen);
     }
@@ -1191,7 +1349,8 @@ const QuoteGenerator = () => {
 
   const handleCopyShareLink = () => {
     if (!savedQuoteId) return;
-    const url = `${window.location.origin}/quote/${savedQuoteId}`;
+    const pathSeg = isSecuredInvoice ? "invoice" : "quote";
+    const url = `${window.location.origin}/${pathSeg}/${savedQuoteId}`;
     navigator.clipboard.writeText(url).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
@@ -1247,8 +1406,59 @@ const QuoteGenerator = () => {
       try {
         const uid = auth.currentUser.uid;
 
-        // ── Edit mode: update existing quote, then same success dialog as new send (copy reflects updated quote). ──
+        // ── Edit mode ──
         if (editId) {
+          if (isSecuredInvoice) {
+            await updateInvoiceInFirestore({
+              invoiceId: editId,
+              quoteData,
+              lineItems,
+              pricing,
+              vatRegistered: isVatRegistered,
+            });
+            const custEmail = (quoteData.email ?? "").trim().toLowerCase();
+            setCustomerInviteKind(null);
+            setCustomerInviteNotice(null);
+            setQuoteSuccessNavigatePath(`/secured/invoice/${editId}`);
+            setSavedQuoteId(editId);
+            suppressSecuredLeaveBlockerRef.current = true;
+
+            if (EMAIL_RE.test(custEmail)) {
+              setEditResendEmailLoading(true);
+              try {
+                const data = await sendInvoiceLinkToCustomer(editId, { resend: editCustomerInviteSent });
+                if (data?.sent) {
+                  const isRevision = Boolean(data.isRevision);
+                  setEditCustomerInviteSent(true);
+                  setCustomerInviteKind(isRevision ? "updated" : "new");
+                  setCustomerInviteNotice({
+                    severity: "success",
+                    message: isRevision
+                      ? `We've emailed an updated invoice link to ${custEmail}.`
+                      : `We've emailed a link to ${custEmail}.`,
+                  });
+                } else if (data?.skipped && data.reason === "already_sent") {
+                  setEditCustomerInviteSent(true);
+                  setCustomerInviteNotice({
+                    severity: "info",
+                    message: "A link was already emailed for this invoice.",
+                  });
+                }
+              } catch (e) {
+                console.warn("Resend invoice link to customer after edit failed", e);
+                setCustomerInviteNotice({
+                  severity: "warning",
+                  message: "Could not email the customer automatically. Share the link using the options below.",
+                });
+              } finally {
+                setEditResendEmailLoading(false);
+              }
+            }
+
+            setQuoteSuccessOpen(true);
+            return;
+          }
+
           await updateQuoteInFirestore({ quoteId: editId, quoteData, lineItems, pricing, vatRegistered: isVatRegistered });
           const custEmail = (quoteData.email ?? "").trim().toLowerCase();
           setCustomerInviteKind(null);
@@ -1260,9 +1470,10 @@ const QuoteGenerator = () => {
           if (EMAIL_RE.test(custEmail)) {
             setEditResendEmailLoading(true);
             try {
-              const data = await sendQuoteLinkToCustomer(editId, { resend: true });
+              const data = await sendQuoteLinkToCustomer(editId, { resend: editCustomerInviteSent });
               if (data?.sent) {
                 const isRevision = Boolean(data.isRevision);
+                setEditCustomerInviteSent(true);
                 setCustomerInviteKind(isRevision ? "updated" : "new");
                 setCustomerInviteNotice({
                   severity: "success",
@@ -1271,6 +1482,7 @@ const QuoteGenerator = () => {
                     : `We've emailed a link to ${custEmail}.`,
                 });
               } else if (data?.skipped && data.reason === "already_sent") {
+                setEditCustomerInviteSent(true);
                 setCustomerInviteNotice({
                   severity: "info",
                   message: "A link was already emailed for this quote.",
@@ -1291,18 +1503,41 @@ const QuoteGenerator = () => {
           return;
         }
 
-        // ── Create mode: check quota then save ──
+        // ── Create mode: check quota (quotes + invoices) then save ──
         if (!isPremium) {
           const quotesSnap = await getDocs(
             query(collection(db, "quotes"), where("userId", "==", uid)),
           );
+          const invoicesSnap = await getDocs(
+            query(collection(db, "invoices"), where("userId", "==", uid)),
+          );
           const quoteCount = quotesSnap.docs.filter((d) => !d.data().deleted).length;
-          if (quoteCount >= FREE_USES) {
+          const invoiceCount = invoicesSnap.docs.filter((d) => !d.data().deleted).length;
+          if (quoteCount + invoiceCount >= FREE_USES) {
             setSubscribeOpen(true);
             setUsageChecking(false);
             return;
           }
         }
+
+        if (isSecuredInvoice) {
+          const { id: invoiceId, invoiceNumber } = await saveInvoiceToFirestore({
+            quoteData,
+            lineItems,
+            pricing,
+            userId: uid,
+            vatRegistered: isVatRegistered,
+          });
+          updateQuoteData({ quoteNumber: invoiceNumber });
+          setSavedQuoteId(invoiceId);
+          setCustomerInviteKind(null);
+          setCustomerInviteNotice(null);
+          setQuoteSuccessNavigatePath(null);
+          await runNewInvoiceCustomerInvite(invoiceId);
+          setQuoteSuccessOpen(true);
+          return;
+        }
+
         const quoteId = await saveQuoteToFirestore({
           quoteData,
           lineItems,
@@ -1442,20 +1677,22 @@ const QuoteGenerator = () => {
     typeof navigator !== "undefined" && navigator.maxTouchPoints > 0;
 
   const handleExportPdf = async () => {
-    const filename = getQuotePdfFilename(quoteData);
-    const doc = buildQuotePdfDocument({
+    const docKind = isSecuredInvoice ? "invoice" : "quote";
+    const filename = getQuotePdfFilename(quoteData, docKind);
+    const pdfDoc = buildQuotePdfDocument({
       quoteData,
       lineItems,
       pricing,
       formatMoney,
       formatDateLong,
       vatRegistered: isVatRegistered,
+      documentKind: docKind,
     });
 
     // Web Share API with file support - mobile only.
     if (isMobile()) {
       try {
-        const blob = doc.output("blob");
+        const blob = pdfDoc.output("blob");
         const file = new File([blob], filename, { type: "application/pdf" });
         if (navigator.canShare?.({ files: [file] })) {
           await navigator.share({ files: [file], title: filename });
@@ -1469,7 +1706,7 @@ const QuoteGenerator = () => {
     }
 
     // Desktop or unsupported mobile - direct download.
-    doc.save(filename);
+    pdfDoc.save(filename);
     setExportPdfDialogOpen(false);
   };
 
@@ -1477,12 +1714,12 @@ const QuoteGenerator = () => {
     <Box
       sx={{
         width: "100%",
-        maxWidth: isSecuredQuote ? APP_PAGE_CONTENT_MAX_WIDTH : "1024px",
+        maxWidth: isSecuredDoc ? APP_PAGE_CONTENT_MAX_WIDTH : "1024px",
         minWidth: 0,
         mx: "auto",
         boxSizing: "border-box",
-        px: isSecuredQuote ? 0 : { xs: 2, sm: 3 },
-        pb: isSecuredQuote ? 0 : { xs: 2, md: 4 },
+        px: isSecuredDoc ? 0 : { xs: 2, sm: 3 },
+        pb: isSecuredDoc ? 0 : { xs: 2, md: 4 },
         animation: "fadeIn 300ms ease",
         "@keyframes fadeIn": {
           from: { opacity: 0, transform: "translateY(8px)" },
@@ -1495,10 +1732,10 @@ const QuoteGenerator = () => {
         to={backPath}
         startIcon={<ArrowBackIcon />}
         variant="text"
-        color={isSecuredQuote ? "inherit" : "primary"}
-        size={isSecuredQuote ? "medium" : "large"}
+        color={isSecuredDoc ? "inherit" : "primary"}
+        size={isSecuredDoc ? "medium" : "large"}
         onClick={handleHomeClick}
-        sx={isSecuredQuote ? SECURED_BACK_TO_QUOTES_BUTTON_SX : { pl: 0, mt: 2, mb: 2 }}
+        sx={isSecuredInvoice ? SECURED_BACK_TO_INVOICES_BUTTON_SX : isSecuredQuote ? SECURED_BACK_TO_QUOTES_BUTTON_SX : { pl: 0, mt: 2, mb: 2 }}
       >
         {backLabel}
       </Button>
@@ -1512,7 +1749,7 @@ const QuoteGenerator = () => {
         onChange={handlePdfFileChange}
       />
 
-      {editId && editQuoteStatus && (
+      {editId && editQuoteStatus && !isSecuredInvoice && (
         <Alert
           severity={editQuoteStatus === "pending" ? "info" : "warning"}
           sx={{ mt: 2, mb: 2, alignItems: "center" }}
@@ -1521,6 +1758,12 @@ const QuoteGenerator = () => {
             ? <>You are editing an existing quote. Saving changes will <strong>reset the status to pending</strong> so the customer can review it again.</>
             : <>This quote has been <strong>{editQuoteStatus}</strong> by the customer. You can still edit and save changes, but the <strong>customer will need to review it again</strong>.</>
           }
+        </Alert>
+      )}
+
+      {editId && isSecuredInvoice && editQuoteStatus && !editLoading && (
+        <Alert severity="info" sx={{ mt: 2, mb: 2, alignItems: "center" }}>
+          You are editing this invoice.
         </Alert>
       )}
 
@@ -1563,15 +1806,19 @@ const QuoteGenerator = () => {
                 color="primary"
                 sx={{ fontWeight: 700, mb: 0.25 }}
               >
-                Quote number: QU-{quoteData?.quoteNumber ? quoteData.quoteNumber : "-"}
+                {(() => {
+                  const n = String(quoteData?.quoteNumber ?? "").trim();
+                  const tail = n || (isSecuredDoc && (!editId || editLoading) ? "…" : "-");
+                  return `${docFormUi.numberTitle}: ${docFormUi.numberPrefix}-${tail}`;
+                })()}
               </Typography>
             </Box>
 
             <Typography variant="body1" color="text.secondary" sx={{ mt: 0.25 }}>
-              Date: {formatDateLong(quoteData.quoteDate)}
+              {docFormUi.dateCaption}: {formatDateLong(quoteData.quoteDate)}
             </Typography>
           </Box>
-          {!isSecuredQuote && (
+          {!isSecuredDoc && (
           <Box
             sx={{
               flex: "1 1 min-content",
@@ -1957,10 +2204,65 @@ const QuoteGenerator = () => {
           ))}
         </TextField>
 
+        {!auth.currentUser && location.pathname === "/quote" ? (
+          <Box
+            sx={{
+              border: "1px solid #E5E7EB",
+              borderRadius: 2,
+              bgcolor: "#F8FAFC",
+              px: 2.5,
+              py: 2,
+              mt: 2,
+            }}
+          >
+            <Typography variant="subtitle2" fontWeight={700} color="#083a6b" sx={{ mb: 1.5 }}>
+              Tax settings
+            </Typography>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={isVatRegistered}
+                  onChange={(e) => handleGuestVatToggle(e.target.checked)}
+                />
+              }
+              label={
+                <Box sx={{ ml: 0.5 }}>
+                  <Typography variant="body2" fontWeight={600} color="#111827">
+                    VAT registered
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    When enabled, a VAT % field appears on each line item and VAT is shown in totals.
+                  </Typography>
+                </Box>
+              }
+              labelPlacement="end"
+              sx={{ m: 0, alignItems: "flex-start" }}
+            />
+            <Divider sx={{ my: 2, borderColor: "#E5E7EB" }} />
+            <TextField
+              label="Default VAT rate (%)"
+              type="number"
+              size="small"
+              value={defaultVatPercentInput}
+              onChange={(e) => setDefaultVatPercentInput(e.target.value)}
+              onBlur={handleGuestDefaultVatBlur}
+              disabled={!isVatRegistered}
+              inputProps={{ min: 0, max: 100, step: 0.01 }}
+              fullWidth
+              sx={{ maxWidth: 280 }}
+              helperText={
+                isVatRegistered
+                  ? "Applied to new line items on quotes."
+                  : "Turn on VAT registered to set a default rate for new line items."
+              }
+            />
+          </Box>
+        ) : null}
+
         <Divider sx={{ my: 2 }} />
         <Box id="field-lineItems" ref={lineItemsLayoutRef} sx={{ width: "100%", minWidth: 0 }}>
           <Typography variant="subtitle1" fontWeight={700} color="primary" mb={1}>
-            Quote items
+            {docFormUi.itemsHeading}
           </Typography>
           <Typography variant="body2" color="text.secondary" display="block" sx={{ mb: 1.5 }}>
             Add or remove rows. Amount is calculated from price{isVatRegistered ? ", quantity, and VAT %" : " and quantity"}.
@@ -2130,7 +2432,7 @@ const QuoteGenerator = () => {
               <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
                 <AutoAwesome sx={{ fontSize: 22, color: "primary.main" }} />
                 <Typography variant="subtitle2" fontWeight={700} color="primary.main">
-                  AI-powered add quote item
+                  {docFormUi.aiLineHeading}
                 </Typography>
               </Stack>
               {aiParseError && (
@@ -2146,19 +2448,19 @@ const QuoteGenerator = () => {
               <Box
                 sx={{ position: "relative" }}
                 onDragEnter={(e) => {
-                  if (!isPremium || !isSecuredQuote) return;
+                  if (!isPremium || !isSecuredDoc) return;
                   e.preventDefault();
                   pdfDragCounter.current += 1;
                   if (pdfDragCounter.current === 1) setIsDraggingPdf(true);
                 }}
                 onDragLeave={() => {
-                  if (!isPremium || !isSecuredQuote) return;
+                  if (!isPremium || !isSecuredDoc) return;
                   pdfDragCounter.current -= 1;
                   if (pdfDragCounter.current === 0) setIsDraggingPdf(false);
                 }}
-                onDragOver={(e) => { if (isPremium && isSecuredQuote) e.preventDefault(); }}
+                onDragOver={(e) => { if (isPremium && isSecuredDoc) e.preventDefault(); }}
                 onDrop={(e) => {
-                  if (!isPremium || !isSecuredQuote) return;
+                  if (!isPremium || !isSecuredDoc) return;
                   e.preventDefault();
                   pdfDragCounter.current = 0;
                   setIsDraggingPdf(false);
@@ -2170,7 +2472,7 @@ const QuoteGenerator = () => {
                 }}
               >
                 {/* Drag overlay - premium + secured only */}
-                {isDraggingPdf && isPremium && isSecuredQuote && (
+                {isDraggingPdf && isPremium && isSecuredDoc && (
                   <Box sx={{
                     position: "absolute", inset: 0, zIndex: 20, borderRadius: 2,
                     bgcolor: "rgba(8,58,107,0.85)", display: "flex", flexDirection: "column",
@@ -2204,7 +2506,7 @@ const QuoteGenerator = () => {
                   sx={{
                     bgcolor: "primary.main",
                     borderRadius: 2,
-                    border: isDraggingPdf && isPremium && isSecuredQuote
+                    border: isDraggingPdf && isPremium && isSecuredDoc
                       ? "2px dashed rgba(255,255,255,0.85)"
                       : "none",
                     transition: "border-color 0.15s",
@@ -2264,7 +2566,7 @@ const QuoteGenerator = () => {
               </Box>
 
               {/* PDF drop / upload - Premium + secured only; else locked teaser (public: non-interactive) */}
-              {isSecuredQuote && isPremium ? (
+              {isSecuredDoc && isPremium ? (
                 <Box
                   component="button"
                   type="button"
@@ -2284,16 +2586,16 @@ const QuoteGenerator = () => {
                 </Box>
               ) : (
                 <Box
-                  component={isSecuredQuote ? "button" : "div"}
-                  type={isSecuredQuote ? "button" : undefined}
-                  onClick={isSecuredQuote ? () => navigate("/secured/billing", { state: { scrollToPremium: true } }) : undefined}
-                  aria-disabled={!isSecuredQuote}
+                  component={isSecuredDoc ? "button" : "div"}
+                  type={isSecuredDoc ? "button" : undefined}
+                  onClick={isSecuredDoc ? () => navigate("/secured/billing", { state: { scrollToPremium: true } }) : undefined}
+                  aria-disabled={!isSecuredDoc}
                   sx={{
                     mt: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center",
                     gap: 1, bgcolor: "#F8FAFC", border: "1px dashed #E5E7EB",
-                    borderRadius: 1.5, py: 0.9, px: 1.5, cursor: isSecuredQuote ? "pointer" : "default",
+                    borderRadius: 1.5, py: 0.9, px: 1.5, cursor: isSecuredDoc ? "pointer" : "default",
                     color: "#9CA3AF", transition: "all 0.15s", position: "relative",
-                    ...(!isSecuredQuote
+                    ...(!isSecuredDoc
                       ? { pointerEvents: "none" }
                       : { "&:hover": { bgcolor: "#F0F4FF", borderColor: "#083a6b", color: "#6B7280" } }),
                   }}
@@ -2302,7 +2604,7 @@ const QuoteGenerator = () => {
                   <Typography variant="caption" fontWeight={600} sx={{ fontSize: "0.78rem" }}>
                     PDF import - Premium feature
                   </Typography>
-                  {isSecuredQuote && (
+                  {isSecuredDoc && (
                     <Chip
                       label="Upgrade"
                       size="small"
@@ -2389,12 +2691,16 @@ const QuoteGenerator = () => {
             }}
           >
             {editId
-              ? usageChecking ? "Sending" : "Resend quote"
+              ? usageChecking
+                ? "Sending"
+                : editCustomerInviteSent
+                  ? docFormUi.resendPrimary
+                  : docFormUi.sendPrimary
               : auth.currentUser
-                ? usageChecking ? "Sending" : "Send quote"
+                ? usageChecking ? "Sending" : docFormUi.sendPrimary
                 : sendingVerificationCode ? "Sending code…"
                 : usageChecking ? "Checking…"
-                : "Send quote"
+                : docFormUi.sendPrimary
             }
           </Button>
         </Stack>
@@ -2407,7 +2713,7 @@ const QuoteGenerator = () => {
           <Typography>
             {editId
               ? "Your unsaved changes will be lost."
-              : "Your quote will be cleared and cannot be recovered."}
+              : docFormUi.leaveNewBody}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, gap: 1 }}>
@@ -2619,11 +2925,13 @@ const QuoteGenerator = () => {
       {/* Export / Share PDF Dialog */}
       <Dialog open={exportPdfDialogOpen} onClose={handleCloseExportPdfDialog} fullWidth maxWidth="xs">
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", fontSize: "1.15rem", py: 2 }}>
-          Share your quote
+          {isSecuredInvoice ? "Share your invoice" : "Share your quote"}
         </DialogTitle>
         <DialogContent sx={{ pt: 0 }}>
           <Typography variant="body2" color="text.secondary">
-            Your quote has been generated as a PDF create an account to share and track its progress. 
+            {isSecuredInvoice
+              ? "Your invoice has been generated as a PDF. Create an account to share and track its progress."
+              : "Your quote has been generated as a PDF create an account to share and track its progress."}
           </Typography>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2, pt: 1, flexDirection: "column", alignItems: "stretch", gap: 1 }}>
@@ -2635,7 +2943,9 @@ const QuoteGenerator = () => {
             startIcon={<FontAwesomeIcon icon={typeof navigator !== "undefined" && navigator.maxTouchPoints > 0  ? faShare : faDownload} />}
             sx={{ fontSize: "1.0625rem" }}
           >
-            {typeof navigator !== "undefined" && navigator.maxTouchPoints > 0 ? "Share Quote" : "Download PDF"}
+            {typeof navigator !== "undefined" && navigator.maxTouchPoints > 0
+              ? (isSecuredInvoice ? "Share invoice" : "Share Quote")
+              : "Download PDF"}
           </Button>
           <Button variant="text" size="large" fullWidth onClick={handleCloseExportPdfDialog} color="inherit" sx={{ fontSize: "1.0625rem" }}>
             Cancel
@@ -2793,14 +3103,22 @@ const QuoteGenerator = () => {
         <DialogContent sx={{ py: 4, display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
           <CircularProgress size={40} />
           <Typography variant="body1" fontWeight={600} color="text.primary" textAlign="center">
-            {editResendEmailLoading
-              ? "Emailing your customer the updated quote"
-              : "Emailing your customer a link to your quote"}
+            {isSecuredInvoice
+              ? (editResendEmailLoading
+                ? "Emailing your customer the updated invoice"
+                : "Emailing your customer a link to your invoice")
+              : (editResendEmailLoading
+                ? "Emailing your customer the updated quote"
+                : "Emailing your customer a link to your quote")}
           </Typography>
           <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ maxWidth: 320 }}>
-            {editResendEmailLoading
-              ? "They’ll get an email with a fresh link to the latest version. This usually takes a few seconds."
-              : "They’ll get an email they can open on any device to review, accept, or comment. This usually takes a few seconds."}
+            {isSecuredInvoice
+              ? (editResendEmailLoading
+                ? "They’ll get an email with a fresh link to the latest invoice. This usually takes a few seconds."
+                : "They’ll get an email they can open on any device to view or pay. This usually takes a few seconds.")
+              : (editResendEmailLoading
+                ? "They’ll get an email with a fresh link to the latest version. This usually takes a few seconds."
+                : "They’ll get an email they can open on any device to review, accept, or comment. This usually takes a few seconds.")}
           </Typography>
         </DialogContent>
       </Dialog>
@@ -2826,6 +3144,22 @@ const QuoteGenerator = () => {
           <CheckCircleOutlineIcon sx={{ color: "#4CAF50", fontSize: "1.6rem", mr: 1.5 }} />
           {(() => {
             const cust = (quoteData.email ?? "").trim().toLowerCase();
+            if (isSecuredInvoice) {
+              const afterEditInv = Boolean(quoteSuccessNavigatePath);
+              if (!EMAIL_RE.test(cust)) {
+                return afterEditInv ? "Invoice updated - share below" : "Invoice is ready to share!";
+              }
+              if (customerInviteKind === "updated") {
+                return `We've emailed an updated invoice link to ${cust}`;
+              }
+              if (customerInviteKind === "new") {
+                return `We've emailed your invoice link to ${cust}`;
+              }
+              if (afterEditInv && EMAIL_RE.test(cust)) {
+                return "Invoice updated";
+              }
+              return "Invoice saved";
+            }
             const afterEditSave = Boolean(quoteSuccessNavigatePath);
             if (!EMAIL_RE.test(cust)) {
               return afterEditSave ? "Quote updated - share below" : "Quote is ready to share!";
@@ -2869,7 +3203,7 @@ const QuoteGenerator = () => {
             <TextField
               fullWidth
               size="small"
-              value={savedQuoteId ? `${window.location.origin}/quote/${savedQuoteId}` : ""}
+              value={savedQuoteId ? `${window.location.origin}/${isSecuredInvoice ? "invoice" : "quote"}/${savedQuoteId}` : ""}
               InputProps={{ readOnly: true, sx: { fontSize: "0.875rem", bgcolor: "#F8FAFC" } }}
             />
             <Button
@@ -2890,6 +3224,7 @@ const QuoteGenerator = () => {
           </Box>
           <QuoteShareQuickButtons
             quoteDocId={savedQuoteId}
+            documentKind={isSecuredInvoice ? "invoice" : "quote"}
             customerName={quoteData.customerName}
             businessName={quoteData.businessName}
             quoteNumber={quoteData.quoteNumber}
@@ -2902,17 +3237,19 @@ const QuoteGenerator = () => {
         {/* Dashboard CTA */}
         <Box sx={{ px: 3, pb: 2.5, pt: 1.5, display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 1.5, borderTop: "1px solid #E5E7EB" }}>
           <Typography variant="body2" color="text.secondary" sx={{ flex: 1, fontWeight: 700 }}>
-            Go to your quotes to view and manage sent quotes.
+            {isSecuredInvoice
+              ? "Go to your invoices to view and manage them."
+              : "Go to your quotes to view and manage sent quotes."}
           </Typography>
 
           <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
               <Button
                 variant="contained"
                 size="medium"
-                onClick={() => handleCloseQuoteSuccess({ navigateTo: "/secured/quotes" })}
+                onClick={() => handleCloseQuoteSuccess({ navigateTo: isSecuredInvoice ? "/secured/invoices" : "/secured/quotes" })}
                 sx={{ textTransform: "none", fontWeight: 600, whiteSpace: "nowrap", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
               >
-                Go to quotes →
+                {isSecuredInvoice ? "Go to invoices →" : "Go to quotes →"}
               </Button>
           </Box>
         </Box>

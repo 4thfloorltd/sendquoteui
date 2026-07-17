@@ -18,7 +18,7 @@ import {
   TextField,
   Typography,
 } from "@mui/material";
-import { doc, getDoc, setDoc, deleteDoc, deleteField, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, setDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged, verifyBeforeUpdateEmail, updatePassword, EmailAuthProvider, reauthenticateWithCredential, signOut } from "firebase/auth";
 import { getFunctions, httpsCallable } from "firebase/functions";
 import { auth, db } from "../../../firebase";
@@ -26,6 +26,9 @@ import { useAddressAutocomplete } from "../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../utils/userEmailAvailability";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 import { getDefaultVatPercent, resolveDefaultVatPercent } from "../../helpers/currency";
+import { clearGuestTaxPrefs, readGuestTaxPrefs } from "../../utils/guestTaxPrefs";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCircleUser } from "@fortawesome/free-solid-svg-icons";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -39,6 +42,9 @@ const Profile = () => {
   const [bizName, setBizName]                 = useState("");
   const [bizEmail, setBizEmail]               = useState("");
   const [bizAddress, setBizAddress]           = useState("");
+  const [bankName, setBankName]               = useState("");
+  const [bankAccountNumber, setBankAccountNumber] = useState("");
+  const [bankSortCode, setBankSortCode]       = useState("");
   const [addressFieldFocused, setAddressFieldFocused] = useState(false);
   const [profileLoading, setProfileLoading]   = useState(true);
   const [profileSaving, setProfileSaving]     = useState(false);
@@ -117,10 +123,34 @@ const Profile = () => {
           const d = snap.data();
           setBizName(d.businessName    ?? "");
           setBizAddress(d.businessAddress ?? "");
-          setVatRegistered(d.vatRegistered ?? true);
-          const effVat = resolveDefaultVatPercent(d);
+          setBankName(d.bankName ?? "");
+          setBankAccountNumber(d.bankAccountNumber ?? "");
+          setBankSortCode(d.bankSortCode ?? "");
+          const guestTax = readGuestTaxPrefs();
+          const vatReg = d.vatRegistered ?? guestTax?.vatRegistered ?? true;
+          const effVat = d.defaultVatPercent !== undefined && d.defaultVatPercent !== null
+            ? resolveDefaultVatPercent(d)
+            : (guestTax?.defaultVatPercent ?? getDefaultVatPercent());
+          setVatRegistered(vatReg);
           defaultVatPercentCommittedRef.current = effVat;
           setDefaultVatPercentInput(String(effVat));
+
+          if (
+            guestTax
+            && (d.vatRegistered === undefined || d.defaultVatPercent === undefined)
+          ) {
+            setDoc(
+              doc(db, "users", user.uid),
+              {
+                vatRegistered: vatReg,
+                defaultVatPercent: effVat,
+                updatedAt: serverTimestamp(),
+              },
+              { merge: true },
+            )
+              .then(() => clearGuestTaxPrefs())
+              .catch((err) => console.error("Guest tax prefs sync failed", err));
+          }
 
           const authLower  = authUserEmail.toLowerCase();
           const pending    = d.pendingEmailChange?.toLowerCase();
@@ -166,7 +196,10 @@ const Profile = () => {
         } else {
           setBizEmail(authUserEmail);
           setOriginalBizEmail(authUserEmail);
-          const effVat = getDefaultVatPercent();
+          const guestTax = readGuestTaxPrefs();
+          const vatReg = guestTax?.vatRegistered ?? true;
+          const effVat = guestTax?.defaultVatPercent ?? getDefaultVatPercent();
+          setVatRegistered(vatReg);
           defaultVatPercentCommittedRef.current = effVat;
           setDefaultVatPercentInput(String(effVat));
         }
@@ -213,6 +246,9 @@ const Profile = () => {
         await setDoc(doc(db, "users", uid), {
           businessName:    bizName.trim(),
           businessAddress: bizAddress.trim(),
+          bankName:            bankName.trim(),
+          bankAccountNumber:  bankAccountNumber.trim(),
+          bankSortCode:       bankSortCode.trim(),
           profileComplete: true,
           updatedAt:       serverTimestamp(),
         }, { merge: true });
@@ -229,6 +265,9 @@ const Profile = () => {
         businessName:    bizName.trim(),
         businessEmail:   normalizedEmail,
         businessAddress: bizAddress.trim(),
+        bankName:            bankName.trim(),
+        bankAccountNumber:  bankAccountNumber.trim(),
+        bankSortCode:       bankSortCode.trim(),
         profileComplete: true,
         loginEmail:      auth.currentUser?.email?.toLowerCase() ?? "",
         updatedAt:       serverTimestamp(),
@@ -450,9 +489,12 @@ const Profile = () => {
 
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
-      <Typography variant="h5" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
-        Profile
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <FontAwesomeIcon icon={faCircleUser} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+        <Typography variant="h5" fontWeight={700} color="#083a6b" sx={{ mb: 0 }}>
+          Profile
+        </Typography>
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Manage your business profile and account security.
       </Typography>
@@ -466,7 +508,10 @@ const Profile = () => {
           <Typography
             variant="body2"
             onClick={() => {
-              profileSnapshot.current = { bizName, bizEmail, bizAddress };
+              profileSnapshot.current = {
+                bizName, bizEmail, bizAddress,
+                bankName, bankAccountNumber, bankSortCode,
+              };
               setEditingProfile(true);
             }}
             sx={{ color: "#083a6b", fontWeight: 500, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
@@ -490,6 +535,23 @@ const Profile = () => {
               </Typography>
               <Typography variant="body2" sx={{ color: value ? "#111827" : "#CBD5E1", whiteSpace: "pre-wrap" }}>
                 {value || "-"}
+              </Typography>
+            </Box>
+          ))}
+          <Typography variant="caption" sx={{ display: "block", mt: 3, mb: 0.5, fontWeight: 700, color: "#64748B", letterSpacing: "0.04em" }}>
+            Bank details (included in the invoice PDFs for bank transfer payments)
+          </Typography>
+          {[
+            { label: "Bank name", value: bankName },
+            { label: "Account number", value: bankAccountNumber },
+            { label: "Sort code", value: bankSortCode },
+          ].map(({ label, value }, i, arr) => (
+            <Box key={label} sx={{ display: "flex", gap: 2, py: 1, borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
+              <Typography variant="body2" sx={{ color: "#94A3B8", fontWeight: 600, minWidth: 130, flexShrink: 0 }}>
+                {label}
+              </Typography>
+              <Typography variant="body2" sx={{ color: value ? "#111827" : "#CBD5E1", whiteSpace: "pre-wrap" }}>
+                {value || "—"}
               </Typography>
             </Box>
           ))}
@@ -631,6 +693,45 @@ const Profile = () => {
           />
         </Grid>
         <Grid item xs={12}>
+          <Divider sx={{ my: 1 }} />
+          <Typography variant="subtitle2" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+            Bank details for invoices
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Optional. Shown on invoice PDFs for bank transfer payments (similar to Xero). Only add if you want customers to pay into this account.
+          </Typography>
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Bank name"
+            value={bankName}
+            onChange={(e) => setBankName(e.target.value)}
+            fullWidth
+            placeholder="e.g. Barclays, Starling Bank"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Account number"
+            value={bankAccountNumber}
+            onChange={(e) => setBankAccountNumber(e.target.value)}
+            fullWidth
+            placeholder="UK account number"
+            inputProps={{ autoComplete: "off" }}
+          />
+        </Grid>
+        <Grid item xs={12} sm={6}>
+          <TextField
+            label="Sort code"
+            value={bankSortCode}
+            onChange={(e) => setBankSortCode(e.target.value)}
+            fullWidth
+            placeholder="e.g. 12-34-56"
+            helperText="Six-digit sort code; dashes optional"
+            inputProps={{ autoComplete: "off" }}
+          />
+        </Grid>
+        <Grid item xs={12}>
           <Box sx={{ display: "flex", gap: 1.5 }}>
             <Button
               variant="contained"
@@ -647,6 +748,9 @@ const Profile = () => {
                   setBizName(s.bizName ?? "");
                   setBizEmail(s.bizEmail ?? "");
                   setBizAddress(s.bizAddress ?? "");
+                  setBankName(s.bankName ?? "");
+                  setBankAccountNumber(s.bankAccountNumber ?? "");
+                  setBankSortCode(s.bankSortCode ?? "");
                   setProfileErrors({});
                   setEditingProfile(false);
                 }}

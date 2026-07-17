@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { FREE_QUOTE_LIMIT } from "../constants/plan";
 import { Drawer } from "@mui/material";
 import { Box, List, ListItem, Typography, useMediaQuery } from "@mui/material";
-import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCircleUser,
@@ -10,21 +10,19 @@ import {
   faFileInvoice,
   faPaperPlane,
   faHeadphones,
-  faPlus,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
-import { Button } from "@mui/material";
 import { onAuthStateChanged } from "firebase/auth";
 import { collection, doc, onSnapshot, query, setDoc, serverTimestamp, where } from "firebase/firestore";
 import { LinearProgress } from "@mui/material";
 import { auth, db } from "../../firebase";
 import SubscribeDialog from "./SubscribeDialog";
 
-export const SIDEBAR_WIDTH = 260;
+export const SIDEBAR_WIDTH = 220;
 
 const Sidebar = () => {
   const isMobile = useMediaQuery("(max-width:768px)");
   const location = useLocation();
-  const navigate = useNavigate();
   const [user, setUser]               = useState(null);
   const [businessName, setBusinessName]   = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
@@ -65,17 +63,6 @@ const Sidebar = () => {
     return () => { unsubAuth(); unsubProfile?.(); unsubQuotes?.(); };
   }, []);
 
-  const isPremium = plan === "premium";
-  const isQuotaExhausted = !isPremium && quoteCount >= FREE_QUOTA;
-
-  const handleCreateQuote = () => {
-    if (isQuotaExhausted) {
-      setSubscribeOpen(true);
-    } else {
-      navigate("/secured/quote");
-    }
-  };
-
   const displayName  = businessName || user?.email?.split("@")[0] || "Account";
   const displayEmail = businessEmail || user?.email || "";
   const words    = displayName.split(/\s+/).filter(Boolean);
@@ -87,6 +74,7 @@ const Sidebar = () => {
   const menuItems = [
     { label: "Quotes",   icon: faPaperPlane, path: "/secured/quotes" },
     { label: "Invoices", icon: faFileInvoice, path: "/secured/invoices" },
+    { label: "Customers", icon: faUsers, path: "/secured/customers" },
     { label: "Billing",  icon: faCreditCard,  path: "/secured/billing" },
     { label: "Profile",  icon: faCircleUser,  path: "/secured/profile" },
     { label: "Support",  icon: faHeadphones,  path: "/secured/support" },
@@ -101,8 +89,19 @@ const Sidebar = () => {
         /^\/quote\/[^/]+/.test(location.pathname)
       );
     }
-    if (item.path === "/secured/support") {
-      return location.pathname.startsWith("/secured/support");
+    if (item.path === "/secured/invoices") {
+      return (
+        location.pathname === "/secured/invoices" ||
+        location.pathname === "/secured/invoice" ||
+        /^\/secured\/invoice\/[^/]+$/.test(location.pathname) ||
+        /^\/invoice\/[^/]+$/.test(location.pathname)
+      );
+    }
+    if (item.path === "/secured/customers") {
+      return (
+        location.pathname === "/secured/customers" ||
+        /^\/secured\/customer\/[^/]+$/.test(location.pathname)
+      );
     }
     return location.pathname === item.path;
   };
@@ -160,7 +159,7 @@ const Sidebar = () => {
             <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
               <Typography
                 variant="body1"
-                sx={{ fontWeight: 700, color: "#083a6b", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                sx={{ fontWeight: 700, color: "#083a6b", wordBreak: "break-word" }}
               >
                 {displayName}
               </Typography>
@@ -175,24 +174,6 @@ const Sidebar = () => {
             </Box>
           </ListItem>
 
-          {/* Create quote CTA */}
-          <ListItem sx={{ px: 2, pb: 1 }}>
-            <Button
-              onClick={handleCreateQuote}
-              variant="contained"
-              fullWidth
-              startIcon={<FontAwesomeIcon icon={faPlus} style={{ fontSize: "14px" }} />}
-              sx={{
-                textTransform: "none",
-                fontWeight: 700,
-                bgcolor: "#083a6b",
-                "&:hover": { bgcolor: "#062d52" },
-                borderRadius: 2,
-              }}
-            >
-              Create quote
-            </Button>
-          </ListItem>
 
           {/* Menu Items */}
           {menuItems.map((item) => (

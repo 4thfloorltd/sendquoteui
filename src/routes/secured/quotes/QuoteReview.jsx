@@ -1,7 +1,7 @@
-import React, { useState } from "react";
+import { useState } from "react";
 
 const QuoteReview = () => {
-  const [quote, setQuote] = useState({
+  const [quote] = useState({
     company: "ABC Corp",
     description: "This is a quote for services rendered.",
     amount: "$1,200",

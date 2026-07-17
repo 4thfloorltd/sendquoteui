@@ -22,6 +22,8 @@ import { httpsCallable } from "firebase/functions";
 import { ref, uploadBytesResumable } from "firebase/storage";
 import { auth, functions, storage } from "../../../firebase";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faHeadphones } from "@fortawesome/free-solid-svg-icons";
 
 const SUPPORT_EMAIL = "support@sendquote.ai";
 const MAX_FILE_SIZE_MB = 5;
@@ -43,7 +45,6 @@ const Section = ({ title, subtitle, children }) => (
 
 const Support = () => {
   const [userEmail, setUserEmail] = useState("");
-  const [uid, setUid] = useState(null);
 
   const [description, setDescription] = useState("");
   const [screenshot, setScreenshot] = useState(null);
@@ -61,7 +62,6 @@ const Support = () => {
     const unsub = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUserEmail(user.email ?? "");
-        setUid(user.uid);
       }
     });
     return unsub;
@@ -169,9 +169,12 @@ const Support = () => {
 
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
-      <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mb: 0.5 }}>
-        Support
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <FontAwesomeIcon icon={faHeadphones} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+        <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mb: 0 }}>
+          Support
+        </Typography>
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Get help, report a bug, or send us a message.
       </Typography>

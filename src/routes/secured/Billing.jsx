@@ -23,6 +23,8 @@ import { auth, db, functions } from "../../../firebase";
 import PricingPlanComparison from "../../components/PricingPlanComparison";
 import SubscribeDialog from "../../components/SubscribeDialog";
 import { formatPremiumMonthlyDisplay } from "../../helpers/currency";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCreditCard } from "@fortawesome/free-solid-svg-icons";
 
 const FREE_QUOTA = FREE_QUOTE_LIMIT;
 
@@ -127,9 +129,12 @@ export default function Billing() {
 
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
-      <Typography variant="h5" sx={{ fontWeight: 800, color: "#083a6b", mb: 0.5 }}>
-        Billing
-      </Typography>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+        <FontAwesomeIcon icon={faCreditCard} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+        <Typography variant="h5" sx={{ fontWeight: 800, color: "#083a6b", mb: 0 }}>
+          Billing
+        </Typography>
+      </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
         Manage your plan and usage.
       </Typography>

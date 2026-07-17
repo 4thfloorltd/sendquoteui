@@ -9,7 +9,6 @@ import {
   Chip,
   CircularProgress,
   Dialog,
-  DialogActions,
   DialogContent,
   DialogTitle,
   Grid,
@@ -23,7 +22,6 @@ import {
   TableHead,
   TableRow,
   TextField,
-  Tooltip,
   Typography,
   useMediaQuery,
   useTheme,
@@ -36,10 +34,10 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faCheckCircle,
   faClock,
-  faFileInvoice,
+  faPaperPlane,
   faTimesCircle,
 } from "@fortawesome/free-solid-svg-icons";
-import { collection, query, where, onSnapshot, doc, getDoc, setDoc, updateDoc, deleteField, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, getDoc, setDoc, deleteField, serverTimestamp } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useLocation, useNavigate } from "react-router-dom";
 import { auth, db } from "../../../../firebase";
@@ -47,12 +45,17 @@ import { useAddressAutocomplete } from "../../../hooks/useAddressAutocomplete";
 import { isEmailClaimedByAnotherUser } from "../../../utils/userEmailAvailability";
 import { FREE_QUOTE_LIMIT } from "../../../constants/plan";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../../constants/site";
+import {
+  AWAITING_STATUS_CHIP_SX,
+  AWAITING_STATUS_METRIC_BG,
+  AWAITING_STATUS_METRIC_ICON_COLOR,
+} from "../../../constants/quoteUi";
 import SubscribeDialog from "../../../components/SubscribeDialog";
 
 const STATUS_CONFIG = {
-  accepted: { label: "Accepted", color: "#22C55E", icon: faCheckCircle },
-  pending: { label: "Pending", color: "#FBBF24", icon: faClock },
-  declined: { label: "Declined", color: "#EF4444", icon: faTimesCircle },
+  accepted: { label: "Accepted", color: "#22C55E", icon: faCheckCircle, chipColor: "success" },
+  pending: { label: "Pending", color: AWAITING_STATUS_METRIC_ICON_COLOR, icon: faClock, chipSx: AWAITING_STATUS_CHIP_SX },
+  declined: { label: "Declined", color: "#EF4444", icon: faTimesCircle, chipColor: "error" },
 };
 
 /** Allowed post-onboarding redirects from registration flow (no open redirect). */
@@ -232,7 +235,7 @@ const Quotes = () => {
       unsubByAuthEmail?.();
       unsubByProfileEmail?.();
     };
-  }, []);
+  }, [navigate]);
 
   const handleSaveProfile = async () => {
     if (!bizName.trim()) { setSaveError("Business name is required."); return; }
@@ -315,9 +318,9 @@ const Quotes = () => {
   };
 
   const metrics = [
-    { title: "Total", value: total, icon: faFileInvoice, color: "#083a6b", bg: "#F0F4F8", filterKey: null },
+    { title: "Total", value: total, icon: faPaperPlane, color: "#083a6b", bg: "#F0F4F8", filterKey: null },
     { title: "Accepted", value: accepted, icon: faCheckCircle, color: "#22C55E", bg: "#ECFDF5", filterKey: "accepted" },
-    { title: "Pending", value: pending, icon: faClock, color: "#FBBF24", bg: "#FFFAF0", filterKey: "pending" },
+    { title: "Pending", value: pending, icon: faClock, color: AWAITING_STATUS_METRIC_ICON_COLOR, bg: AWAITING_STATUS_METRIC_BG, filterKey: "pending" },
     { title: "Declined", value: declined, icon: faTimesCircle, color: "#EF4444", bg: "#FEF2F2", filterKey: "declined" },
   ];
 
@@ -341,10 +344,6 @@ const Quotes = () => {
         flexDirection: "column",
         // Layout secured main: padding top ~86px + bottom ~80px — match visible content height
         minHeight: "calc(100dvh - 166px)",
-        // Desktop: lock height so the table region scrolls; don't overflow:hidden here — Grid spacing
-        // uses negative gutters and would clip metric cards (horizontal + vertical).
-        height: { xs: "auto", sm: "calc(100dvh - 166px)" },
-        maxHeight: { sm: "calc(100dvh - 166px)" },
       }}
     >
       {/* ── Onboarding modal ── */}
@@ -478,11 +477,14 @@ const Quotes = () => {
       </Dialog>
 
       {/* Header */}
-      <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", mb: 3, flexWrap: "wrap", gap: 2, flexShrink: 0 }}>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
-            Quotes
-          </Typography>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", "@media (min-width:769px)": "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", "@media (min-width:769px)": "flex-start" }, mb: 3, gap: 2, flexShrink: 0 }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+            <FontAwesomeIcon icon={faPaperPlane} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+            <Typography variant="h5" sx={{ fontWeight: 700, color: "#083a6b" }}>
+              Quotes
+            </Typography>
+          </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
           Create quotes, and manage sent quotes.
           </Typography>
@@ -490,10 +492,9 @@ const Quotes = () => {
         <Box
           sx={{
             display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "stretch", sm: "center" },
+            flexDirection: "row",
+            alignItems: "center",
             gap: 1.5,
-            width: { xs: "100%", sm: "auto" },
             flexShrink: 0,
           }}
         >
@@ -503,8 +504,7 @@ const Quotes = () => {
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
             sx={{
-              order: { xs: 1, sm: 0 },
-              width: { xs: "100%", sm: 340 },
+              width: { xs: "100%", "@media (min-width:769px)": 340 },
             }}
             InputProps={{
               startAdornment: (
@@ -542,16 +542,14 @@ const Quotes = () => {
             startIcon={<AddIcon />}
             onClick={handleCreateQuote}
             sx={{
-              order: { xs: 0, sm: 1 },
               textTransform: "none",
               fontWeight: 600,
               bgcolor: "#083a6b",
               "&:hover": { bgcolor: "#062d52" },
               borderRadius: 2,
               px: 3,
-              display: "inline-flex",
+              display: { xs: "none", "@media (min-width:769px)": { display: "inline-flex" } },
               flexShrink: 0,
-              alignSelf: { xs: "stretch", sm: "auto" },
             }}
           >
             Create a quote
@@ -566,7 +564,18 @@ const Quotes = () => {
             (m.filterKey === null && statusFilter === null) ||
             (m.filterKey !== null && statusFilter === m.filterKey);
           return (
-            <Grid item xs={6} sm={3} key={i}>
+            <Grid
+              item
+              xs={6}
+              key={i}
+              sx={{
+                "@media (min-width:922px)": {
+                  flexGrow: 0,
+                  flexBasis: "25%",
+                  maxWidth: "25%",
+                },
+              }}
+            >
               <Card
                 onClick={() => handleMetricClick(m.filterKey)}
                 role="button"
@@ -621,9 +630,6 @@ const Quotes = () => {
         sx={{
           display: "flex",
           flexDirection: "column",
-          flex: { sm: 1 },
-          minHeight: { sm: 0 },
-          overflow: { xs: "visible", sm: "hidden" },
         }}
       >
       {loading ? (
@@ -655,8 +661,8 @@ const Quotes = () => {
               You haven&apos;t sent any quotes yet.
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              Use <Box component="span" sx={{ fontWeight: 700, color: "#083a6b" }}>Create a quote</Box>{" "}
-              above to build your first one.
+              Use <Box component="span" sx={{ fontWeight: 700, color: "#083a6b" }}>Create a quote</Box> above to
+              build your first one.
             </Typography>
           </Paper>
         </Box>
@@ -687,15 +693,18 @@ const Quotes = () => {
           </Paper>
         </Box>
       ) : (
-        <>
+        <Box
+          sx={{
+            width: "100%",
+            minHeight: 0,
+            display: { sm: "grid" },
+            gridTemplateRows: { sm: "auto auto" },
+          }}
+        >
           <Box
             sx={{
               width: "100%",
               minHeight: 0,
-              flex: { sm: 1 },
-              display: { sm: "flex" },
-              flexDirection: { sm: "column" },
-              overflow: { sm: "hidden" },
             }}
           >
       {isXs ? (
@@ -733,8 +742,9 @@ const Quotes = () => {
                   </Box>
                   <Chip
                     label={cfg.label}
+                    {...(cfg.chipColor ? { color: cfg.chipColor } : {})}
                     size="small"
-                    sx={{ fontWeight: 600, fontSize: "11px", bgcolor: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40`, flexShrink: 0 }}
+                    sx={{ fontWeight: 600, fontSize: "11px", flexShrink: 0, ...cfg.chipSx }}
                   />
                 </Box>
                 <Typography sx={{ fontWeight: 700, fontSize: "1rem", color: "#083a6b" }}>
@@ -751,9 +761,10 @@ const Quotes = () => {
           sx={{
             borderRadius: 2,
             border: "1px solid #E5E7EB",
-            flex: 1,
+            width: "100%",
             minHeight: 0,
-            overflow: "auto",
+            overflowX: "auto",
+            overflowY: "visible",
           }}
         >
           <Table stickyHeader size="small">
@@ -840,8 +851,9 @@ const Quotes = () => {
                     <TableCell sx={{ py: 1.75 }}>
                       <Chip
                         label={cfg.label}
+                        {...(cfg.chipColor ? { color: cfg.chipColor } : {})}
                         size="small"
-                        sx={{ fontWeight: 600, fontSize: "12px", bgcolor: `${cfg.color}18`, color: cfg.color, border: `1px solid ${cfg.color}40` }}
+                        sx={{ fontWeight: 600, fontSize: "12px", ...cfg.chipSx }}
                       />
                     </TableCell>
 
@@ -870,6 +882,7 @@ const Quotes = () => {
               alignItems: "center",
               gap: 1.5,
               pt: 2.5,
+              mt: "auto",
             }}
           >
             {hasMore && (
@@ -885,7 +898,7 @@ const Quotes = () => {
               Showing {Math.min(visibleCount, filteredQuotes.length)} of {filteredQuotes.length} quote{filteredQuotes.length !== 1 ? "s" : ""}
             </Typography>
           </Box>
-        </>
+        </Box>
       )}
       </Box>
 

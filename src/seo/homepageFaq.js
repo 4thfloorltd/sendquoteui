@@ -21,6 +21,6 @@ export const HOMEPAGE_FAQ = [
   {
     question: "How do I get started and send a quote to my customer?",
     answer:
-      "Use the homepage prompt or Create a quote to add line items, VAT, and totals. AI fills lines from a short description; on Premium you can import a PDF. A free account keeps everything in one dashboard. Use Send quote with their email - they get a secure link to view, accept, decline, or comment without signing in. Copy the link or share it on WhatsApp anytime.",
+      "Create a quote, add line items and VAT, then Send quote with their email. They get a link to view, accept, or decline—no sign-in required. Copy or share the link anytime.",
   },
 ];

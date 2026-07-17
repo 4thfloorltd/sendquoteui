@@ -203,7 +203,11 @@ const SubscribeDialog = ({ open, onClose, onSuccess, quotaExhausted = false, ski
 
   const handlePaymentSuccess = async () => {
     setStep(3);
-    try { await onSuccess?.(); } catch (_) {}
+    try {
+      await onSuccess?.();
+    } catch (error) {
+      console.error("Post-subscription callback failed", error);
+    }
 
     // Listen for Firestore to confirm plan === "premium" (set by Stripe webhook).
     // This ensures all quota checks have updated before the user can dismiss.

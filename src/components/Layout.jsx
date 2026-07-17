@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Outlet, useLocation, Navigate } from "react-router-dom";
 import Sidebar, { SIDEBAR_WIDTH } from "./Sidebar";
 import Footer from "./Footer";
@@ -21,6 +21,7 @@ function Layout() {
   useGoogleAnalytics(location);
   const isSecuredPath = location.pathname.startsWith("/secured");
   const isQuoteViewPath = /^\/quote\/[^/]+/.test(location.pathname);
+  const isPublicInvoiceViewPath = /^\/invoice\/[^/]+/.test(location.pathname);
   const isAuthPath = ["/login", "/register", "/forgot-password", "/reset-password"].includes(location.pathname);
   const isMobile = useMediaQuery("(max-width:768px)");
 
@@ -123,9 +124,16 @@ function Layout() {
             <Box
               component="main"
               sx={{
-                ml: { xs: 0, sm: 0, "@media (min-width:769px)": { marginLeft: `${SIDEBAR_WIDTH}px` } },
+                ml: 0,
+                width: "100%",
+                boxSizing: "border-box",
                 minHeight: "100vh",
-                padding: { xs: "86px 16px 80px" },
+                padding: "86px 16px 80px",
+                "@media (min-width:769px)": {
+                  ml: `${SIDEBAR_WIDTH}px`,
+                  width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
+                  padding: "86px 16px 14px",
+                },
               }}
             >
               <Outlet />
@@ -149,7 +157,7 @@ function Layout() {
               <div style={{ flex: 1, paddingTop: isQuoteViewPath && isLoggedIn ? "calc(64px + env(safe-area-inset-top) + 28px)" : 0 }}>
                 <Outlet />
               </div>
-              {!isQuoteViewPath && <Footer />}
+              {!isQuoteViewPath && !isPublicInvoiceViewPath && <Footer />}
             </main>
           </>
         )}

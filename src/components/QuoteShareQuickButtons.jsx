@@ -22,7 +22,15 @@ const iconSx = { fontSize: 22 };
  * @param {string} [p.currency] ISO code (e.g. "GBP").
  * @param {number} [p.total] Quote total for the amount line.
  */
-function buildQuoteShareMessage({ quoteUrl, customerName, businessName, quoteNumber, currency, total }) {
+function buildQuoteShareMessage({
+  quoteUrl,
+  customerName,
+  businessName,
+  quoteNumber,
+  currency,
+  total,
+  documentKind = "quote",
+}) {
   const name = (customerName ?? "").trim();
   const greeting = name ? `Hi ${name},` : "Hi,";
   const biz = (businessName ?? "").trim();
@@ -30,29 +38,45 @@ function buildQuoteShareMessage({ quoteUrl, customerName, businessName, quoteNum
   const totalNum = Number(total);
   const amountLine = Number.isFinite(totalNum) ? `${cur} ${totalNum.toFixed(2)}` : null;
   const num = (quoteNumber ?? "").trim();
-  const quRef = num ? `QU-${num}` : null;
+  const isInv = documentKind === "invoice";
+  const docRef = num ? (isInv ? `INV-${num}` : `QU-${num}`) : null;
 
-  let quoteSentence;
-  if (quRef && amountLine) {
-    quoteSentence = `Here's quote ${quRef} for ${amountLine}.`;
-  } else if (quRef) {
-    quoteSentence = `Here's quote ${quRef}.`;
+  let docSentence;
+  if (isInv) {
+    if (docRef && amountLine) {
+      docSentence = `Here's invoice ${docRef} for ${amountLine}.`;
+    } else if (docRef) {
+      docSentence = `Here's invoice ${docRef}.`;
+    } else if (amountLine) {
+      docSentence = `Here's your invoice for ${amountLine}.`;
+    } else {
+      docSentence = "Here's your invoice.";
+    }
+  } else if (docRef && amountLine) {
+    docSentence = `Here's quote ${docRef} for ${amountLine}.`;
+  } else if (docRef) {
+    docSentence = `Here's quote ${docRef}.`;
   } else if (amountLine) {
-    quoteSentence = `Here's your quote for ${amountLine}.`;
+    docSentence = `Here's your quote for ${amountLine}.`;
   } else {
-    quoteSentence = "Here's your quote.";
+    docSentence = "Here's your quote.";
   }
+
+  const viewLine = isInv ? `View your invoice online: ${quoteUrl}` : `View your quote online: ${quoteUrl}`;
+  const footerLine = isInv
+    ? "You can view, download, or print this invoice from the link."
+    : "From your online quote you can accept, decline, comment or print.";
 
   const lines = [
     greeting,
     "",
-    "Thank you for your enquiry.",
+    isInv ? "Thank you for your business." : "Thank you for your enquiry.",
     "",
-    quoteSentence,
+    docSentence,
     "",
-    `View your quote online: ${quoteUrl}`,
+    viewLine,
     "",
-    "From your online quote you can accept, decline, comment or print.",
+    footerLine,
     "",
     "If you have any questions, please let us know.",
     "",
@@ -81,10 +105,12 @@ export default function QuoteShareQuickButtons({
   quoteNumber,
   currency,
   total,
+  documentKind = "quote",
   sx,
 }) {
   if (!quoteDocId) return null;
-  const quoteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/quote/${quoteDocId}`;
+  const pathSeg = documentKind === "invoice" ? "invoice" : "quote";
+  const quoteUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/${pathSeg}/${quoteDocId}`;
   const shareText = buildQuoteShareMessage({
     quoteUrl,
     customerName,
@@ -92,10 +118,13 @@ export default function QuoteShareQuickButtons({
     quoteNumber,
     currency,
     total,
+    documentKind,
   });
-  const subject = (quoteNumber ?? "").trim()
-    ? `Quote QU-${(quoteNumber ?? "").trim()} - ready to view`
-    : "Your quote is ready";
+  const num = (quoteNumber ?? "").trim();
+  const subject =
+    documentKind === "invoice"
+      ? (num ? `Invoice INV-${num} - ready to view` : "Your invoice is ready")
+      : (num ? `Quote QU-${num} - ready to view` : "Your quote is ready");
   const mailto = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(shareText)}`;
 
   return (

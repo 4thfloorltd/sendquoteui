@@ -12,14 +12,16 @@ function sanitizeFilenameSegment(value, fallback) {
   return s.slice(0, 96) || fallback;
 }
 
-export function getQuotePdfFilename(quoteData) {
+export function getQuotePdfFilename(quoteData, documentKind = "quote") {
   const qnRaw =
     quoteData?.quoteNumber != null && String(quoteData.quoteNumber).trim() !== ""
       ? String(quoteData.quoteNumber).trim()
       : "preview";
   const qn  = sanitizeFilenameSegment(qnRaw, "preview");
   const biz = sanitizeFilenameSegment(quoteData?.businessName, "");
-  return biz ? `${biz}-QU-${qn}.pdf` : `quote-QU-${qn}.pdf`;
+  const tag = documentKind === "invoice" ? "INV" : "QU";
+  const fallback = documentKind === "invoice" ? "invoice" : "quote";
+  return biz ? `${biz}-${tag}-${qn}.pdf` : `${fallback}-${tag}-${qn}.pdf`;
 }
 
 export function buildQuotePdfDocument({
@@ -29,6 +31,7 @@ export function buildQuotePdfDocument({
   formatMoney,
   formatDateLong,
   vatRegistered = true,
+  documentKind = "quote",
 }) {
   const doc   = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -97,15 +100,18 @@ export function buildQuotePdfDocument({
     const qd = String(quoteData.quoteDate   ?? "").trim()
       ? formatDateLong(quoteData.quoteDate)
       : "-";
+    const isInv = documentKind === "invoice";
+    const title = isInv ? "Invoice summary" : "Quote summary";
+    const numLabel = isInv ? `Invoice number: INV-${qn}` : `Quote number: QU-${qn}`;
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
     doc.setTextColor(8, 58, 107);
-    doc.text("Quote summary", M.l, M.t);
+    doc.text(title, M.l, M.t);
 
     doc.setFontSize(12);
     doc.setTextColor(55, 65, 81);
-    doc.text(`Quote number: QU-${qn}`, M.l, M.t + space.md);
+    doc.text(numLabel, M.l, M.t + space.md);
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
@@ -276,6 +282,64 @@ export function buildQuotePdfDocument({
 
   doc.text(vatRegistered ? "Total (inc VAT)" : "Total", labelX,  y, { align: "right" });
   doc.text(formatMoney(pricing.total),                   innerR, y, { align: "right" });
+
+  // ── BANK DETAILS (invoice PDF only; bank transfer instructions) ────────────
+
+  const bankName = String(quoteData.bankName ?? "").trim();
+  const bankAccountNumber = String(quoteData.bankAccountNumber ?? "").trim();
+  const bankSortCode = String(quoteData.bankSortCode ?? "").trim();
+  const hasBankDetails =
+    documentKind === "invoice" &&
+    (bankName || bankAccountNumber || bankSortCode);
+
+  if (hasBankDetails) {
+    y += space.md;
+    const bankBlockMinH =
+      space.md + lineH + space.xs +
+      (String(quoteData.businessName ?? "").trim() ? lineH + 2 : 0) +
+      (bankName ? lineH + 2 : 0) +
+      (bankAccountNumber ? lineH + 2 : 0) +
+      (bankSortCode ? lineH + 2 : 0);
+    ensureSpace(bankBlockMinH);
+    drawRule();
+    y += space.md;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.setTextColor(75, 85, 99);
+    doc.text("BANK DETAILS", M.l, y);
+    y += space.md;
+
+    const bizTitle = String(quoteData.businessName ?? "").trim();
+    if (bizTitle) {
+      doc.setFontSize(11);
+      doc.setTextColor(33, 37, 41);
+      doc.text(bizTitle, M.l, y);
+      y += lineH + space.xs;
+    }
+
+    doc.setFontSize(11);
+    const labelW = 42;
+    const valueX = M.l + labelW;
+
+    const bankRow = (label, value) => {
+      if (!value) return;
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(75, 85, 99);
+      doc.text(label, M.l, y);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(33, 37, 41);
+      const wrapped = wrapText(value, innerW - labelW);
+      wrapped.forEach((ln, i) => {
+        doc.text(ln, valueX, y + i * lineH);
+      });
+      y += wrapped.length * lineH + space.xs;
+    };
+
+    bankRow("Bank", bankName);
+    bankRow("Account Number", bankAccountNumber);
+    bankRow("Sort Code", bankSortCode);
+  }
 
   // ── FOOTER ──────────────────────────────────────────────────────────────────
 

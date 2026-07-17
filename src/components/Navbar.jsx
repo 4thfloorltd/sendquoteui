@@ -1,6 +1,5 @@
-import React from "react";
 import { Link } from "react-router-dom";
-import { Box, Button } from "@mui/material";
+import { Box } from "@mui/material";
 import { SellRounded } from "@mui/icons-material";
 
 const Navbar = () => {
