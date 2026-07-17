@@ -31,6 +31,7 @@ import { buildQuotePdfDocument } from "../utils/buildQuotePdfDocument";
 import { formatDateLong, createFormatMoney } from "../utils/quoteDisplay";
 import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 import InvoicePayDialog from "../components/InvoicePayDialog";
+import { confirmInvoicePayment } from "../api/confirmInvoicePayment";
 import { getCustomerKey } from "../utils/customerRecords";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../constants/site";
 import {
@@ -96,6 +97,24 @@ const InvoiceView = () => {
   const [paymentReturnBanner, setPaymentReturnBanner] = useState(null);
   const [invoicePayOpen, setInvoicePayOpen] = useState(false);
   const [copiedLink, setCopiedLink] = useState(false);
+  const optimisticPaidRef = useRef(false);
+
+  const markInvoicePaidLocally = () => {
+    optimisticPaidRef.current = true;
+    setInvoice((prev) => (prev && prev.status !== "paid" ? { ...prev, status: "paid" } : prev));
+    setPaymentReturnBanner("success");
+  };
+
+  const finalizePaidPayment = async (paymentIntentId) => {
+    markInvoicePaidLocally();
+    const pi = String(paymentIntentId ?? "").trim();
+    if (!pi || !invoiceId) return;
+    try {
+      await confirmInvoicePayment(invoiceId, pi);
+    } catch (e) {
+      console.error("confirmInvoicePayment failed", e);
+    }
+  };
 
   // Handle Stripe payment return redirects
   useEffect(() => {
@@ -105,7 +124,7 @@ const InvoiceView = () => {
     const pi = q.get("payment_intent");
 
     if (p === "success") {
-      setPaymentReturnBanner("success");
+      markInvoicePaidLocally();
       navigate({ pathname: location.pathname, search: "" }, { replace: true });
       return;
     }
@@ -122,12 +141,13 @@ const InvoiceView = () => {
       const s = next.toString();
       navigate({ pathname: location.pathname, search: s ? `?${s}` : "" }, { replace: true });
       if (redirectStatus === "succeeded") {
-        setPaymentReturnBanner("success");
+        void finalizePaidPayment(pi);
       } else if (redirectStatus === "failed") {
         setInvoicePayError("Your bank did not authorise this payment.");
       }
     }
-  }, [location.pathname, location.search, navigate]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- one-shot URL handling
+  }, [location.pathname, location.search, navigate, invoiceId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -146,7 +166,14 @@ const InvoiceView = () => {
             return;
           }
           const data = snap.data();
-          setInvoice(data);
+          if (data.status === "paid") {
+            optimisticPaidRef.current = true;
+          }
+          setInvoice(
+            optimisticPaidRef.current && data.status !== "paid"
+              ? { ...data, status: "paid" }
+              : data,
+          );
           setError("");
 
           if (!pdfGenerated.current) {
@@ -616,69 +643,72 @@ const InvoiceView = () => {
             ) : (
               /* ── Customer payment view ── */
               <Box sx={{ py: { xs: 1, md: 2 } }}>
-                {paymentReturnBanner === "success" ? (
-                  <Alert severity="success" sx={{ mb: 2 }} onClose={() => setPaymentReturnBanner(null)}>
-                    Payment received. Your invoice will show as paid in a moment — refresh if it does not update.
+                {invoice.status === "paid" || paymentReturnBanner === "success" ? (
+                  <Alert severity="success" sx={{ mb: 2 }}>
+                    This invoice has been paid. Thank you!
                   </Alert>
-                ) : null}
-                {paymentReturnBanner === "cancel" ? (
-                  <Alert severity="info" sx={{ mb: 2 }} onClose={() => setPaymentReturnBanner(null)}>
-                    Payment was cancelled. You can pay anytime with the button below.
-                  </Alert>
-                ) : null}
-
-                <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>Pay Online</Typography>
-                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                  Amount due:{" "}
-                  <Box component="span" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Box>
-                </Typography>
-
-                {invoice.status === "unpaid" && Number(pricing.total) > 0 ? (
+                ) : (
                   <>
-                    {invoicePayError ? (
-                      <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setInvoicePayError("")}>
-                        {invoicePayError}
+                    {paymentReturnBanner === "cancel" ? (
+                      <Alert severity="info" sx={{ mb: 2 }} onClose={() => setPaymentReturnBanner(null)}>
+                        Payment was cancelled. You can pay anytime with the button below.
                       </Alert>
                     ) : null}
-                    <Button
-                      variant="contained"
-                      fullWidth
-                      size="large"
-                      onClick={() => { setInvoicePayError(""); setInvoicePayOpen(true); }}
-                      sx={{ textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#10A86B", py: 1.5, mb: 1.5, borderRadius: 2, "&:hover": { bgcolor: "#0d9960" } }}
-                    >
-                      Pay now
-                    </Button>
 
-                    {/* Accepted card brands */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 1.25 }}>
-                      <BrandBadge icon={siVisa} />
-                      <BrandBadge icon={siMastercard} />
-                      <BrandBadge icon={siAmericanexpress} />
-                      <BrandBadge icon={siApplepay} bgColor="#000" fgColor="#fff" />
-                      <BrandBadge icon={siGooglepay} />
-                    </Box>
+                    <Typography variant="subtitle1" fontWeight={700} sx={{ mb: 1 }}>Pay Online</Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                      Amount due:{" "}
+                      <Box component="span" fontWeight={800} color="#083a6b">{formatMoney(pricing.total)}</Box>
+                    </Typography>
 
-                    {/* Powered by Stripe */}
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
-                      <svg
-                        role="img"
-                        viewBox="0 0 24 24"
-                        width={14}
-                        height={14}
-                        fill={`#${siStripe.hex}`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        aria-label="Stripe"
-                      >
-                        <path d={siStripe.path} />
-                      </svg>
-                      <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
-                        Powered by{" "}
-                        <Box component="span" sx={{ fontWeight: 700, color: `#${siStripe.hex}` }}>Stripe</Box>.
-                      </Typography>
-                    </Box>
+                    {invoice.status === "unpaid" && Number(pricing.total) > 0 ? (
+                      <>
+                        {invoicePayError ? (
+                          <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setInvoicePayError("")}>
+                            {invoicePayError}
+                          </Alert>
+                        ) : null}
+                        <Button
+                          variant="contained"
+                          fullWidth
+                          size="large"
+                          onClick={() => { setInvoicePayError(""); setInvoicePayOpen(true); }}
+                          sx={{ textTransform: "none", fontWeight: 700, fontSize: "1rem", bgcolor: "#10A86B", py: 1.5, mb: 1.5, borderRadius: 2, "&:hover": { bgcolor: "#0d9960" } }}
+                        >
+                          Pay now
+                        </Button>
+
+                        {/* Accepted card brands */}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, flexWrap: "wrap", mb: 1.25 }}>
+                          <BrandBadge icon={siVisa} />
+                          <BrandBadge icon={siMastercard} />
+                          <BrandBadge icon={siAmericanexpress} />
+                          <BrandBadge icon={siApplepay} bgColor="#000" fgColor="#fff" />
+                          <BrandBadge icon={siGooglepay} />
+                        </Box>
+
+                        {/* Powered by Stripe */}
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mb: 1 }}>
+                          <svg
+                            role="img"
+                            viewBox="0 0 24 24"
+                            width={14}
+                            height={14}
+                            fill={`#${siStripe.hex}`}
+                            xmlns="http://www.w3.org/2000/svg"
+                            aria-label="Stripe"
+                          >
+                            <path d={siStripe.path} />
+                          </svg>
+                          <Typography variant="caption" color="text.secondary" sx={{ lineHeight: 1 }}>
+                            Powered by{" "}
+                            <Box component="span" sx={{ fontWeight: 700, color: `#${siStripe.hex}` }}>Stripe</Box>.
+                          </Typography>
+                        </Box>
+                      </>
+                    ) : null}
                   </>
-                ) : null}
+                )}
 
                 <Typography
                   variant="body2"
@@ -709,7 +739,7 @@ const InvoiceView = () => {
         invoiceId={invoiceId}
         amountLabel={formatMoney(pricing.total)}
         businessName={invoice.businessName ?? ""}
-        onPaid={() => setPaymentReturnBanner("success")}
+        onPaid={(paymentIntentId) => { void finalizePaidPayment(paymentIntentId); }}
       />
 
       <Dialog open={deleteDialogOpen} onClose={() => setDeleteDialogOpen(false)} maxWidth="xs" fullWidth>

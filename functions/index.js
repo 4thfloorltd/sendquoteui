@@ -1336,6 +1336,69 @@ exports.createInvoicePaymentIntent = onCall(
   },
 );
 
+/**
+ * Public: after Stripe confirms a PaymentIntent, mark the Firestore invoice paid.
+ * Used so the customer UI updates even if the Stripe webhook is delayed/misconfigured.
+ */
+exports.confirmInvoicePayment = onCall(
+  {
+    region: "us-central1",
+    timeoutSeconds: 30,
+    memory: "256MiB",
+    secrets: [stripeSecretKey],
+    invoker: "public",
+  },
+  async (request) => {
+    const invoiceId = String(request.data?.invoiceId ?? "").trim();
+    const paymentIntentId = String(request.data?.paymentIntentId ?? "").trim();
+    if (!invoiceId) {
+      throw new HttpsError("invalid-argument", "invoiceId is required.");
+    }
+    if (!paymentIntentId || !paymentIntentId.startsWith("pi_")) {
+      throw new HttpsError("invalid-argument", "paymentIntentId is required.");
+    }
+
+    const stripe = require("stripe")(stripeSecretKey.value());
+    let pi;
+    try {
+      pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+    } catch (err) {
+      console.error("confirmInvoicePayment retrieve failed", err?.message || err);
+      throw new HttpsError("not-found", "Payment not found.");
+    }
+
+    const md = pi.metadata || {};
+    if (md.type !== "invoice_payment" || String(md.invoiceId) !== invoiceId) {
+      throw new HttpsError("permission-denied", "Payment does not match this invoice.");
+    }
+    if (pi.status !== "succeeded") {
+      throw new HttpsError("failed-precondition", "Payment has not succeeded yet.");
+    }
+
+    const db = admin.firestore();
+    const ref = db.collection("invoices").doc(invoiceId);
+    const snap = await ref.get();
+    if (!snap.exists || (snap.data() || {}).deleted) {
+      throw new HttpsError("not-found", "Invoice not found.");
+    }
+
+    const cur = snap.data() || {};
+    if (cur.status !== "paid") {
+      await ref.set(
+        {
+          status: "paid",
+          stripePaymentIntentId: pi.id,
+          paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        { merge: true },
+      );
+    }
+
+    return { status: "paid" };
+  },
+);
+
 /** Customer accepts/declines a pending quote (unauthenticated; Admin update + optional owner email). */
 exports.submitQuoteResponse = onCall(
   {

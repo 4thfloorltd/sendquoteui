@@ -31,7 +31,7 @@ function InvoicePaymentForm({ amountLabel, onSuccess, onCancel }) {
   const [expressAvailable, setExpressAvailable] = useState(false);
 
   const confirm = async () => {
-    const { error: stripeError } = await stripe.confirmPayment({
+    const { error: stripeError, paymentIntent } = await stripe.confirmPayment({
       elements,
       confirmParams: { return_url: window.location.href },
       redirect: "if_required",
@@ -40,7 +40,7 @@ function InvoicePaymentForm({ amountLabel, onSuccess, onCancel }) {
       setError(stripeError.message ?? "Payment failed. Please try again.");
       setPaying(false);
     } else {
-      onSuccess();
+      onSuccess(paymentIntent?.id ?? null);
     }
   };
 
@@ -190,8 +190,8 @@ export default function InvoicePayDialog({
     onClose?.();
   };
 
-  const handlePaid = () => {
-    onPaid?.();
+  const handlePaid = (paymentIntentId) => {
+    onPaid?.(paymentIntentId);
     onClose?.();
   };
 
