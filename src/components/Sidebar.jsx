@@ -26,6 +26,7 @@ const Sidebar = () => {
   const [user, setUser]               = useState(null);
   const [businessName, setBusinessName]   = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
+  const [businessLogoUrl, setBusinessLogoUrl] = useState("");
   const [quoteCount, setQuoteCount]       = useState(0);
   const [plan, setPlan]                   = useState("free");
   const [subscribeOpen, setSubscribeOpen] = useState(false);
@@ -39,11 +40,18 @@ const Sidebar = () => {
       setUser(u);
       unsubProfile?.();
       unsubQuotes?.();
-      if (!u) { setBusinessName(""); setBusinessEmail(""); setQuoteCount(0); return; }
+      if (!u) {
+        setBusinessName("");
+        setBusinessEmail("");
+        setBusinessLogoUrl("");
+        setQuoteCount(0);
+        return;
+      }
       unsubProfile = onSnapshot(doc(db, "users", u.uid), (snap) => {
         const d = snap.data();
         setBusinessName(d?.businessName ?? "");
         setBusinessEmail(d?.businessEmail ?? "");
+        setBusinessLogoUrl(d?.businessLogoUrl ?? "");
         setPlan(d?.plan ?? "free");
         // Backfill loginEmail for older profiles - only when the document
         // actually exists; guards against recreating a just-deleted doc.
@@ -153,8 +161,18 @@ const Sidebar = () => {
               bgcolor: "#083a6b", color: "#fff",
               display: "flex", alignItems: "center", justifyContent: "center",
               fontWeight: 700, fontSize: "15px", flexShrink: 0,
+              overflow: "hidden",
             }}>
-              {initials}
+              {businessLogoUrl ? (
+                <Box
+                  component="img"
+                  src={businessLogoUrl}
+                  alt=""
+                  sx={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                />
+              ) : (
+                initials
+              )}
             </Box>
             <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
               <Typography
