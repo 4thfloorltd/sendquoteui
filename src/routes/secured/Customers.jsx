@@ -13,9 +13,11 @@ import {
   InputAdornment,
   TextField,
   Typography,
+  useMediaQuery,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -24,7 +26,9 @@ import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../../../firebase";
+import SubscribeDialog from "../../components/SubscribeDialog";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
+import { formatPremiumMonthlyDisplay } from "../../helpers/currency";
 import {
   getCustomerEmail,
   getCustomerInitials,
@@ -51,13 +55,19 @@ const formatActivityDate = (timestamp) => {
 
 export default function Customers() {
   const navigate = useNavigate();
+  const isDesktopNav = useMediaQuery("(min-width:769px)");
   const [quotes, setQuotes] = useState([]);
   const [invoices, setInvoices] = useState([]);
   const [hiddenCustomerKeys, setHiddenCustomerKeys] = useState([]);
+  const [plan, setPlan] = useState("free");
+  const [planReady, setPlanReady] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
+
+  const isPremium = plan === "premium";
 
   useEffect(() => {
     let unsubQuotes = () => {};
@@ -73,66 +83,85 @@ export default function Customers() {
         setQuotes([]);
         setInvoices([]);
         setHiddenCustomerKeys([]);
+        setPlan("free");
+        setPlanReady(true);
         setLoading(false);
         return;
       }
 
       setLoading(true);
+      setPlanReady(false);
       setError("");
-      let quotesReady = false;
-      let invoicesReady = false;
-      let userReady = false;
-      const finishLoading = () => {
-        if (quotesReady && invoicesReady && userReady) setLoading(false);
-      };
 
       unsubUser = onSnapshot(
         doc(db, "users", user.uid),
         (snapshot) => {
-          const keys = snapshot.exists() ? (snapshot.data()?.hiddenCustomerKeys ?? []) : [];
+          const data = snapshot.exists() ? snapshot.data() : {};
+          const nextPlan = data?.plan ?? "free";
+          const keys = data?.hiddenCustomerKeys ?? [];
+          setPlan(nextPlan);
           setHiddenCustomerKeys(Array.isArray(keys) ? keys : []);
-          userReady = true;
-          finishLoading();
+          setPlanReady(true);
+
+          unsubQuotes();
+          unsubInvoices();
+          unsubQuotes = () => {};
+          unsubInvoices = () => {};
+
+          if (nextPlan !== "premium") {
+            setQuotes([]);
+            setInvoices([]);
+            setLoading(false);
+            return;
+          }
+
+          setLoading(true);
+          let quotesReady = false;
+          let invoicesReady = false;
+          const finishLoading = () => {
+            if (quotesReady && invoicesReady) setLoading(false);
+          };
+
+          unsubQuotes = onSnapshot(
+            query(collection(db, "quotes"), where("userId", "==", user.uid)),
+            (quotesSnap) => {
+              setQuotes(quotesSnap.docs
+                .map((item) => ({ id: item.id, ...item.data() }))
+                .filter((item) => !item.deleted));
+              quotesReady = true;
+              finishLoading();
+            },
+            (snapshotError) => {
+              console.error("Customers quotes snapshot error", snapshotError);
+              setError("Some customer activity could not be loaded.");
+              quotesReady = true;
+              finishLoading();
+            },
+          );
+
+          unsubInvoices = onSnapshot(
+            query(collection(db, "invoices"), where("userId", "==", user.uid)),
+            (invoicesSnap) => {
+              setInvoices(invoicesSnap.docs
+                .map((item) => ({ id: item.id, ...item.data() }))
+                .filter((item) => !item.deleted));
+              invoicesReady = true;
+              finishLoading();
+            },
+            (snapshotError) => {
+              console.error("Customers invoices snapshot error", snapshotError);
+              setError("Some customer activity could not be loaded.");
+              invoicesReady = true;
+              finishLoading();
+            },
+          );
         },
         (snapshotError) => {
           console.error("Customers user profile snapshot error", snapshotError);
           setHiddenCustomerKeys([]);
-          userReady = true;
-          finishLoading();
-        },
-      );
-
-      unsubQuotes = onSnapshot(
-        query(collection(db, "quotes"), where("userId", "==", user.uid)),
-        (snapshot) => {
-          setQuotes(snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }))
-            .filter((item) => !item.deleted));
-          quotesReady = true;
-          finishLoading();
-        },
-        (snapshotError) => {
-          console.error("Customers quotes snapshot error", snapshotError);
-          setError("Some customer activity could not be loaded.");
-          quotesReady = true;
-          finishLoading();
-        },
-      );
-
-      unsubInvoices = onSnapshot(
-        query(collection(db, "invoices"), where("userId", "==", user.uid)),
-        (snapshot) => {
-          setInvoices(snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }))
-            .filter((item) => !item.deleted));
-          invoicesReady = true;
-          finishLoading();
-        },
-        (snapshotError) => {
-          console.error("Customers invoices snapshot error", snapshotError);
-          setError("Some customer activity could not be loaded.");
-          invoicesReady = true;
-          finishLoading();
+          setPlan("free");
+          setPlanReady(true);
+          setLoading(false);
         },
       );
     });
@@ -219,9 +248,9 @@ export default function Customers() {
       <Box
         sx={{
           display: "flex",
-          flexDirection: { xs: "column", "@media (min-width:769px)": "row" },
+          flexDirection: isDesktopNav ? "row" : "column",
           justifyContent: "space-between",
-          alignItems: { xs: "stretch", "@media (min-width:769px)": "flex-start" },
+          alignItems: isDesktopNav ? "flex-start" : "stretch",
           gap: 2,
           mb: 3,
         }}
@@ -232,18 +261,34 @@ export default function Customers() {
             <Typography variant="h5" component="h1" sx={{ fontWeight: 700, color: "#083a6b" }}>
               Customers
             </Typography>
+            {!isPremium && planReady ? (
+              <Chip
+                icon={<LockOutlinedIcon sx={{ fontSize: "14px !important" }} />}
+                label="Premium"
+                size="small"
+                sx={{
+                  height: 22,
+                  fontWeight: 700,
+                  fontSize: "0.7rem",
+                  bgcolor: "#083a6b",
+                  color: "#fff",
+                  "& .MuiChip-icon": { color: "#fff" },
+                }}
+              />
+            ) : null}
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
             Recent customers from your quotes and invoices.
           </Typography>
         </Box>
 
+        {isPremium ? (
         <TextField
           size="small"
           placeholder="Search customers…"
           value={searchQuery}
           onChange={handleSearchChange}
-          sx={{ width: { xs: "100%", "@media (min-width:769px)": 340 } }}
+          sx={{ width: isDesktopNav ? 340 : "100%" }}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -266,15 +311,60 @@ export default function Customers() {
             ) : null,
           }}
         />
+        ) : null}
       </Box>
 
-      {error ? <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert> : null}
-
-      {loading ? (
+      {!planReady || (isPremium && loading) ? (
         <Box sx={{ minHeight: 320, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <CircularProgress />
         </Box>
-      ) : customers.length === 0 ? (
+      ) : !isPremium ? (
+        <Box
+          sx={{
+            minHeight: 320,
+            border: "1px solid #E5E7EB",
+            borderRadius: 2,
+            bgcolor: "#F8FAFC",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            px: 3,
+            py: 4,
+          }}
+        >
+          <Avatar sx={{ width: 56, height: 56, bgcolor: "#E8EEF5", color: "#083a6b", mb: 2 }}>
+            <LockOutlinedIcon />
+          </Avatar>
+          <Typography fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+            Customers is a Premium feature
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420, mb: 2.5 }}>
+            See everyone you&apos;ve quoted or invoiced in one place, with contact details and recent activity.
+            Upgrade to unlock the customer list.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => setSubscribeOpen(true)}
+            sx={{ bgcolor: "#083a6b", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: "#062d52" } }}
+          >
+            Upgrade to Premium - {formatPremiumMonthlyDisplay()}/mo
+          </Button>
+          <Button
+            variant="text"
+            size="small"
+            onClick={() => navigate("/secured/billing", { state: { scrollToPremium: true } })}
+            sx={{ mt: 1, color: "#6B7280", fontWeight: 600, textTransform: "none" }}
+          >
+            Compare plans
+          </Button>
+        </Box>
+      ) : (
+        <>
+      {error ? <Alert severity="warning" sx={{ mb: 2 }}>{error}</Alert> : null}
+
+      {customers.length === 0 ? (
         <Box
           sx={{
             minHeight: 320,
@@ -430,6 +520,13 @@ export default function Customers() {
           </Box>
         </>
       )}
+        </>
+      )}
+
+      <SubscribeDialog
+        open={subscribeOpen}
+        onClose={() => setSubscribeOpen(false)}
+      />
     </Box>
   );
 }

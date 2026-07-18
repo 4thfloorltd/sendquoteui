@@ -169,15 +169,17 @@ const Support = () => {
 
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-        <FontAwesomeIcon icon={faHeadphones} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
-        <Typography variant="h5" fontWeight={800} color="#083a6b" sx={{ mb: 0 }}>
-          Support
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <FontAwesomeIcon icon={faHeadphones} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+          <Typography variant="h5" fontWeight={700} color="#083a6b">
+            Support
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Get help, report a bug, or send us a message.
         </Typography>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Get help, report a bug, or send us a message.
-      </Typography>
 
       {/* ── Contact us ── */}
       <Section

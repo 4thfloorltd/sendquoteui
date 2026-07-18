@@ -28,6 +28,8 @@ import {
 } from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import CloseIcon from "@mui/icons-material/Close";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -51,6 +53,13 @@ import {
   AWAITING_STATUS_METRIC_ICON_COLOR,
 } from "../../../constants/quoteUi";
 import SubscribeDialog from "../../../components/SubscribeDialog";
+import { formatUkPhoneNumber } from "../../../helpers/utility";
+import {
+  BUSINESS_LOGO_MAX_MB,
+  deleteBusinessLogo,
+  uploadBusinessLogo,
+  validateBusinessLogoFile,
+} from "../../../utils/businessLogo";
 
 const STATUS_CONFIG = {
   accepted: { label: "Accepted", color: "#22C55E", icon: faCheckCircle, chipColor: "success" },
@@ -69,6 +78,8 @@ const sanitizeProfileRedirect = (path) => {
 const Quotes = () => {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+  const isDesktopNav = useMediaQuery("(min-width:769px)");
+  const isWideMetrics = useMediaQuery("(min-width:922px)");
   const navigate = useNavigate();
   const location = useLocation();
   /** Fresh each render - read inside onAuthStateChanged without resubscribing. */
@@ -100,7 +111,15 @@ const Quotes = () => {
   const [onboardingUid, setOnboardingUid] = useState(null);
   const [bizName, setBizName] = useState("");
   const [bizEmail, setBizEmail] = useState("");
+  const [bizPhone, setBizPhone] = useState("");
   const [bizAddress, setBizAddress] = useState("");
+  const [bizLogoUrl, setBizLogoUrl] = useState("");
+  const [bizLogoPath, setBizLogoPath] = useState("");
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoPreview, setLogoPreview] = useState("");
+  const [logoRemoved, setLogoRemoved] = useState(false);
+  const [logoError, setLogoError] = useState("");
+  const logoInputRef = useRef(null);
   const [onboardingAddressFocused, setOnboardingAddressFocused] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
@@ -190,7 +209,14 @@ const Quotes = () => {
         setOnboardingUid(user.uid);
         setBizName(profileData.businessName ?? "");
         setBizEmail(profileData.businessEmail ?? user.email ?? "");
+        setBizPhone(profileData.businessPhone ? formatUkPhoneNumber(profileData.businessPhone) : "");
         setBizAddress(profileData.businessAddress ?? "");
+        setBizLogoUrl(profileData.businessLogoUrl ?? "");
+        setBizLogoPath(profileData.businessLogoPath ?? "");
+        setLogoFile(null);
+        setLogoPreview("");
+        setLogoRemoved(false);
+        setLogoError("");
         setShowOnboarding(true);
       } else if (
         profileData?.profileComplete &&
@@ -243,6 +269,7 @@ const Quotes = () => {
     const normalized = bizEmail.trim().toLowerCase();
     setSaving(true);
     setSaveError("");
+    setLogoError("");
     try {
       const claimed = await isEmailClaimedByAnotherUser(auth, db, normalized, onboardingUid);
       if (claimed) {
@@ -250,10 +277,30 @@ const Quotes = () => {
         setSaving(false);
         return;
       }
+
+      let nextLogoUrl = logoRemoved ? "" : bizLogoUrl;
+      let nextLogoPath = logoRemoved ? "" : bizLogoPath;
+
+      if (logoRemoved && bizLogoPath) {
+        await deleteBusinessLogo(bizLogoPath);
+      }
+
+      if (logoFile) {
+        if (bizLogoPath && !logoRemoved) {
+          await deleteBusinessLogo(bizLogoPath).catch(() => {});
+        }
+        const uploaded = await uploadBusinessLogo(onboardingUid, logoFile);
+        nextLogoUrl = uploaded.businessLogoUrl;
+        nextLogoPath = uploaded.businessLogoPath;
+      }
+
       await setDoc(doc(db, "users", onboardingUid), {
         businessName: bizName.trim(),
         businessEmail: normalized,
+        businessPhone: bizPhone.trim(),
         businessAddress: bizAddress.trim(),
+        businessLogoUrl: nextLogoUrl,
+        businessLogoPath: nextLogoPath,
         profileComplete: true,
         loginEmail: auth.currentUser?.email?.toLowerCase() ?? normalized,
         updatedAt: serverTimestamp(),
@@ -347,7 +394,7 @@ const Quotes = () => {
       }}
     >
       {/* ── Onboarding modal ── */}
-      <Dialog open={showOnboarding} fullWidth maxWidth="xs" disableEscapeKeyDown>
+      <Dialog open={showOnboarding} fullWidth maxWidth="sm" disableEscapeKeyDown>
         <DialogTitle sx={{ fontWeight: 700, color: "#083a6b", pb: 0 }}>
           Finish setting up your account
         </DialogTitle>
@@ -357,6 +404,109 @@ const Quotes = () => {
           </Typography>
 
           {saveError && <Alert severity="error" sx={{ py: 0, alignItems: "center" }}>{saveError}</Alert>}
+
+          <Box>
+            <Typography variant="subtitle2" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+              Business logo
+            </Typography>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+              Optional. Shown on quote and invoice PDFs. PNG, JPG or WebP, max {BUSINESS_LOGO_MAX_MB} MB.
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, flexWrap: "wrap" }}>
+              {(logoPreview || (!logoRemoved && bizLogoUrl)) ? (
+                <Box
+                  component="img"
+                  src={logoPreview || bizLogoUrl}
+                  alt="Logo preview"
+                  sx={{
+                    height: 64,
+                    maxWidth: 160,
+                    objectFit: "contain",
+                    border: "1px solid #E5E7EB",
+                    borderRadius: 1.5,
+                    bgcolor: "#fff",
+                    p: 1,
+                  }}
+                />
+              ) : (
+                <Box
+                  sx={{
+                    width: 64,
+                    height: 64,
+                    borderRadius: 1.5,
+                    border: "1px dashed #CBD5E1",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#94A3B8",
+                    bgcolor: "#F8FAFC",
+                  }}
+                >
+                  <ImageOutlinedIcon fontSize="small" />
+                </Box>
+              )}
+              <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+                <Button
+                  variant="outlined"
+                  component="label"
+                  size="small"
+                  startIcon={<ImageOutlinedIcon />}
+                  disabled={saving}
+                  sx={{ textTransform: "none" }}
+                >
+                  {bizLogoUrl || logoPreview ? "Change logo" : "Upload logo"}
+                  <input
+                    ref={logoInputRef}
+                    hidden
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      e.target.value = "";
+                      if (!file) return;
+                      const err = validateBusinessLogoFile(file);
+                      if (err) {
+                        setLogoError(err);
+                        return;
+                      }
+                      setLogoError("");
+                      setLogoRemoved(false);
+                      setLogoFile(file);
+                      setLogoPreview((prev) => {
+                        if (prev) URL.revokeObjectURL(prev);
+                        return URL.createObjectURL(file);
+                      });
+                    }}
+                  />
+                </Button>
+                {(bizLogoUrl || logoPreview) && !logoRemoved ? (
+                  <Button
+                    variant="text"
+                    color="error"
+                    size="small"
+                    startIcon={<DeleteOutlineIcon />}
+                    disabled={saving}
+                    onClick={() => {
+                      setLogoFile(null);
+                      setLogoPreview((prev) => {
+                        if (prev) URL.revokeObjectURL(prev);
+                        return "";
+                      });
+                      setLogoRemoved(true);
+                      setLogoError("");
+                      if (logoInputRef.current) logoInputRef.current.value = "";
+                    }}
+                    sx={{ textTransform: "none" }}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </Box>
+            </Box>
+            {logoError ? (
+              <Alert severity="error" sx={{ mt: 1, py: 0, alignItems: "center" }}>{logoError}</Alert>
+            ) : null}
+          </Box>
 
           <TextField
             label="Business name"
@@ -373,6 +523,16 @@ const Quotes = () => {
             onChange={(e) => { setBizEmail(e.target.value); setSaveError(""); }}
             fullWidth
             required
+          />
+          <TextField
+            label="Phone number"
+            type="tel"
+            value={bizPhone}
+            onChange={(e) => { setBizPhone(formatUkPhoneNumber(e.target.value)); setSaveError(""); }}
+            fullWidth
+            autoComplete="tel"
+            slotProps={{ htmlInput: { inputMode: "tel" } }}
+            helperText="Optional. Shown on quote and invoice PDFs."
           />
           <Autocomplete
             freeSolo
@@ -477,7 +637,17 @@ const Quotes = () => {
       </Dialog>
 
       {/* Header */}
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", "@media (min-width:769px)": "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", "@media (min-width:769px)": "flex-start" }, mb: 3, gap: 2, flexShrink: 0 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: isDesktopNav ? "row" : "column",
+          justifyContent: "space-between",
+          alignItems: isDesktopNav ? "flex-start" : "stretch",
+          mb: 3,
+          gap: 2,
+          flexShrink: 0,
+        }}
+      >
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <FontAwesomeIcon icon={faPaperPlane} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
@@ -503,9 +673,7 @@ const Quotes = () => {
             placeholder="Search by name, email or quote ID…"
             value={searchQuery}
             onChange={(e) => handleSearchChange(e.target.value)}
-            sx={{
-              width: { xs: "100%", "@media (min-width:769px)": 340 },
-            }}
+            sx={{ width: isDesktopNav ? 340 : "100%" }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -548,7 +716,7 @@ const Quotes = () => {
               "&:hover": { bgcolor: "#062d52" },
               borderRadius: 2,
               px: 3,
-              display: { xs: "none", "@media (min-width:769px)": { display: "inline-flex" } },
+              display: isDesktopNav ? "inline-flex" : "none",
               flexShrink: 0,
             }}
           >
@@ -568,13 +736,11 @@ const Quotes = () => {
               item
               xs={6}
               key={i}
-              sx={{
-                "@media (min-width:922px)": {
-                  flexGrow: 0,
-                  flexBasis: "25%",
-                  maxWidth: "25%",
-                },
-              }}
+              sx={isWideMetrics ? {
+                flexGrow: 0,
+                flexBasis: "25%",
+                maxWidth: "25%",
+              } : undefined}
             >
               <Card
                 onClick={() => handleMetricClick(m.filterKey)}
@@ -783,13 +949,17 @@ const Quotes = () => {
                     align={h.align}
                     sx={{
                       fontWeight: 700,
-                      color: "#083a6b",
+                      color: "#fff",
                       fontSize: "13px",
                       whiteSpace: "nowrap",
                       borderBottom: "2px solid #E5E7EB",
                       py: 1.5,
-                      backgroundColor: "#F8FAFC",
+                      backgroundColor: "#083a6b",
+                      "&.MuiTableCell-stickyHeader": {
+                        backgroundColor: "#083a6b",
+                      },
                     }}
+               
                   >
                     {h.label}
                   </TableCell>

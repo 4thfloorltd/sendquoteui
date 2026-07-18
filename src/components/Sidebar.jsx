@@ -27,6 +27,7 @@ const Sidebar = () => {
   const [businessName, setBusinessName]   = useState("");
   const [businessEmail, setBusinessEmail] = useState("");
   const [businessLogoUrl, setBusinessLogoUrl] = useState("");
+  const [profileNeedsAttention, setProfileNeedsAttention] = useState(false);
   const [quoteCount, setQuoteCount]       = useState(0);
   const [plan, setPlan]                   = useState("free");
   const [subscribeOpen, setSubscribeOpen] = useState(false);
@@ -44,6 +45,7 @@ const Sidebar = () => {
         setBusinessName("");
         setBusinessEmail("");
         setBusinessLogoUrl("");
+        setProfileNeedsAttention(false);
         setQuoteCount(0);
         return;
       }
@@ -52,6 +54,14 @@ const Sidebar = () => {
         setBusinessName(d?.businessName ?? "");
         setBusinessEmail(d?.businessEmail ?? "");
         setBusinessLogoUrl(d?.businessLogoUrl ?? "");
+        const bankDetailsComplete = Boolean(
+          String(d?.bankName ?? "").trim()
+          && String(d?.bankAccountNumber ?? "").trim()
+          && String(d?.bankSortCode ?? "").trim(),
+        );
+        // Keep the Profile indicator after Quotes onboarding until bank details
+        // (and any unfinished setup) are filled on Profile.
+        setProfileNeedsAttention(!Boolean(d?.profileComplete) || !bankDetailsComplete);
         setPlan(d?.plan ?? "free");
         // Backfill loginEmail for older profiles - only when the document
         // actually exists; guards against recreating a just-deleted doc.
@@ -82,9 +92,9 @@ const Sidebar = () => {
   const menuItems = [
     { label: "Quotes",   icon: faPaperPlane, path: "/secured/quotes" },
     { label: "Invoices", icon: faFileInvoice, path: "/secured/invoices" },
-    { label: "Customers", icon: faUsers, path: "/secured/customers" },
+    { label: "Customers", icon: faUsers, path: "/secured/customers", premium: true },
     { label: "Billing",  icon: faCreditCard,  path: "/secured/billing" },
-    { label: "Profile",  icon: faCircleUser,  path: "/secured/profile" },
+    { label: "Profile",  icon: faCircleUser,  path: "/secured/profile", showDot: profileNeedsAttention },
     { label: "Support",  icon: faHeadphones,  path: "/secured/support" },
   ];
 
@@ -252,10 +262,45 @@ const Sidebar = () => {
                     lineHeight: 1.2,
                     flex: 1,
                     minWidth: 0,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 0.75,
                   }}
                 >
                   {item.label}
+                  {item.showDot ? (
+                    <Box
+                      component="span"
+                      aria-label="Finish setting up your profile"
+                      title="Finish setting up your profile"
+                      sx={{
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        bgcolor: isItemActive(item) ? "#fff" : "#EF4444",
+                        flexShrink: 0,
+                      }}
+                    />
+                  ) : null}
                 </Typography>
+                {item.premium && plan !== "premium" ? (
+                  <Typography
+                    component="span"
+                    sx={{
+                      fontSize: "0.65rem",
+                      fontWeight: 700,
+                      letterSpacing: "0.02em",
+                      px: 0.75,
+                      py: 0.15,
+                      borderRadius: 1,
+                      bgcolor: isItemActive(item) ? "rgba(255,255,255,0.2)" : "#E8EEF5",
+                      color: isItemActive(item) ? "#fff" : "#083a6b",
+                      flexShrink: 0,
+                    }}
+                  >
+                    PRO
+                  </Typography>
+                ) : null}
               </ListItem>
             </Link>
           ))}

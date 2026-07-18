@@ -73,7 +73,8 @@ export function buildQuotePdfDocument({
 
   // Wraps at word boundaries, then force-breaks any token that still overflows.
   const wrapText = (text, maxW) => {
-    const wordWrapped = doc.splitTextToSize(text, maxW);
+    const safe = String(text ?? "");
+    const wordWrapped = doc.splitTextToSize(safe, maxW);
     const result = [];
     for (const line of wordWrapped) {
       if (doc.getTextWidth(line) <= maxW) {
@@ -327,15 +328,17 @@ export function buildQuotePdfDocument({
 
   if (showInvoicePaymentNote) {
     y += space.md;
-    const noteLines = wrapText(
-      "Payment can be made by bank transfer to the bank details below. Please use your name and invoice number as your payment reference.",
-      innerW,
-    );
+    const invoiceNo = String(quoteData.quoteNumber ?? "").trim() || "0001";
+    const notePrefix =
+      "Payment can be made by bank transfer to the bank details below. Please use your invoice number as your payment reference ";
+    const noteExample = `(e.g. INV-${invoiceNo})`;
+    // Estimate wrapped height with plain text (bold is same point size).
+    const noteLinesEstimate = wrapText(`${notePrefix}${noteExample}`, innerW);
     const noteBlockH =
       space.md +
       lineH +
       space.xs +
-      noteLines.length * lineH +
+      noteLinesEstimate.length * lineH +
       (hasBankDetails
         ? space.md +
           lineH +
@@ -355,13 +358,49 @@ export function buildQuotePdfDocument({
     doc.text("PAYMENT", M.l, y);
     y += space.md;
 
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(11);
     doc.setTextColor(33, 37, 41);
-    noteLines.forEach((ln) => {
-      doc.text(ln, M.l, y);
-      y += lineH;
+    // Draw prefix (normal) + example (bold), wrapping across lines.
+    const noteParts = [
+      { text: notePrefix, bold: false },
+      { text: noteExample, bold: true },
+    ];
+    let cursorX = M.l;
+    noteParts.forEach((part) => {
+      doc.setFont("helvetica", part.bold ? "bold" : "normal");
+      const tokens = String(part.text).split(/(\s+)/);
+      tokens.forEach((token) => {
+        if (!token) return;
+        const tokenW = doc.getTextWidth(token);
+        if (cursorX > M.l && cursorX + tokenW > innerR) {
+          y += lineH;
+          cursorX = M.l;
+          if (/^\s+$/.test(token)) return;
+        }
+        // Force-break oversized tokens (e.g. long names).
+        if (tokenW > innerW) {
+          let chunk = "";
+          for (const char of token) {
+            if (doc.getTextWidth(chunk + char) > innerW - (cursorX - M.l) && chunk) {
+              doc.text(chunk, cursorX, y);
+              y += lineH;
+              cursorX = M.l;
+              chunk = char;
+            } else {
+              chunk += char;
+            }
+          }
+          if (chunk) {
+            doc.text(chunk, cursorX, y);
+            cursorX += doc.getTextWidth(chunk);
+          }
+          return;
+        }
+        doc.text(token, cursorX, y);
+        cursorX += tokenW;
+      });
     });
+    y += lineH;
 
     if (hasBankDetails) {
       y += space.md;

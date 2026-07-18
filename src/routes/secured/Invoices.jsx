@@ -48,6 +48,7 @@ const STATUS_CFG = {
 export default function Invoices() {
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
+  const isDesktopNav = useMediaQuery("(min-width:769px)");
   const navigate = useNavigate();
   const [invoices, setInvoices] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -172,7 +173,17 @@ export default function Invoices() {
         minHeight: "calc(100dvh - 166px)",
       }}
     >
-      <Box sx={{ display: "flex", flexDirection: { xs: "column", "@media (min-width:769px)": "row" }, justifyContent: "space-between", alignItems: { xs: "stretch", "@media (min-width:769px)": "flex-start" }, mb: 3, gap: 2, flexShrink: 0 }}>
+      <Box
+        sx={{
+          display: "flex",
+          flexDirection: isDesktopNav ? "row" : "column",
+          justifyContent: "space-between",
+          alignItems: isDesktopNav ? "flex-start" : "stretch",
+          mb: 3,
+          gap: 2,
+          flexShrink: 0,
+        }}
+      >
         <Box sx={{ minWidth: 0 }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
             <FontAwesomeIcon icon={faFileInvoice} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
@@ -190,7 +201,7 @@ export default function Invoices() {
             placeholder="Search by name, email or invoice ID…"
             value={searchQuery}
             onChange={(e) => { setSearchQuery(e.target.value); setVisibleCount(PAGE_SIZE); }}
-            sx={{ width: { xs: "100%", "@media (min-width:769px)": 340 } }}
+            sx={{ width: isDesktopNav ? 340 : "100%" }}
             InputProps={{
               startAdornment: (
                 <InputAdornment position="start">
@@ -218,7 +229,7 @@ export default function Invoices() {
               borderRadius: 2,
               px: 3,
               flexShrink: 0,
-              display: { xs: "none", "@media (min-width:769px)": { display: "inline-flex" } },
+              display: isDesktopNav ? "inline-flex" : "none",
             }}
           >
             Create an invoice
@@ -344,7 +355,22 @@ export default function Invoices() {
                     <TableHead>
                       <TableRow>
                         {["Customer", "Invoice ID", "Date", "Total", "Status", ""].map((label) => (
-                          <TableCell key={label} sx={{ fontWeight: 700, color: "#083a6b", fontSize: "13px", borderBottom: "2px solid #E5E7EB", py: 1.5, backgroundColor: "#F8FAFC" }}>{label}</TableCell>
+                          <TableCell
+                            key={label}
+                            sx={{
+                              fontWeight: 700,
+                              color: "#fff",
+                              fontSize: "13px",
+                              borderBottom: "2px solid #E5E7EB",
+                              py: 1.5,
+                              backgroundColor: "#083a6b",
+                              "&.MuiTableCell-stickyHeader": {
+                                backgroundColor: "#083a6b",
+                              },
+                            }}
+                          >
+                            {label}
+                          </TableCell>
                         ))}
                       </TableRow>
                     </TableHead>

@@ -553,15 +553,17 @@ const Profile = () => {
 
   return (
     <Box sx={{ maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-        <FontAwesomeIcon icon={faCircleUser} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
-        <Typography variant="h5" fontWeight={700} color="#083a6b" sx={{ mb: 0 }}>
-          Profile
+      <Box sx={{ mb: 3 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
+          <FontAwesomeIcon icon={faCircleUser} style={{ color: "#083a6b", fontSize: "1.25rem", flexShrink: 0 }} />
+          <Typography variant="h5" fontWeight={700} color="#083a6b">
+            Profile
+          </Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+          Manage your business profile and account security.
         </Typography>
       </Box>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 4 }}>
-        Manage your business profile and account security.
-      </Typography>
 
       {/* ── Business profile ── */}
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 2 }}>
@@ -583,7 +585,7 @@ const Profile = () => {
               setLogoError("");
               setEditingProfile(true);
             }}
-            sx={{ color: "#083a6b", fontWeight: 500, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
+            sx={{ color: "#083a6b", fontWeight: 700, textDecoration: "underline", cursor: "pointer" }}
           >
             Edit
           </Typography>
@@ -623,8 +625,34 @@ const Profile = () => {
               </Typography>
             </Box>
           ))}
-          <Typography variant="caption" sx={{ display: "block", mt: 3, mb: 0.5, fontWeight: 700, color: "#64748B", letterSpacing: "0.04em" }}>
+          <Typography
+            variant="caption"
+            sx={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 0.75,
+              mt: 3,
+              mb: 0.5,
+              fontWeight: 700,
+              color: "#64748B",
+              letterSpacing: "0.04em",
+            }}
+          >
             Bank details (included in the invoice PDFs for bank transfer payments)
+            {!(bankName.trim() && bankAccountNumber.trim() && bankSortCode.trim()) ? (
+              <Box
+                component="span"
+                aria-label="Bank details incomplete"
+                title="Add your bank details"
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor: "#EF4444",
+                  flexShrink: 0,
+                }}
+              />
+            ) : null}
           </Typography>
           {[
             { label: "Bank name", value: bankName },
@@ -885,8 +913,27 @@ const Profile = () => {
         </Grid>
         <Grid item xs={12}>
           <Divider sx={{ my: 1 }} />
-          <Typography variant="subtitle2" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+          <Typography
+            variant="subtitle2"
+            fontWeight={700}
+            color="#083a6b"
+            sx={{ mb: 0.5, display: "inline-flex", alignItems: "center", gap: 0.75 }}
+          >
             Bank details for invoices
+            {!(bankName.trim() && bankAccountNumber.trim() && bankSortCode.trim()) ? (
+              <Box
+                component="span"
+                aria-label="Bank details incomplete"
+                title="Add your bank details"
+                sx={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: "50%",
+                  bgcolor: "#EF4444",
+                  flexShrink: 0,
+                }}
+              />
+            ) : null}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
             Optional. Shown on invoice PDFs for bank transfer payments (similar to Xero). Only add if you want customers to pay into this account.

@@ -22,6 +22,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import LockOutlinedIcon from "@mui/icons-material/LockOutlined";
 import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileInvoice, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
@@ -37,8 +38,10 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { auth, db } from "../../../firebase";
+import SubscribeDialog from "../../components/SubscribeDialog";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 import { AWAITING_STATUS_CHIP_SX } from "../../constants/quoteUi";
+import { formatPremiumMonthlyDisplay } from "../../helpers/currency";
 import {
   getCustomerEmail,
   getCustomerInitials,
@@ -168,8 +171,13 @@ export default function CustomerView() {
   const [removing, setRemoving] = useState(false);
   const [removeError, setRemoveError] = useState("");
   const [uid, setUid] = useState(null);
+  const [plan, setPlan] = useState("free");
+  const [planReady, setPlanReady] = useState(false);
+  const [subscribeOpen, setSubscribeOpen] = useState(false);
   const [visibleQuoteCount, setVisibleQuoteCount] = useState(DOC_PAGE_SIZE);
   const [visibleInvoiceCount, setVisibleInvoiceCount] = useState(DOC_PAGE_SIZE);
+
+  const isPremium = plan === "premium";
 
   useEffect(() => {
     setVisibleQuoteCount(DOC_PAGE_SIZE);
@@ -179,57 +187,91 @@ export default function CustomerView() {
   useEffect(() => {
     let unsubQuotes = () => {};
     let unsubInvoices = () => {};
+    let unsubUser = () => {};
 
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       unsubQuotes();
       unsubInvoices();
+      unsubUser();
 
       if (!user) {
         setUid(null);
+        setPlan("free");
+        setPlanReady(true);
         setLoading(false);
         return;
       }
 
       setUid(user.uid);
       setLoading(true);
+      setPlanReady(false);
       setLoadError("");
-      let quotesReady = false;
-      let invoicesReady = false;
-      const finishLoading = () => {
-        if (quotesReady && invoicesReady) setLoading(false);
-      };
 
-      unsubQuotes = onSnapshot(
-        query(collection(db, "quotes"), where("userId", "==", user.uid)),
+      unsubUser = onSnapshot(
+        doc(db, "users", user.uid),
         (snapshot) => {
-          setQuotes(snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }))
-            .filter((item) => !item.deleted));
-          quotesReady = true;
-          finishLoading();
+          const nextPlan = snapshot.exists() ? (snapshot.data()?.plan ?? "free") : "free";
+          setPlan(nextPlan);
+          setPlanReady(true);
+
+          unsubQuotes();
+          unsubInvoices();
+          unsubQuotes = () => {};
+          unsubInvoices = () => {};
+
+          if (nextPlan !== "premium") {
+            setQuotes([]);
+            setInvoices([]);
+            setLoading(false);
+            return;
+          }
+
+          setLoading(true);
+          let quotesReady = false;
+          let invoicesReady = false;
+          const finishLoading = () => {
+            if (quotesReady && invoicesReady) setLoading(false);
+          };
+
+          unsubQuotes = onSnapshot(
+            query(collection(db, "quotes"), where("userId", "==", user.uid)),
+            (quotesSnap) => {
+              setQuotes(quotesSnap.docs
+                .map((item) => ({ id: item.id, ...item.data() }))
+                .filter((item) => !item.deleted));
+              quotesReady = true;
+              finishLoading();
+            },
+            (error) => {
+              console.error("Customer quote activity error", error);
+              setLoadError("Could not load all customer activity.");
+              quotesReady = true;
+              finishLoading();
+            },
+          );
+
+          unsubInvoices = onSnapshot(
+            query(collection(db, "invoices"), where("userId", "==", user.uid)),
+            (invoicesSnap) => {
+              setInvoices(invoicesSnap.docs
+                .map((item) => ({ id: item.id, ...item.data() }))
+                .filter((item) => !item.deleted));
+              invoicesReady = true;
+              finishLoading();
+            },
+            (error) => {
+              console.error("Customer invoice activity error", error);
+              setLoadError("Could not load all customer activity.");
+              invoicesReady = true;
+              finishLoading();
+            },
+          );
         },
         (error) => {
-          console.error("Customer quote activity error", error);
-          setLoadError("Could not load all customer activity.");
-          quotesReady = true;
-          finishLoading();
-        },
-      );
-
-      unsubInvoices = onSnapshot(
-        query(collection(db, "invoices"), where("userId", "==", user.uid)),
-        (snapshot) => {
-          setInvoices(snapshot.docs
-            .map((item) => ({ id: item.id, ...item.data() }))
-            .filter((item) => !item.deleted));
-          invoicesReady = true;
-          finishLoading();
-        },
-        (error) => {
-          console.error("Customer invoice activity error", error);
-          setLoadError("Could not load all customer activity.");
-          invoicesReady = true;
-          finishLoading();
+          console.error("Customer plan snapshot error", error);
+          setPlan("free");
+          setPlanReady(true);
+          setLoading(false);
         },
       );
     });
@@ -238,6 +280,7 @@ export default function CustomerView() {
       unsubAuth();
       unsubQuotes();
       unsubInvoices();
+      unsubUser();
     };
   }, []);
 
@@ -348,10 +391,61 @@ export default function CustomerView() {
     }
   };
 
-  if (loading) {
+  if (!planReady || (isPremium && loading)) {
     return (
       <Box sx={{ minHeight: "50vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <CircularProgress />
+      </Box>
+    );
+  }
+
+  if (!isPremium) {
+    return (
+      <Box sx={{ width: "100%", maxWidth: APP_PAGE_CONTENT_MAX_WIDTH, mx: "auto" }}>
+        <Button
+          component={Link}
+          to="/secured/customers"
+          startIcon={<ArrowBackIcon />}
+          sx={{ textTransform: "none", mb: 2 }}
+        >
+          Back to customers
+        </Button>
+        <Box
+          sx={{
+            minHeight: 280,
+            border: "1px solid #E5E7EB",
+            borderRadius: 2,
+            bgcolor: "#F8FAFC",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            textAlign: "center",
+            px: 3,
+            py: 4,
+          }}
+        >
+          <Avatar sx={{ width: 56, height: 56, bgcolor: "#E8EEF5", color: "#083a6b", mb: 2 }}>
+            <LockOutlinedIcon />
+          </Avatar>
+          <Typography fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+            Customers is a Premium feature
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 420, mb: 2.5 }}>
+            Upgrade to view customer details and activity history.
+          </Typography>
+          <Button
+            variant="contained"
+            onClick={() => setSubscribeOpen(true)}
+            sx={{ bgcolor: "#083a6b", fontWeight: 700, textTransform: "none", "&:hover": { bgcolor: "#062d52" } }}
+          >
+            Upgrade to Premium - {formatPremiumMonthlyDisplay()}/mo
+          </Button>
+        </Box>
+        <SubscribeDialog
+          open={subscribeOpen}
+          onClose={() => setSubscribeOpen(false)}
+        />
       </Box>
     );
   }

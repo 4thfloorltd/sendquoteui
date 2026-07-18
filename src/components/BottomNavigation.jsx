@@ -289,7 +289,24 @@ const BottomNav = () => {
           <ListItemIcon sx={{ minWidth: "30px !important", color: "#083a6b" }}>
             <FontAwesomeIcon icon={faUsers} />
           </ListItemIcon>
-          <Typography variant="body2" fontWeight={600}>Customers</Typography>
+          <Typography variant="body2" fontWeight={600} sx={{ flex: 1 }}>Customers</Typography>
+          {!isPremium ? (
+            <Typography
+              component="span"
+              sx={{
+                fontSize: "0.65rem",
+                fontWeight: 700,
+                letterSpacing: "0.02em",
+                px: 0.75,
+                py: 0.15,
+                borderRadius: 1,
+                bgcolor: "#E8EEF5",
+                color: "#083a6b",
+              }}
+            >
+              PRO
+            </Typography>
+          ) : null}
         </MenuItem>
         <MenuItem
           selected={isSupport}

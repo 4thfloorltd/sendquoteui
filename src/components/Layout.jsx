@@ -124,16 +124,11 @@ function Layout() {
             <Box
               component="main"
               sx={{
-                ml: 0,
-                width: "100%",
+                ml: isMobile ? 0 : `${SIDEBAR_WIDTH}px`,
+                width: isMobile ? "100%" : `calc(100% - ${SIDEBAR_WIDTH}px)`,
                 boxSizing: "border-box",
                 minHeight: "100vh",
-                padding: "86px 16px 80px",
-                "@media (min-width:769px)": {
-                  ml: `${SIDEBAR_WIDTH}px`,
-                  width: `calc(100% - ${SIDEBAR_WIDTH}px)`,
-                  padding: "86px 16px 14px",
-                },
+                padding: isMobile ? "86px 16px 80px" : "86px 16px 14px",
               }}
             >
               <Outlet />

@@ -111,7 +111,19 @@ const QuoteView = () => {
                 let businessPhone = data.businessPhone ?? "";
                 let businessLogoUrl = data.businessLogoUrl ?? "";
                 let businessLogoPath = data.businessLogoPath ?? "";
-                if (data.userId && (!String(businessPhone).trim() || !String(businessLogoUrl).trim())) {
+                let bankName = data.bankName ?? "";
+                let bankAccountNumber = data.bankAccountNumber ?? "";
+                let bankSortCode = data.bankSortCode ?? "";
+                if (
+                  data.userId
+                  && (
+                    !String(businessPhone).trim()
+                    || !String(businessLogoUrl).trim()
+                    || !String(bankName).trim()
+                    || !String(bankAccountNumber).trim()
+                    || !String(bankSortCode).trim()
+                  )
+                ) {
                   try {
                     const uSnap = await getDoc(doc(db, "users", data.userId));
                     if (uSnap.exists()) {
@@ -121,6 +133,9 @@ const QuoteView = () => {
                         businessLogoUrl = ud.businessLogoUrl ?? "";
                         businessLogoPath = ud.businessLogoPath ?? businessLogoPath;
                       }
+                      if (!String(bankName).trim()) bankName = ud.bankName ?? "";
+                      if (!String(bankAccountNumber).trim()) bankAccountNumber = ud.bankAccountNumber ?? "";
+                      if (!String(bankSortCode).trim()) bankSortCode = ud.bankSortCode ?? "";
                     }
                   } catch { /* ignore */ }
                 }
@@ -145,9 +160,9 @@ const QuoteView = () => {
                     email: data.customerEmail,
                     phone: data.customerPhone,
                     currency: data.currency,
-                    bankName: data.bankName,
-                    bankAccountNumber: data.bankAccountNumber,
-                    bankSortCode: data.bankSortCode,
+                    bankName,
+                    bankAccountNumber,
+                    bankSortCode,
                   },
                   lineItems: data.lineItems ?? [],
                   pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },

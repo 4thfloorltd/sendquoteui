@@ -180,6 +180,7 @@ const QuoteGenerator = () => {
         itemsHeading: "Invoice items",
         sendPrimary: "Send invoice",
         resendPrimary: "Resend invoice",
+        sendHelper: "Sends a link to the customer email above.",
         leaveNewBody: "Your invoice will be cleared and cannot be recovered.",
         aiLineHeading: "AI-powered add invoice line",
       }
@@ -190,6 +191,7 @@ const QuoteGenerator = () => {
         itemsHeading: "Quote items",
         sendPrimary: "Send quote",
         resendPrimary: "Resend quote",
+        sendHelper: "Sends a link to the customer email above.",
         leaveNewBody: "Your quote will be cleared and cannot be recovered.",
         aiLineHeading: "AI-powered add quote item",
       };
@@ -250,6 +252,8 @@ const QuoteGenerator = () => {
   const pdfDragCounter = useRef(0);
   /** Invalidates in-flight peek when auth/path re-inits (ignore stale promise). */
   const peekNumberStampRef = useRef(0);
+  /** Skip form reset / next-number peek while guest account create/login is finishing. */
+  const accountTransitionLockRef = useRef(false);
   const [pdfImporting, setPdfImporting]       = useState(false);
   const [pdfImportError, setPdfImportError]   = useState("");
   const [pdfFilled, setPdfFilled]             = useState(false); // banner shown after import
@@ -410,6 +414,14 @@ const QuoteGenerator = () => {
       // Secured `/secured/quote` and `/secured/invoice` must wait for auth so we can
       // peek the real counter — do not apply QU-0001 here (matches quote counter UX).
       if (isPublicQuoteRoute && !editId) updateQuoteData({ quoteNumber: "0001" });
+      return () => {
+        peekNumberStampRef.current += 1;
+      };
+    }
+
+    // Guest create-account / login save: keep the filled form stable under the
+    // transition overlay until we navigate away (avoids flashing QU-0002).
+    if (accountTransitionLockRef.current) {
       return () => {
         peekNumberStampRef.current += 1;
       };
@@ -1215,20 +1227,21 @@ const QuoteGenerator = () => {
       return;
     }
     const email = verificationEmail || String(quoteData.businessEmail ?? "").trim().toLowerCase();
+    accountTransitionLockRef.current = true;
     setCreateAccountLoading(true);
     setCreateAccountError("");
+    let leftPage = false;
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, createAccountPassword);
 
-      // Create the user profile document so Profile pre-populates with the
-      // business name, email and address the user already filled in.
+      // Seed profile from the quote form but leave setup incomplete so Quotes
+      // shows the same “Finish setting up” modal as registration (logo, phone, etc.).
       await setDoc(doc(db, "users", user.uid), {
         businessName:    (quoteData.businessName    ?? "").trim(),
-        businessPhone:   (quoteData.businessPhone   ?? "").trim(),
         businessEmail:   email,
         businessAddress: (quoteData.businessAddress ?? "").trim(),
         loginEmail:      email,
-        profileComplete: true,
+        profileComplete: false,
         vatRegistered:   isVatRegistered,
         defaultVatPercent: lineItemDefaultVatRef.current,
         updatedAt:       serverTimestamp(),
@@ -1246,14 +1259,16 @@ const QuoteGenerator = () => {
       setDoc(doc(db, "quote_usage", email), { count: increment(1) }, { merge: true })
         .catch((e) => console.warn("Usage tracking failed (non-critical):", e));
       setSavedQuoteId(quoteId);
-      setCreateAccountOpen(false);
       setVerificationEmail("");
       setCustomerInviteKind(null);
       setCustomerInviteNotice(null);
       setQuoteSuccessNavigatePath(null);
       await runNewQuoteCustomerInvite(quoteId);
-      setQuoteSuccessOpen(true);
+      leftPage = true;
+      suppressSecuredLeaveBlockerRef.current = true;
+      navigate("/secured/quotes", { replace: true });
     } catch (err) {
+      accountTransitionLockRef.current = false;
       console.error("Account creation failed", err);
       if (err?.code === "auth/email-already-in-use") {
         // Switch to login mode so the user can sign in and save immediately.
@@ -1266,7 +1281,8 @@ const QuoteGenerator = () => {
         setCreateAccountError("Something went wrong. Please try again.");
       }
     } finally {
-      setCreateAccountLoading(false);
+      // Keep the blue cover up on success until the Quotes page mounts.
+      if (!leftPage) setCreateAccountLoading(false);
     }
   };
 
@@ -1276,6 +1292,7 @@ const QuoteGenerator = () => {
       return;
     }
     const email = verificationEmail || String(quoteData.businessEmail ?? "").trim().toLowerCase();
+    accountTransitionLockRef.current = true;
     setCreateAccountLoading(true);
     setCreateAccountError("");
     try {
@@ -1305,6 +1322,7 @@ const QuoteGenerator = () => {
       await runNewQuoteCustomerInvite(quoteId);
       setQuoteSuccessOpen(true);
     } catch (err) {
+      accountTransitionLockRef.current = false;
       console.error("Login and save failed", err);
       if (err?.code === "auth/wrong-password" || err?.code === "auth/invalid-credential") {
         setCreateAccountError("Incorrect password. Please try again.");
@@ -1314,6 +1332,7 @@ const QuoteGenerator = () => {
         setCreateAccountError("Something went wrong. Please try again.");
       }
     } finally {
+      accountTransitionLockRef.current = false;
       setCreateAccountLoading(false);
     }
   };
@@ -1745,9 +1764,32 @@ const QuoteGenerator = () => {
   const handleExportPdf = async () => {
     const docKind = isSecuredInvoice ? "invoice" : "quote";
     const filename = getQuotePdfFilename(quoteData, docKind);
-    const logoDataUrl = await loadBusinessLogoDataUrl(quoteData);
+    let exportData = quoteData;
+    if (
+      docKind === "invoice"
+      && auth.currentUser
+      && !(
+        String(quoteData.bankName ?? "").trim()
+        && String(quoteData.bankAccountNumber ?? "").trim()
+        && String(quoteData.bankSortCode ?? "").trim()
+      )
+    ) {
+      try {
+        const uSnap = await getDoc(doc(db, "users", auth.currentUser.uid));
+        if (uSnap.exists()) {
+          const ud = uSnap.data() || {};
+          exportData = {
+            ...quoteData,
+            bankName: String(quoteData.bankName ?? "").trim() || (ud.bankName ?? ""),
+            bankAccountNumber: String(quoteData.bankAccountNumber ?? "").trim() || (ud.bankAccountNumber ?? ""),
+            bankSortCode: String(quoteData.bankSortCode ?? "").trim() || (ud.bankSortCode ?? ""),
+          };
+        }
+      } catch { /* ignore */ }
+    }
+    const logoDataUrl = await loadBusinessLogoDataUrl(exportData);
     const pdfDoc = buildQuotePdfDocument({
-      quoteData,
+      quoteData: exportData,
       lineItems,
       pricing,
       formatMoney,
@@ -2786,43 +2828,71 @@ const QuoteGenerator = () => {
           </Box>
         </Box>
 
-        <Stack direction={{ xs: "column", sm: "row" }} justifyContent="flex-end" spacing={1.5} sx={{ mt: 3 }}>
-          <Button
-            variant="contained"
-            size="large"
-            onClick={handleOpenWaitlist}
-            disabled={usageChecking || sendingVerificationCode || editLoading}
-            startIcon={
-              usageChecking || sendingVerificationCode
-                ? <CircularProgress size={18} color="inherit" />
-                : <FontAwesomeIcon icon={faPaperPlane} />
-            }
+        <Stack
+          direction={{ xs: "column", sm: "row" }}
+          justifyContent="flex-end"
+          alignItems={{ xs: "stretch", sm: "flex-end" }}
+          spacing={1.5}
+          sx={{ mt: 3 }}
+        >
+          <Box
             sx={{
-              minHeight: 48,
-              px: 2.5,
-              fontSize: "1.0625rem",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: { xs: "stretch", sm: "flex-end" },
+              gap: 0.75,
               flex: { sm: "0 1 280px", xs: "1 0 100%" },
               width: { xs: "100%", sm: "auto" },
+              maxWidth: { sm: 280 },
               minWidth: 0,
-              maxWidth: { sm: 200 },
-              bgcolor: "#10A86B",
-              color: "#fff",
-              "&:hover": { bgcolor: "#13C47A" },
             }}
           >
-            {editId
-              ? usageChecking
-                ? "Sending"
-                : editCustomerInviteSent
-                  ? docFormUi.resendPrimary
+            <Button
+              variant="contained"
+              size="large"
+              onClick={handleOpenWaitlist}
+              disabled={usageChecking || sendingVerificationCode || editLoading}
+              startIcon={
+                usageChecking || sendingVerificationCode
+                  ? <CircularProgress size={18} color="inherit" />
+                  : <FontAwesomeIcon icon={faPaperPlane} />
+              }
+              sx={{
+                minHeight: 48,
+                px: 2.5,
+                fontSize: "1.0625rem",
+                width: "100%",
+                bgcolor: "#10A86B",
+                color: "#fff",
+                "&:hover": { bgcolor: "#13C47A" },
+              }}
+            >
+              {editId
+                ? usageChecking
+                  ? "Sending"
+                  : editCustomerInviteSent
+                    ? docFormUi.resendPrimary
+                    : docFormUi.sendPrimary
+                : auth.currentUser
+                  ? usageChecking ? "Sending" : docFormUi.sendPrimary
+                  : sendingVerificationCode ? "Sending code…"
+                  : usageChecking ? "Checking…"
                   : docFormUi.sendPrimary
-              : auth.currentUser
-                ? usageChecking ? "Sending" : docFormUi.sendPrimary
-                : sendingVerificationCode ? "Sending code…"
-                : usageChecking ? "Checking…"
-                : docFormUi.sendPrimary
-            }
-          </Button>
+              }
+            </Button>
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              sx={{ textAlign: { xs: "left", sm: "right" }, lineHeight: 1.4 }}
+            >
+              {(() => {
+                const custEmail = String(quoteData.email ?? "").trim();
+                return custEmail
+                  ? `Sends a link to ${custEmail}.`
+                  : docFormUi.sendHelper;
+              })()}
+            </Typography>
+          </Box>
         </Stack>
       </Paper>
 
@@ -3137,24 +3207,6 @@ const QuoteGenerator = () => {
               )}
             </Alert>
           ) : null}
-          {!createAccountIsLoginMode ? (
-            <TextField
-              label="Business phone number"
-              type="tel"
-              fullWidth
-              autoComplete="tel"
-              value={quoteData.businessPhone ?? ""}
-              onChange={(e) => {
-                handleInputChange("businessPhone")({
-                  target: { value: formatUkPhoneNumber(e.target.value) },
-                });
-              }}
-              disabled={createAccountLoading}
-              helperText="Optional. Shown on your quote and invoice PDFs."
-              slotProps={{ htmlInput: { inputMode: "tel" } }}
-              sx={{ mb: 1.5 }}
-            />
-          ) : null}
           <TextField
             label="Password"
             type="password"
@@ -3228,6 +3280,36 @@ const QuoteGenerator = () => {
         </DialogActions>
       </Dialog>
 
+      {/* Hide form flash (e.g. QU-0002 after sign-in) while account create/login finishes. */}
+      {createAccountLoading ? (
+        <Box
+          role="status"
+          aria-live="polite"
+          sx={{
+            position: "fixed",
+            inset: 0,
+            zIndex: (theme) => theme.zIndex.modal + 10,
+            bgcolor: "#083a6b",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+            px: 3,
+          }}
+        >
+          <CircularProgress size={44} sx={{ color: "#fff" }} />
+          <Typography variant="body1" fontWeight={700} sx={{ color: "#fff", textAlign: "center" }}>
+            {createAccountIsLoginMode ? "Saving your quote…" : "Creating your account…"}
+          </Typography>
+          <Typography variant="body2" sx={{ color: "rgba(255,255,255,0.8)", textAlign: "center", maxWidth: 320 }}>
+            {createAccountIsLoginMode
+              ? "Sending the link to your customer. This usually takes a few seconds."
+              : "Saving your quote and emailing your customer. This usually takes a few seconds."}
+          </Typography>
+        </Box>
+      ) : null}
+
       {/* Customer email in flight - same loader for edit resend and new-quote send (success opens after). */}
       <Dialog
         open={editResendEmailLoading || newQuoteCustomerEmailLoading}
@@ -3253,7 +3335,7 @@ const QuoteGenerator = () => {
             {isSecuredInvoice
               ? (editResendEmailLoading && editCustomerInviteSent
                 ? "They’ll get an email with a fresh link to the latest invoice. This usually takes a few seconds."
-                : "They’ll get an email they can open on any device to view or pay. This usually takes a few seconds.")
+                : "They’ll get an email they can open on any device to view. This usually takes a few seconds.")
               : (editResendEmailLoading && editCustomerInviteSent
                 ? "They’ll get an email with a fresh link to the latest version. This usually takes a few seconds."
                 : "They’ll get an email they can open on any device to review, accept, or comment. This usually takes a few seconds.")}

@@ -2,25 +2,27 @@
  * Single source for homepage FAQ copy + FAQPage JSON-LD (see applyPageSeo.js).
  * Answers are plain text for schema.org and consistent rendering.
  */
+import { FREE_QUOTE_LIMIT } from "../constants/plan";
+
 export const HOMEPAGE_FAQ = [
   {
     question: "What is SendQuote?",
     answer:
-      "Quote management for small businesses: draft quotes, send them online, and track accept or decline. Add AI-assisted line items and email notifications if you want them.",
-  },
-  {
-    question: "Who is SendQuote for?",
-    answer:
-      "Tradespeople, freelancers, and small businesses that want to quote and send quickly - without spreadsheets, lost chats, or PDF-only workflows.",
+      "SendQuote helps tradespeople, freelancers, and small businesses draft quotes, send them online, and track accept or decline.",
   },
   {
     question: "Is SendQuote free to send quotes online?",
     answer:
-      "Yes. The free plan includes up to three quotes: create, send, and track replies. Premium adds unlimited quotes, PDF import, and more.",
+      `Yes! You can get started for free and send up to ${FREE_QUOTE_LIMIT} quotes at the same time. When you need unlimited quotes, PDF import, editing sent quotes, saving customer info, or priority support—you can upgrade to Premium.`,
   },
   {
     question: "How do I get started and send a quote to my customer?",
     answer:
-      "Create a quote, add line items and VAT, then Send quote with their email. They get a link to view, accept, or decline—no sign-in required. Copy or share the link anytime.",
+      "To get started, create a quote, enter your business and customer information, add line items with prices and VAT, and click Send quote. Your customer will receive a secure link and can accept or decline on any device with no sign-in required.",
+  },
+  {
+    question: "Can I create and send invoices with SendQuote?",
+    answer:
+      "Yes. Create an invoice from scratch or convert an accepted quote. Send a secure link so your customer can view it online. They can pay using the bank details shown on the invoice, and you can track whether it's unpaid or paid from your account.",
   },
 ];

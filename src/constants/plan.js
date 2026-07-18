@@ -4,6 +4,7 @@ export const FREE_QUOTE_LIMIT = 3;
 /** Premium plan feature bullets - keep in sync across pricing UI and subscribe dialog. */
 export const PREMIUM_PLAN_FEATURES = [
   "Unlimited quotes",
+  "Customer list & history",
   "Customer accept / decline tracking",
   "PDF download for every quote",
   "Edit sent quotes",
@@ -23,6 +24,7 @@ export function getFreePlanComparisonRows() {
     { text: "Customer accept / decline tracking", included: true },
     { text: "PDF download for every quote", included: true },
     { text: "Delete quotes to free up space", included: true },
+    { text: "Customer list & history", included: false },
     { text: "Edit sent quotes", included: false },
     { text: "PDF import to pre-fill quotes", included: false },
   ];

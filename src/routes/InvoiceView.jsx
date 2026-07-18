@@ -167,30 +167,59 @@ const InvoiceView = () => {
             return;
           }
           const data = snap.data();
-          setInvoice(data);
           setError("");
 
-          if (!pdfGenerated.current) {
-            pdfGenerated.current = true;
-            (async () => {
+          (async () => {
+            let businessPhone = data.businessPhone ?? "";
+            let businessLogoUrl = data.businessLogoUrl ?? "";
+            let businessLogoPath = data.businessLogoPath ?? "";
+            let bankName = data.bankName ?? "";
+            let bankAccountNumber = data.bankAccountNumber ?? "";
+            let bankSortCode = data.bankSortCode ?? "";
+
+            const needsProfileFallback = data.userId && (
+              !String(businessPhone).trim()
+              || !String(businessLogoUrl).trim()
+              || !String(bankName).trim()
+              || !String(bankAccountNumber).trim()
+              || !String(bankSortCode).trim()
+            );
+
+            if (needsProfileFallback) {
               try {
-                let businessPhone = data.businessPhone ?? "";
-                let businessLogoUrl = data.businessLogoUrl ?? "";
-                let businessLogoPath = data.businessLogoPath ?? "";
-                if (data.userId && (!String(businessPhone).trim() || !String(businessLogoUrl).trim())) {
-                  try {
-                    const uSnap = await getDoc(doc(db, "users", data.userId));
-                    if (uSnap.exists()) {
-                      const ud = uSnap.data() || {};
-                      if (!String(businessPhone).trim()) businessPhone = ud.businessPhone ?? "";
-                      if (!String(businessLogoUrl).trim()) {
-                        businessLogoUrl = ud.businessLogoUrl ?? "";
-                        businessLogoPath = ud.businessLogoPath ?? businessLogoPath;
-                      }
-                    }
-                  } catch { /* ignore */ }
+                const uSnap = await getDoc(doc(db, "users", data.userId));
+                if (uSnap.exists()) {
+                  const ud = uSnap.data() || {};
+                  if (!String(businessPhone).trim()) businessPhone = ud.businessPhone ?? "";
+                  if (!String(businessLogoUrl).trim()) {
+                    businessLogoUrl = ud.businessLogoUrl ?? "";
+                    businessLogoPath = ud.businessLogoPath ?? businessLogoPath;
+                  }
+                  // Live profile fallback: invoices created before bank details were
+                  // saved still pick them up on view / PDF.
+                  if (!String(bankName).trim()) bankName = ud.bankName ?? "";
+                  if (!String(bankAccountNumber).trim()) bankAccountNumber = ud.bankAccountNumber ?? "";
+                  if (!String(bankSortCode).trim()) bankSortCode = ud.bankSortCode ?? "";
                 }
-                if (cancelled) return;
+              } catch { /* ignore */ }
+            }
+
+            if (cancelled) return;
+
+            const enriched = {
+              ...data,
+              businessPhone,
+              businessLogoUrl,
+              businessLogoPath,
+              bankName,
+              bankAccountNumber,
+              bankSortCode,
+            };
+            setInvoice(enriched);
+
+            if (!pdfGenerated.current) {
+              pdfGenerated.current = true;
+              try {
                 const logoDataUrl = await loadBusinessLogoDataUrl({
                   businessLogoUrl,
                   businessLogoPath,
@@ -211,9 +240,9 @@ const InvoiceView = () => {
                     email: data.customerEmail,
                     phone: data.customerPhone,
                     currency: data.currency,
-                    bankName: data.bankName,
-                    bankAccountNumber: data.bankAccountNumber,
-                    bankSortCode: data.bankSortCode,
+                    bankName,
+                    bankAccountNumber,
+                    bankSortCode,
                   },
                   lineItems: data.lineItems ?? [],
                   pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },
@@ -230,9 +259,9 @@ const InvoiceView = () => {
               } catch (pdfErr) {
                 console.warn("PDF generation failed in InvoiceView", pdfErr);
               }
-            })();
-          }
-          setLoading(false);
+            }
+            if (!cancelled) setLoading(false);
+          })();
         },
         (e) => {
           if (!cancelled) {
@@ -681,9 +710,11 @@ const InvoiceView = () => {
                     </Typography>
                     <Alert severity="info" sx={{ mb: 2, alignItems: "flex-start" }}>
                       Payment can be made by bank transfer using the bank details below.
-                      Please use your name and invoice number{" "}
-                      <Box component="span" fontWeight={700}>INV-{displayNumber}</Box>
-                      {" "}as your payment reference.
+                      Please use your invoice number as your payment reference{" "}
+                      <Box component="span" fontWeight={700}>
+                        (e.g. INV-{displayNumber})
+                      </Box>
+                      .
                     </Alert>
 
                     {(invoice.bankName || invoice.bankAccountNumber || invoice.bankSortCode) ? (
