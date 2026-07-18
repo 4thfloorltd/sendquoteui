@@ -32,6 +32,7 @@ export function buildQuotePdfDocument({
   formatDateLong,
   vatRegistered = true,
   documentKind = "quote",
+  logoDataUrl = null,
 }) {
   const doc   = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = doc.internal.pageSize.getWidth();
@@ -128,6 +129,27 @@ export function buildQuotePdfDocument({
 
     let yIss = M.t;
 
+    const logoSrc = String(logoDataUrl ?? "").trim();
+    if (logoSrc) {
+      try {
+        const props = doc.getImageProperties(logoSrc);
+        const maxW = 70;
+        const maxH = 34;
+        const ratio = Math.min(maxW / props.width, maxH / props.height, 1);
+        const w = props.width * ratio;
+        const h = props.height * ratio;
+        const format = props.fileType === "JPEG" || props.fileType === "JPG"
+          ? "JPEG"
+          : props.fileType === "WEBP"
+            ? "WEBP"
+            : "PNG";
+        doc.addImage(logoSrc, format, innerR - w, yIss, w, h);
+        yIss += h + space.sm;
+      } catch (e) {
+        console.warn("PDF logo render failed", e);
+      }
+    }
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(16);
     doc.setTextColor(8, 58, 107);
@@ -143,10 +165,12 @@ export function buildQuotePdfDocument({
     doc.setTextColor(33, 37, 41);
 
     const email   = String(quoteData.businessEmail   ?? "").trim();
+    const phone   = String(quoteData.businessPhone   ?? "").trim();
     const address = String(quoteData.businessAddress ?? "").trim();
 
     const contactLines = [
       email || "Your business email",
+      ...(phone ? [phone] : []),
       ...( address ? doc.splitTextToSize(address, rightColW) : [] ),
     ];
 
@@ -174,6 +198,7 @@ export function buildQuotePdfDocument({
 
   const custName = String(quoteData.customerName ?? "").trim() || "Customer name";
   const custMail = String(quoteData.email        ?? "").trim();
+  const custPhone = String(quoteData.phone       ?? "").trim();
 
   doc.setFont("helvetica", "normal");
   doc.setFontSize(13);
@@ -185,6 +210,13 @@ export function buildQuotePdfDocument({
     doc.setFontSize(11.5);
     doc.setTextColor(80, 80, 80);
     doc.text(custMail, M.l, y);
+    y += lineH;
+  }
+
+  if (custPhone) {
+    doc.setFontSize(11.5);
+    doc.setTextColor(80, 80, 80);
+    doc.text(custPhone, M.l, y);
     y += lineH;
   }
 
@@ -385,7 +417,7 @@ export function buildQuotePdfDocument({
     doc.setPage(p);
     doc.setFontSize(10);
     doc.setTextColor(150, 150, 150);
-    doc.text(`Page ${p} of ${totalPages} · sendquote.ai`, pageW / 2, pageH - 8, { align: "center" });
+    doc.text(`Page ${p} of ${totalPages}`, pageW / 2, pageH - 8, { align: "center" });
   }
 
   return doc;

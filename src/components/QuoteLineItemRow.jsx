@@ -64,11 +64,23 @@ function NumericTextField({ value: externalValue, onChange, parse, format, input
       inputProps={inputProps}
       /* Keeps the notch + label aligned in Chrome (avoids outline crossing the label). */
       InputLabelProps={{ shrink: true, ...InputLabelProps }}
-      onFocus={() => { focused.current = true; }}
+      onFocus={(e) => {
+        focused.current = true;
+        // Select existing value so the next key replaces it (e.g. 0→1, 1→5, 20→5).
+        requestAnimationFrame(() => {
+          e.target.select?.();
+        });
+      }}
       onChange={(e) => {
-        const raw = e.target.value;
+        let raw = e.target.value;
         // Allow digits, a single leading minus, and a single decimal point.
         if (raw !== "" && !/^-?\d*\.?\d*$/.test(raw)) return;
+        // Bare 0 + digit → replace (handles cursor at start or end if select failed).
+        if (draft === "0" && raw.length === 2 && raw[0] === "0" && raw[1] !== ".") {
+          raw = raw[1];
+        } else if (draft === "0" && raw.length === 2 && raw[1] === "0" && raw[0] !== "." && raw[0] !== "-") {
+          raw = raw[0];
+        }
         setDraft(raw);
         // Notify parent immediately so Amount column stays in sync.
         const parsed = parse(raw);
@@ -153,8 +165,11 @@ export function QuoteLineItemRow({
       label={priceLabel}
       value={priceNum}
       onChange={updateLineField(row.id, "unitPrice")}
-      parse={(raw) => { const n = parseFloat(raw); return Number.isFinite(n) ? Math.max(0, n) : 0; }}
-      format={(n) => (n === 0 ? "0" : String(n))}
+      parse={(raw) => {
+        const n = parseFloat(raw);
+        return Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : 0;
+      }}
+      format={(n) => (Number.isFinite(Number(n)) ? Number(n).toFixed(2) : "0.00")}
       fullWidth
       inputProps={{ inputMode: "decimal" }}
       sx={{

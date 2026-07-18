@@ -64,6 +64,8 @@ import { useAddressAutocomplete } from "../hooks/useAddressAutocomplete";
 import { AiPromptField } from "../components/AiPromptField";
 import { QuoteLineItemRow } from "../components/QuoteLineItemRow";
 import { buildQuotePdfDocument, getQuotePdfFilename } from "../utils/buildQuotePdfDocument";
+import { getCustomerKey } from "../utils/customerRecords";
+import { loadBusinessLogoDataUrl } from "../utils/businessLogo";
 import { formatDateLong } from "../utils/quoteDisplay";
 import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 import { lineNet, lineVatAmount } from "../utils/quoteLineCalculations";
@@ -75,7 +77,7 @@ import {
 import { sendQuoteLinkToCustomer } from "../api/sendQuoteLinkToCustomer";
 import { sendInvoiceLinkToCustomer } from "../api/sendInvoiceLinkToCustomer";
 import { mapParsedLinesToQuoteItems } from "../helpers/mapParsedLinesToQuoteItems";
-import { capitaliseWords } from "../helpers/utility";
+import { capitaliseWords, formatUkPhoneNumber } from "../helpers/utility";
 import { emailHasRegisteredAccount } from "../utils/userEmailAvailability";
 import {
   clearGuestTaxPrefs,
@@ -143,13 +145,17 @@ function serializeQuoteForLeaveBlocker(quoteData, lineItems, vatRegistered) {
     quoteNumber: String(quoteData?.quoteNumber ?? ""),
     quoteDate: String(quoteData?.quoteDate ?? ""),
     businessName: String(quoteData?.businessName ?? "").trim(),
+    businessPhone: String(quoteData?.businessPhone ?? "").trim(),
     businessEmail: String(quoteData?.businessEmail ?? "").trim(),
     businessAddress: String(quoteData?.businessAddress ?? "").trim(),
+    businessLogoUrl: String(quoteData?.businessLogoUrl ?? "").trim(),
+    businessLogoPath: String(quoteData?.businessLogoPath ?? "").trim(),
     bankName: String(quoteData?.bankName ?? "").trim(),
     bankAccountNumber: String(quoteData?.bankAccountNumber ?? "").trim(),
     bankSortCode: String(quoteData?.bankSortCode ?? "").trim(),
     customerName: String(quoteData?.customerName ?? "").trim(),
     email: String(quoteData?.email ?? "").trim().toLowerCase(),
+    phone: String(quoteData?.phone ?? "").trim(),
     currency: String(quoteData?.currency || "GBP"),
     lineItems: rows,
   });
@@ -281,9 +287,11 @@ const QuoteGenerator = () => {
   // The form is considered dirty when the user has entered any meaningful data.
   const isFormDirty = !!(
     quoteData.businessName?.trim() ||
+    quoteData.businessPhone?.trim() ||
     quoteData.businessEmail?.trim() ||
     quoteData.customerName?.trim() ||
     quoteData.email?.trim() ||
+    quoteData.phone?.trim() ||
     quoteData.businessAddress?.trim() ||
     (Array.isArray(quoteData.lineItems) &&
       quoteData.lineItems.some((item) => item.description?.trim() || item.unitPrice > 0))
@@ -440,8 +448,11 @@ const QuoteGenerator = () => {
         if (!editId) {
           updateQuoteData({
             businessName:    p.businessName    ?? "",
+            businessPhone:   p.businessPhone   ?? "",
             businessEmail:   p.businessEmail   ?? "",
             businessAddress: p.businessAddress ?? "",
+            businessLogoUrl: p.businessLogoUrl  ?? "",
+            businessLogoPath: p.businessLogoPath ?? "",
             bankName:            p.bankName            ?? "",
             bankAccountNumber:  p.bankAccountNumber   ?? "",
             bankSortCode:       p.bankSortCode        ?? "",
@@ -450,18 +461,53 @@ const QuoteGenerator = () => {
       }
     }).catch((e) => console.error("Failed to load business profile", e));
 
-    // Load past customers from non-deleted quotes
-    getDocs(query(collection(db, "quotes"), where("userId", "==", uid)))
-      .then((snap) => {
+    // Load past customers from non-deleted quotes and invoices (skip hidden)
+    Promise.all([
+      getDocs(query(collection(db, "quotes"), where("userId", "==", uid))),
+      getDocs(query(collection(db, "invoices"), where("userId", "==", uid))),
+      getDoc(doc(db, "users", uid)),
+    ])
+      .then(([quoteSnap, invoiceSnap, userSnap]) => {
+        const hiddenKeys = new Set(
+          Array.isArray(userSnap.data()?.hiddenCustomerKeys)
+            ? userSnap.data().hiddenCustomerKeys.map(String)
+            : [],
+        );
         const seen = new Map();
-        snap.docs.forEach((d) => {
-          const { customerName, customerEmail, deleted } = d.data();
+        const ingest = (raw) => {
+          const { customerName, customerEmail, customerPhone, deleted, updatedAt, createdAt } = raw;
           if (deleted) return;
-          if (customerName && customerEmail && !seen.has(customerEmail)) {
-            seen.set(customerEmail, { customerName, customerEmail });
+          if (!customerName || !customerEmail) return;
+          const key = getCustomerKey(raw);
+          if (key && hiddenKeys.has(key)) return;
+          const phone = String(customerPhone ?? "").trim();
+          const activity = updatedAt?.toMillis?.() ?? createdAt?.toMillis?.() ?? 0;
+          const existing = seen.get(customerEmail);
+          if (!existing) {
+            seen.set(customerEmail, {
+              customerName,
+              customerEmail,
+              customerPhone: phone,
+              _activity: activity,
+            });
+            return;
           }
-        });
-        setPastCustomers([...seen.values()]);
+          if (activity >= (existing._activity ?? 0)) {
+            seen.set(customerEmail, {
+              customerName,
+              customerEmail,
+              customerPhone: phone || existing.customerPhone,
+              _activity: activity,
+            });
+          } else if (phone && !existing.customerPhone) {
+            existing.customerPhone = phone;
+          }
+        };
+        quoteSnap.docs.forEach((d) => ingest(d.data()));
+        invoiceSnap.docs.forEach((d) => ingest(d.data()));
+        setPastCustomers(
+          [...seen.values()].map(({ _activity, ...rest }) => rest),
+        );
       })
       .catch((e) => console.error("Failed to load past customers", e));
 
@@ -569,22 +615,32 @@ const QuoteGenerator = () => {
         let bankName = d.bankName ?? "";
         let bankAccountNumber = d.bankAccountNumber ?? "";
         let bankSortCode = d.bankSortCode ?? "";
-        if (
-          isSecuredInvoice
-          && !String(bankName).trim()
-          && !String(bankAccountNumber).trim()
-          && !String(bankSortCode).trim()
-        ) {
-          const u = auth.currentUser;
-          if (u) {
-            try {
-              const uSnap = await getDoc(doc(db, "users", u.uid));
-              const ud = uSnap.data() || {};
+        let businessPhone = d.businessPhone ?? "";
+        let businessLogoUrl = d.businessLogoUrl ?? "";
+        let businessLogoPath = d.businessLogoPath ?? "";
+        const u = auth.currentUser;
+        if (u) {
+          try {
+            const uSnap = await getDoc(doc(db, "users", u.uid));
+            const ud = uSnap.data() || {};
+            if (!String(businessPhone).trim()) {
+              businessPhone = ud.businessPhone ?? "";
+            }
+            if (!String(businessLogoUrl).trim()) {
+              businessLogoUrl = ud.businessLogoUrl ?? "";
+              businessLogoPath = ud.businessLogoPath ?? businessLogoPath;
+            }
+            if (
+              isSecuredInvoice
+              && !String(bankName).trim()
+              && !String(bankAccountNumber).trim()
+              && !String(bankSortCode).trim()
+            ) {
               bankName = ud.bankName ?? "";
               bankAccountNumber = ud.bankAccountNumber ?? "";
               bankSortCode = ud.bankSortCode ?? "";
-            } catch { /* ignore */ }
-          }
+            }
+          } catch { /* ignore */ }
         }
         if (!isSecuredInvoice) {
           bankName = "";
@@ -594,10 +650,14 @@ const QuoteGenerator = () => {
         const loaded = {
           quoteDate:       dateField,
           businessName:    d.businessName    ?? "",
+          businessPhone,
           businessEmail:   d.businessEmail   ?? "",
           businessAddress: d.businessAddress ?? "",
+          businessLogoUrl,
+          businessLogoPath,
           customerName:    d.customerName    ?? "",
           email:           d.customerEmail   ?? "",
+          phone:           d.customerPhone   ?? "",
           currency:        d.currency        ?? "GBP",
           bankName,
           bankAccountNumber,
@@ -607,10 +667,14 @@ const QuoteGenerator = () => {
           quoteNumber:     numField,
           quoteDate:       loaded.quoteDate,
           businessName:    loaded.businessName,
+          businessPhone:   loaded.businessPhone,
           businessEmail:   loaded.businessEmail,
           businessAddress: loaded.businessAddress,
+          businessLogoUrl: loaded.businessLogoUrl,
+          businessLogoPath: loaded.businessLogoPath,
           customerName:    loaded.customerName,
           email:           loaded.email,
+          phone:           loaded.phone,
           currency:        loaded.currency,
           bankName:        loaded.bankName,
           bankAccountNumber: loaded.bankAccountNumber,
@@ -1160,6 +1224,7 @@ const QuoteGenerator = () => {
       // business name, email and address the user already filled in.
       await setDoc(doc(db, "users", user.uid), {
         businessName:    (quoteData.businessName    ?? "").trim(),
+        businessPhone:   (quoteData.businessPhone   ?? "").trim(),
         businessEmail:   email,
         businessAddress: (quoteData.businessAddress ?? "").trim(),
         loginEmail:      email,
@@ -1296,6 +1361,7 @@ const QuoteGenerator = () => {
         if (d.businessName) patch.businessName = d.businessName;
         if (d.businessEmail) patch.businessEmail = d.businessEmail;
       }
+      if (d.customerPhone) patch.phone = d.customerPhone;
       if (Object.keys(patch).length) updateQuoteData(patch);
 
       // Format line items as text into the AI field so user can review then click "Add to quote"
@@ -1679,6 +1745,7 @@ const QuoteGenerator = () => {
   const handleExportPdf = async () => {
     const docKind = isSecuredInvoice ? "invoice" : "quote";
     const filename = getQuotePdfFilename(quoteData, docKind);
+    const logoDataUrl = await loadBusinessLogoDataUrl(quoteData);
     const pdfDoc = buildQuotePdfDocument({
       quoteData,
       lineItems,
@@ -1687,6 +1754,7 @@ const QuoteGenerator = () => {
       formatDateLong,
       vatRegistered: isVatRegistered,
       documentKind: docKind,
+      logoDataUrl,
     });
 
     // Web Share API with file support - mobile only.
@@ -1846,12 +1914,25 @@ const QuoteGenerator = () => {
             {businessProfile ? (
               /* Compact read-only summary when profile is loaded */
               <Box id="field-businessName" sx={{ bgcolor: "#F8FAFC", border: "1px solid #E5E7EB", borderRadius: 1.5, p: 1.5 }}>
+                {(businessProfile.businessLogoUrl || quoteData.businessLogoUrl) ? (
+                  <Box
+                    component="img"
+                    src={businessProfile.businessLogoUrl || quoteData.businessLogoUrl}
+                    alt=""
+                    sx={{ maxHeight: 96, maxWidth: 240, objectFit: "contain", mb: 1.25, display: "block" }}
+                  />
+                ) : null}
                 <Typography variant="body2" fontWeight={700} color="#083a6b">
                   {businessProfile.businessName}
                 </Typography>
                 {businessProfile.businessEmail && (
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
                     {businessProfile.businessEmail}
+                  </Typography>
+                )}
+                {(businessProfile.businessPhone || quoteData.businessPhone) && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                    {businessProfile.businessPhone || quoteData.businessPhone}
                   </Typography>
                 )}
                 {businessProfile.businessAddress && (
@@ -1887,6 +1968,22 @@ const QuoteGenerator = () => {
                     width: { xs: "100%", sm: "100%" },
                     "& .MuiInputBase-input": { ...docTitleOutlinedSx["& .MuiInputBase-input"], fontWeight: "normal" },
                   }}
+                />
+                <TextField
+                  id="field-businessPhone"
+                  variant="outlined"
+                  label="Phone number"
+                  type="tel"
+                  autoComplete="tel"
+                  value={quoteData.businessPhone ?? ""}
+                  onChange={(e) => {
+                    handleInputChange("businessPhone")({
+                      target: { value: formatUkPhoneNumber(e.target.value) },
+                    });
+                  }}
+                  fullWidth
+                  slotProps={{ htmlInput: { inputMode: "tel" } }}
+                  sx={{ mb: 1.5, width: "100%" }}
                 />
                 <TextField
                   id="field-businessEmail"
@@ -2060,7 +2157,8 @@ const QuoteGenerator = () => {
           filterOptions={(opts, { inputValue }) =>
             opts.filter((o) =>
               o.customerName.toLowerCase().includes(inputValue.toLowerCase()) ||
-              o.customerEmail.toLowerCase().includes(inputValue.toLowerCase())
+              o.customerEmail.toLowerCase().includes(inputValue.toLowerCase()) ||
+              String(o.customerPhone ?? "").toLowerCase().includes(inputValue.toLowerCase())
             )
           }
           inputValue={quoteData.customerName ?? ""}
@@ -2073,9 +2171,11 @@ const QuoteGenerator = () => {
           onChange={(_, selected) => {
             if (selected && typeof selected === "object") {
               const nm = String(selected.customerName ?? "").replace(/\s+/g, " ").trim();
+              const phone = String(selected.customerPhone ?? "").trim();
               updateQuoteData({
                 customerName: nm === "" ? "" : capitaliseWords(nm),
                 email:        selected.customerEmail,
+                phone:        phone ? formatUkPhoneNumber(phone) : "",
               });
               if (formErrors.customerName) setFormErrors((prev) => { const n = { ...prev }; delete n.customerName; return n; });
               if (formErrors.email) setFormErrors((prev) => { const n = { ...prev }; delete n.email; return n; });
@@ -2086,6 +2186,9 @@ const QuoteGenerator = () => {
               <Box sx={{ display: "flex", flexDirection: "column", py: 0.5 }}>
                 <Typography variant="body2" fontWeight={600}>{option.customerName}</Typography>
                 <Typography variant="caption" color="text.secondary">{option.customerEmail}</Typography>
+                {option.customerPhone ? (
+                  <Typography variant="caption" color="text.secondary">{option.customerPhone}</Typography>
+                ) : null}
               </Box>
             </li>
           )}
@@ -2145,6 +2248,23 @@ const QuoteGenerator = () => {
               setFormErrors((prev) => { const n = { ...prev }; delete n.email; return n; });
             }
           }}
+          sx={{ mb: 1.5 }}
+        />
+        <TextField
+          id="field-phone"
+          variant="outlined"
+          fullWidth
+          type="tel"
+          label="Phone number"
+          autoComplete="tel"
+          value={quoteData.phone ?? ""}
+          onChange={(e) => {
+            handleInputChange("phone")({
+              target: { value: formatUkPhoneNumber(e.target.value) },
+            });
+          }}
+          helperText="Optional"
+          slotProps={{ htmlInput: { inputMode: "tel" } }}
           sx={{ mb: 1.5 }}
         />
         </Box>
@@ -3016,6 +3136,24 @@ const QuoteGenerator = () => {
                 </Box>
               )}
             </Alert>
+          ) : null}
+          {!createAccountIsLoginMode ? (
+            <TextField
+              label="Business phone number"
+              type="tel"
+              fullWidth
+              autoComplete="tel"
+              value={quoteData.businessPhone ?? ""}
+              onChange={(e) => {
+                handleInputChange("businessPhone")({
+                  target: { value: formatUkPhoneNumber(e.target.value) },
+                });
+              }}
+              disabled={createAccountLoading}
+              helperText="Optional. Shown on your quote and invoice PDFs."
+              slotProps={{ htmlInput: { inputMode: "tel" } }}
+              sx={{ mb: 1.5 }}
+            />
           ) : null}
           <TextField
             label="Password"

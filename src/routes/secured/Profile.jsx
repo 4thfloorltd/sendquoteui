@@ -27,8 +27,17 @@ import { isEmailClaimedByAnotherUser } from "../../utils/userEmailAvailability";
 import { APP_PAGE_CONTENT_MAX_WIDTH } from "../../constants/site";
 import { getDefaultVatPercent, resolveDefaultVatPercent } from "../../helpers/currency";
 import { clearGuestTaxPrefs, readGuestTaxPrefs } from "../../utils/guestTaxPrefs";
+import { formatUkPhoneNumber } from "../../helpers/utility";
+import {
+  BUSINESS_LOGO_MAX_MB,
+  deleteBusinessLogo,
+  uploadBusinessLogo,
+  validateBusinessLogoFile,
+} from "../../utils/businessLogo";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCircleUser } from "@fortawesome/free-solid-svg-icons";
+import ImageOutlinedIcon from "@mui/icons-material/ImageOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -41,10 +50,19 @@ const Profile = () => {
   const [originalBizEmail, setOriginalBizEmail] = useState("");
   const [bizName, setBizName]                 = useState("");
   const [bizEmail, setBizEmail]               = useState("");
+  const [bizPhone, setBizPhone]               = useState("");
   const [bizAddress, setBizAddress]           = useState("");
   const [bankName, setBankName]               = useState("");
   const [bankAccountNumber, setBankAccountNumber] = useState("");
   const [bankSortCode, setBankSortCode]       = useState("");
+  const [bizLogoUrl, setBizLogoUrl]           = useState("");
+  const [bizLogoPath, setBizLogoPath]         = useState("");
+  const [logoFile, setLogoFile]               = useState(null);
+  const [logoPreview, setLogoPreview]         = useState("");
+  const [logoRemoved, setLogoRemoved]         = useState(false);
+  const [logoUploading, setLogoUploading]     = useState(false);
+  const [logoError, setLogoError]             = useState("");
+  const logoInputRef = useRef(null);
   const [addressFieldFocused, setAddressFieldFocused] = useState(false);
   const [profileLoading, setProfileLoading]   = useState(true);
   const [profileSaving, setProfileSaving]     = useState(false);
@@ -122,10 +140,17 @@ const Profile = () => {
         if (snap.exists()) {
           const d = snap.data();
           setBizName(d.businessName    ?? "");
+          setBizPhone(d.businessPhone  ?? "");
           setBizAddress(d.businessAddress ?? "");
           setBankName(d.bankName ?? "");
           setBankAccountNumber(d.bankAccountNumber ?? "");
           setBankSortCode(d.bankSortCode ?? "");
+          setBizLogoUrl(d.businessLogoUrl ?? "");
+          setBizLogoPath(d.businessLogoPath ?? "");
+          setLogoFile(null);
+          setLogoPreview("");
+          setLogoRemoved(false);
+          setLogoError("");
           const guestTax = readGuestTaxPrefs();
           const vatReg = d.vatRegistered ?? guestTax?.vatRegistered ?? true;
           const effVat = d.defaultVatPercent !== undefined && d.defaultVatPercent !== null
@@ -240,39 +265,77 @@ const Profile = () => {
     const isPendingEmail = pendingVerification?.email && normalizedEmail === pendingVerification.email;
 
     try {
+      let nextLogoUrl = logoRemoved ? "" : bizLogoUrl;
+      let nextLogoPath = logoRemoved ? "" : bizLogoPath;
+
+      if (logoRemoved && bizLogoPath) {
+        setLogoUploading(true);
+        await deleteBusinessLogo(bizLogoPath);
+      }
+
+      if (logoFile) {
+        setLogoUploading(true);
+        if (bizLogoPath && !logoRemoved) {
+          await deleteBusinessLogo(bizLogoPath).catch(() => {});
+        }
+        const uploaded = await uploadBusinessLogo(uid, logoFile);
+        nextLogoUrl = uploaded.businessLogoUrl;
+        nextLogoPath = uploaded.businessLogoPath;
+      }
+
+      const logoFields = {
+        businessLogoUrl: nextLogoUrl,
+        businessLogoPath: nextLogoPath,
+      };
+
       if (emailChanged || isPendingEmail) {
         // Save name & address immediately; email update is handled via Firebase
         // verification link in the reauth step.
         await setDoc(doc(db, "users", uid), {
           businessName:    bizName.trim(),
+          businessPhone:   bizPhone.trim(),
           businessAddress: bizAddress.trim(),
           bankName:            bankName.trim(),
           bankAccountNumber:  bankAccountNumber.trim(),
           bankSortCode:       bankSortCode.trim(),
+          ...logoFields,
           profileComplete: true,
           updatedAt:       serverTimestamp(),
         }, { merge: true });
 
+        setBizLogoUrl(nextLogoUrl);
+        setBizLogoPath(nextLogoPath);
+        setLogoFile(null);
+        setLogoPreview("");
+        setLogoRemoved(false);
         setPendingEmailSave(normalizedEmail);
         setReauthPassword("");
         setReauthError("");
         setReauthOpen(true);
         setProfileSaving(false);
+        setLogoUploading(false);
         return;
       }
 
       await setDoc(doc(db, "users", uid), {
         businessName:    bizName.trim(),
         businessEmail:   normalizedEmail,
+        businessPhone:   bizPhone.trim(),
         businessAddress: bizAddress.trim(),
         bankName:            bankName.trim(),
         bankAccountNumber:  bankAccountNumber.trim(),
         bankSortCode:       bankSortCode.trim(),
+        ...logoFields,
         profileComplete: true,
         loginEmail:      auth.currentUser?.email?.toLowerCase() ?? "",
         updatedAt:       serverTimestamp(),
       }, { merge: true });
 
+      setBizLogoUrl(nextLogoUrl);
+      setBizLogoPath(nextLogoPath);
+      setLogoFile(null);
+      setLogoPreview("");
+      setLogoRemoved(false);
       setOriginalBizEmail(normalizedEmail);
       setEditingProfile(false);
       showSnack("Business profile saved.");
@@ -280,6 +343,7 @@ const Profile = () => {
       console.error("Profile save failed", e);
       showSnack("Failed to save profile. Please try again.", "error");
     } finally {
+      setLogoUploading(false);
       setProfileSaving(false);
     }
   };
@@ -509,9 +573,14 @@ const Profile = () => {
             variant="body2"
             onClick={() => {
               profileSnapshot.current = {
-                bizName, bizEmail, bizAddress,
+                bizName, bizEmail, bizPhone, bizAddress,
                 bankName, bankAccountNumber, bankSortCode,
+                bizLogoUrl, bizLogoPath,
               };
+              setLogoFile(null);
+              setLogoPreview("");
+              setLogoRemoved(false);
+              setLogoError("");
               setEditingProfile(true);
             }}
             sx={{ color: "#083a6b", fontWeight: 500, cursor: "pointer", "&:hover": { textDecoration: "underline" } }}
@@ -524,9 +593,25 @@ const Profile = () => {
       {/* ── Read-only summary ── */}
       {!editingProfile && (
         <Box sx={{ border: "1px solid #E5E7EB", borderRadius: 2, bgcolor: "#F8FAFC", px: 2.5, py: 2, mb: 3 }}>
+          <Box sx={{ display: "flex", gap: 2, py: 1, borderBottom: "1px solid #F1F5F9", alignItems: "center" }}>
+            <Typography variant="body2" sx={{ color: "#94A3B8", fontWeight: 600, minWidth: 130, flexShrink: 0 }}>
+              Logo
+            </Typography>
+            {bizLogoUrl ? (
+              <Box
+                component="img"
+                src={bizLogoUrl}
+                alt="Business logo"
+                sx={{ maxHeight: 120, maxWidth: 280, objectFit: "contain" }}
+              />
+            ) : (
+              <Typography variant="body2" sx={{ color: "#CBD5E1" }}>-</Typography>
+            )}
+          </Box>
           {[
             { label: "Business name",    value: bizName    },
             { label: "Business email",   value: bizEmail   },
+            { label: "Phone number",     value: bizPhone   },
             { label: "Business address", value: bizAddress },
           ].map(({ label, value }, i, arr) => (
             <Box key={label} sx={{ display: "flex", gap: 2, py: 1, borderBottom: i < arr.length - 1 ? "1px solid #F1F5F9" : "none" }}>
@@ -586,6 +671,100 @@ const Profile = () => {
       {editingProfile && (
       <Grid container spacing={2}>
         <Grid item xs={12}>
+          <Typography variant="subtitle2" fontWeight={700} color="#083a6b" sx={{ mb: 0.5 }}>
+            Business logo
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Optional. Shown on quote and invoice PDFs. PNG, JPG or WebP, max {BUSINESS_LOGO_MAX_MB} MB.
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+            {(logoPreview || (!logoRemoved && bizLogoUrl)) ? (
+              <Box
+                component="img"
+                src={logoPreview || bizLogoUrl}
+                alt="Logo preview"
+                sx={{
+                  height: 120,
+                  maxWidth: 280,
+                  objectFit: "contain",
+                  border: "1px solid #E5E7EB",
+                  borderRadius: 1.5,
+                  bgcolor: "#fff",
+                  p: 1.5,
+                }}
+              />
+            ) : (
+              <Box
+                sx={{
+                  width: 120,
+                  height: 120,
+                  borderRadius: 1.5,
+                  border: "1px dashed #CBD5E1",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#94A3B8",
+                  bgcolor: "#F8FAFC",
+                }}
+              >
+                <ImageOutlinedIcon />
+              </Box>
+            )}
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap" }}>
+              <Button
+                variant="outlined"
+                component="label"
+                startIcon={<ImageOutlinedIcon />}
+                disabled={profileSaving || logoUploading}
+                sx={{ textTransform: "none" }}
+              >
+                {bizLogoUrl || logoPreview ? "Change logo" : "Upload logo"}
+                <input
+                  ref={logoInputRef}
+                  hidden
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file) return;
+                    const err = validateBusinessLogoFile(file);
+                    if (err) {
+                      setLogoError(err);
+                      return;
+                    }
+                    setLogoError("");
+                    setLogoRemoved(false);
+                    setLogoFile(file);
+                    setLogoPreview(URL.createObjectURL(file));
+                  }}
+                />
+              </Button>
+              {(bizLogoUrl || logoPreview) && !logoRemoved ? (
+                <Button
+                  variant="text"
+                  color="error"
+                  startIcon={<DeleteOutlineIcon />}
+                  disabled={profileSaving || logoUploading}
+                  onClick={() => {
+                    setLogoFile(null);
+                    setLogoPreview("");
+                    setLogoRemoved(true);
+                    setLogoError("");
+                    if (logoInputRef.current) logoInputRef.current.value = "";
+                  }}
+                  sx={{ textTransform: "none" }}
+                >
+                  Remove
+                </Button>
+              ) : null}
+            </Box>
+          </Box>
+          {logoError ? (
+            <Alert severity="error" sx={{ mt: 1.5 }}>{logoError}</Alert>
+          ) : null}
+        </Grid>
+        <Grid item xs={12}>
           <TextField
             label="Business name"
             value={bizName}
@@ -612,6 +791,18 @@ const Profile = () => {
               Updating your business email will also update your account login email.
             </Alert>
           )}
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            label="Phone number"
+            type="tel"
+            value={bizPhone}
+            onChange={(e) => setBizPhone(formatUkPhoneNumber(e.target.value))}
+            fullWidth
+            autoComplete="tel"
+            slotProps={{ htmlInput: { inputMode: "tel" } }}
+            helperText="Optional. Shown on quote and invoice PDFs."
+          />
         </Grid>
         <Grid item xs={12}>
           <Autocomplete
@@ -736,10 +927,10 @@ const Profile = () => {
             <Button
               variant="contained"
               onClick={handleSaveProfile}
-              disabled={profileSaving}
+              disabled={profileSaving || logoUploading}
               sx={{ textTransform: "none", fontWeight: 600, bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
             >
-              {profileSaving ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Save profile"}
+              {profileSaving || logoUploading ? <CircularProgress size={20} sx={{ color: "#fff" }} /> : "Save profile"}
             </Button>
             <Button
               variant="outlined"
@@ -747,14 +938,21 @@ const Profile = () => {
                   const s = profileSnapshot.current;
                   setBizName(s.bizName ?? "");
                   setBizEmail(s.bizEmail ?? "");
+                  setBizPhone(s.bizPhone ?? "");
                   setBizAddress(s.bizAddress ?? "");
                   setBankName(s.bankName ?? "");
                   setBankAccountNumber(s.bankAccountNumber ?? "");
                   setBankSortCode(s.bankSortCode ?? "");
+                  setBizLogoUrl(s.bizLogoUrl ?? "");
+                  setBizLogoPath(s.bizLogoPath ?? "");
+                  setLogoFile(null);
+                  setLogoPreview("");
+                  setLogoRemoved(false);
+                  setLogoError("");
                   setProfileErrors({});
                   setEditingProfile(false);
                 }}
-              disabled={profileSaving}
+              disabled={profileSaving || logoUploading}
               sx={{ textTransform: "none", color: "text.secondary", borderColor: "#E2E8F0" }}
             >
               Cancel

@@ -31,6 +31,7 @@ import { faDownload } from "@fortawesome/free-solid-svg-icons";
 // import InvoicePayDialog from "../components/InvoicePayDialog";
 // import { confirmInvoicePayment } from "../api/confirmInvoicePayment";
 import { buildQuotePdfDocument } from "../utils/buildQuotePdfDocument";
+import { loadBusinessLogoDataUrl } from "../utils/businessLogo";
 import { formatDateLong, createFormatMoney } from "../utils/quoteDisplay";
 import QuoteShareQuickButtons from "../components/QuoteShareQuickButtons";
 import { getCustomerKey } from "../utils/customerRecords";
@@ -171,36 +172,65 @@ const InvoiceView = () => {
 
           if (!pdfGenerated.current) {
             pdfGenerated.current = true;
-            try {
-              const formatMoney = createFormatMoney(data.currency);
-              const pdfDoc = buildQuotePdfDocument({
-                quoteData: {
-                  quoteNumber: data.invoiceNumber,
-                  quoteDate: data.invoiceDate,
-                  businessName: data.businessName,
-                  businessEmail: data.businessEmail,
-                  businessAddress: data.businessAddress,
-                  customerName: data.customerName,
-                  email: data.customerEmail,
-                  currency: data.currency,
-                  bankName: data.bankName,
-                  bankAccountNumber: data.bankAccountNumber,
-                  bankSortCode: data.bankSortCode,
-                },
-                lineItems: data.lineItems ?? [],
-                pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },
-                formatMoney,
-                formatDateLong,
-                vatRegistered: data.vatRegistered ?? true,
-                documentKind: "invoice",
-              });
-              const blob = pdfDoc.output("blob");
-              const url = URL.createObjectURL(blob);
-              pdfBlobUrlRef.current = url;
-              if (!cancelled) setPdfBlobUrl(url);
-            } catch (pdfErr) {
-              console.warn("PDF generation failed in InvoiceView", pdfErr);
-            }
+            (async () => {
+              try {
+                let businessPhone = data.businessPhone ?? "";
+                let businessLogoUrl = data.businessLogoUrl ?? "";
+                let businessLogoPath = data.businessLogoPath ?? "";
+                if (data.userId && (!String(businessPhone).trim() || !String(businessLogoUrl).trim())) {
+                  try {
+                    const uSnap = await getDoc(doc(db, "users", data.userId));
+                    if (uSnap.exists()) {
+                      const ud = uSnap.data() || {};
+                      if (!String(businessPhone).trim()) businessPhone = ud.businessPhone ?? "";
+                      if (!String(businessLogoUrl).trim()) {
+                        businessLogoUrl = ud.businessLogoUrl ?? "";
+                        businessLogoPath = ud.businessLogoPath ?? businessLogoPath;
+                      }
+                    }
+                  } catch { /* ignore */ }
+                }
+                if (cancelled) return;
+                const logoDataUrl = await loadBusinessLogoDataUrl({
+                  businessLogoUrl,
+                  businessLogoPath,
+                });
+                if (cancelled) return;
+                const formatMoney = createFormatMoney(data.currency);
+                const pdfDoc = buildQuotePdfDocument({
+                  quoteData: {
+                    quoteNumber: data.invoiceNumber,
+                    quoteDate: data.invoiceDate,
+                    businessName: data.businessName,
+                    businessPhone,
+                    businessEmail: data.businessEmail,
+                    businessAddress: data.businessAddress,
+                    businessLogoUrl,
+                    businessLogoPath,
+                    customerName: data.customerName,
+                    email: data.customerEmail,
+                    phone: data.customerPhone,
+                    currency: data.currency,
+                    bankName: data.bankName,
+                    bankAccountNumber: data.bankAccountNumber,
+                    bankSortCode: data.bankSortCode,
+                  },
+                  lineItems: data.lineItems ?? [],
+                  pricing: data.pricing ?? { subtotal: 0, tax: 0, total: 0 },
+                  formatMoney,
+                  formatDateLong,
+                  vatRegistered: data.vatRegistered ?? true,
+                  documentKind: "invoice",
+                  logoDataUrl,
+                });
+                const blob = pdfDoc.output("blob");
+                const url = URL.createObjectURL(blob);
+                pdfBlobUrlRef.current = url;
+                if (!cancelled) setPdfBlobUrl(url);
+              } catch (pdfErr) {
+                console.warn("PDF generation failed in InvoiceView", pdfErr);
+              }
+            })();
           }
           setLoading(false);
         },

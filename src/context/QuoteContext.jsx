@@ -20,6 +20,8 @@ export const createInitialQuoteData = () => ({
   businessPhone: "",
   businessEmail: "",
   businessAddress: "",
+  businessLogoUrl: "",
+  businessLogoPath: "",
   /** Shown on invoice PDF bank transfer section; from Profile. */
   bankName: "",
   bankAccountNumber: "",
@@ -28,6 +30,7 @@ export const createInitialQuoteData = () => ({
   quoteDate: isoToday(),
   customerName: "",
   email: "",
+  phone: "",
   lineItems: createDefaultLineItems(),
   currency: getDefaultCurrency(),
 });

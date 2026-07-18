@@ -12,6 +12,13 @@ export const getCustomerKey = (document) => {
   return name ? `name:${name}` : "";
 };
 
+/** Quote form uses `email` for customer email; Firestore docs use `customerEmail`. */
+export const getCustomerKeyFromQuoteData = (quoteData) =>
+  getCustomerKey({
+    customerName: quoteData?.customerName,
+    customerEmail: quoteData?.email ?? quoteData?.customerEmail,
+  });
+
 export const getDocumentActivityTime = (document, kind) => {
   const timestamp =
     document?.updatedAt?.toMillis?.()

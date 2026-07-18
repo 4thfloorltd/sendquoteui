@@ -19,8 +19,10 @@ import {
 } from "@mui/material";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileInvoice, faPaperPlane } from "@fortawesome/free-solid-svg-icons";
 import {
@@ -43,6 +45,15 @@ import {
   getCustomerKey,
   getDocumentActivityTime,
 } from "../../utils/customerRecords";
+import { hideCustomerKey } from "../../utils/hiddenCustomers";
+import { formatUkPhoneNumber } from "../../helpers/utility";
+
+const toTelHref = (phone) => {
+  const cleaned = String(phone ?? "").replace(/[^\d+]/g, "");
+  return cleaned ? `tel:${cleaned}` : "";
+};
+
+const DOC_PAGE_SIZE = 5;
 
 const quoteStatus = {
   pending: { label: "Pending", sx: AWAITING_STATUS_CHIP_SX },
@@ -148,10 +159,22 @@ export default function CustomerView() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [editOpen, setEditOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const [nameInput, setNameInput] = useState("");
   const [emailInput, setEmailInput] = useState("");
+  const [phoneInput, setPhoneInput] = useState("");
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const [removeError, setRemoveError] = useState("");
+  const [uid, setUid] = useState(null);
+  const [visibleQuoteCount, setVisibleQuoteCount] = useState(DOC_PAGE_SIZE);
+  const [visibleInvoiceCount, setVisibleInvoiceCount] = useState(DOC_PAGE_SIZE);
+
+  useEffect(() => {
+    setVisibleQuoteCount(DOC_PAGE_SIZE);
+    setVisibleInvoiceCount(DOC_PAGE_SIZE);
+  }, [customerId]);
 
   useEffect(() => {
     let unsubQuotes = () => {};
@@ -162,10 +185,12 @@ export default function CustomerView() {
       unsubInvoices();
 
       if (!user) {
+        setUid(null);
         setLoading(false);
         return;
       }
 
+      setUid(user.uid);
       setLoading(true);
       setLoadError("");
       let quotesReady = false;
@@ -228,6 +253,11 @@ export default function CustomerView() {
       .sort((a, b) => getDocumentActivityTime(b, "invoice") - getDocumentActivityTime(a, "invoice")),
   [customerId, invoices]);
 
+  const displayedQuotes = customerQuotes.slice(0, visibleQuoteCount);
+  const displayedInvoices = customerInvoices.slice(0, visibleInvoiceCount);
+  const hasMoreQuotes = visibleQuoteCount < customerQuotes.length;
+  const hasMoreInvoices = visibleInvoiceCount < customerInvoices.length;
+
   const allDocuments = useMemo(() => [
     ...customerQuotes.map((document) => ({ document, kind: "quote" })),
     ...customerInvoices.map((document) => ({ document, kind: "invoice" })),
@@ -238,15 +268,21 @@ export default function CustomerView() {
   const customer = useMemo(() => {
     const latest = allDocuments[0]?.document;
     if (!latest) return null;
+    const phoneFromLatest = String(latest.customerPhone ?? "").trim();
+    const phoneFallback = allDocuments
+      .map(({ document }) => String(document.customerPhone ?? "").trim())
+      .find(Boolean) ?? "";
     return {
       name: String(latest.customerName ?? "").trim() || getCustomerEmail(latest) || "Unnamed customer",
       email: getCustomerEmail(latest),
+      phone: phoneFromLatest || phoneFallback,
     };
   }, [allDocuments]);
 
   const openEdit = () => {
     setNameInput(customer?.name ?? "");
     setEmailInput(customer?.email ?? "");
+    setPhoneInput(customer?.phone ? formatUkPhoneNumber(customer.phone) : "");
     setSaveError("");
     setEditOpen(true);
   };
@@ -254,6 +290,7 @@ export default function CustomerView() {
   const handleSave = async () => {
     const name = nameInput.trim();
     const email = emailInput.trim().toLowerCase();
+    const phone = phoneInput.trim();
     if (!name) {
       setSaveError("Customer name is required.");
       return;
@@ -277,6 +314,7 @@ export default function CustomerView() {
           batch.update(doc(db, record.collectionName, record.id), {
             customerName: name,
             customerEmail: email,
+            customerPhone: phone,
             updatedAt: serverTimestamp(),
           });
         });
@@ -291,6 +329,22 @@ export default function CustomerView() {
       setSaveError("Could not update customer details. Please try again.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleRemoveFromCustomers = async () => {
+    if (!uid || !customerId) return;
+    setRemoving(true);
+    setRemoveError("");
+    try {
+      await hideCustomerKey(uid, customerId);
+      setRemoveOpen(false);
+      navigate("/secured/customers", { replace: true });
+    } catch (error) {
+      console.error("Hide customer failed", error);
+      setRemoveError("Could not remove this customer. Please try again.");
+    } finally {
+      setRemoving(false);
     }
   };
 
@@ -347,6 +401,11 @@ export default function CustomerView() {
             <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
               {customer.email || "No email address"}
             </Typography>
+            {customer.phone ? (
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
+                {customer.phone}
+              </Typography>
+            ) : null}
           </Box>
           <Stack direction={{ xs: "column", sm: "row" }} spacing={1} sx={{ width: { xs: "100%", sm: "auto" } }}>
             {customer.email ? (
@@ -360,6 +419,17 @@ export default function CustomerView() {
                 Email
               </Button>
             ) : null}
+            {customer.phone && toTelHref(customer.phone) ? (
+              <Button
+                component="a"
+                href={toTelHref(customer.phone)}
+                variant="outlined"
+                startIcon={<PhoneOutlinedIcon />}
+                sx={{ textTransform: "none", borderColor: "#CBD5E1", color: "#083a6b" }}
+              >
+                Call
+              </Button>
+            ) : null}
             <Button
               variant="contained"
               startIcon={<EditOutlinedIcon />}
@@ -367,6 +437,18 @@ export default function CustomerView() {
               sx={{ textTransform: "none", bgcolor: "#083a6b", "&:hover": { bgcolor: "#062d52" } }}
             >
               Edit details
+            </Button>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteOutlineIcon />}
+              onClick={() => {
+                setRemoveError("");
+                setRemoveOpen(true);
+              }}
+              sx={{ textTransform: "none" }}
+            >
+              Remove from customers
             </Button>
           </Stack>
         </Box>
@@ -385,7 +467,7 @@ export default function CustomerView() {
             <Typography variant="h6" fontWeight={700} color="#083a6b">Quotes</Typography>
           </Box>
           <Stack spacing={1.25}>
-            {customerQuotes.length > 0 ? customerQuotes.map((quote) => (
+            {customerQuotes.length > 0 ? displayedQuotes.map((quote) => (
               <DocumentRow key={quote.id} document={quote} kind="quote" />
             )) : (
               <Paper variant="outlined" sx={{ p: 3, textAlign: "center", borderColor: "#E5E7EB" }}>
@@ -393,6 +475,23 @@ export default function CustomerView() {
               </Paper>
             )}
           </Stack>
+          {customerQuotes.length > 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, pt: 2 }}>
+              {hasMoreQuotes ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setVisibleQuoteCount((count) => count + DOC_PAGE_SIZE)}
+                  sx={{ textTransform: "none", fontWeight: 600, borderColor: "#083a6b", color: "#083a6b", minWidth: 140 }}
+                >
+                  Load more
+                </Button>
+              ) : null}
+              <Typography variant="caption" color="text.secondary">
+                Showing {Math.min(visibleQuoteCount, customerQuotes.length)} of {customerQuotes.length} quote{customerQuotes.length === 1 ? "" : "s"}
+              </Typography>
+            </Box>
+          ) : null}
         </Grid>
 
         <Grid item xs={12} md={6}>
@@ -401,7 +500,7 @@ export default function CustomerView() {
             <Typography variant="h6" fontWeight={700} color="#083a6b">Invoices</Typography>
           </Box>
           <Stack spacing={1.25}>
-            {customerInvoices.length > 0 ? customerInvoices.map((invoice) => (
+            {customerInvoices.length > 0 ? displayedInvoices.map((invoice) => (
               <DocumentRow key={invoice.id} document={invoice} kind="invoice" />
             )) : (
               <Paper variant="outlined" sx={{ p: 3, textAlign: "center", borderColor: "#E5E7EB" }}>
@@ -409,6 +508,23 @@ export default function CustomerView() {
               </Paper>
             )}
           </Stack>
+          {customerInvoices.length > 0 ? (
+            <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1, pt: 2 }}>
+              {hasMoreInvoices ? (
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={() => setVisibleInvoiceCount((count) => count + DOC_PAGE_SIZE)}
+                  sx={{ textTransform: "none", fontWeight: 600, borderColor: "#5B21B6", color: "#5B21B6", minWidth: 140 }}
+                >
+                  Load more
+                </Button>
+              ) : null}
+              <Typography variant="caption" color="text.secondary">
+                Showing {Math.min(visibleInvoiceCount, customerInvoices.length)} of {customerInvoices.length} invoice{customerInvoices.length === 1 ? "" : "s"}
+              </Typography>
+            </Box>
+          ) : null}
         </Grid>
       </Grid>
 
@@ -433,6 +549,15 @@ export default function CustomerView() {
             onChange={(event) => setEmailInput(event.target.value)}
             disabled={saving}
           />
+          <TextField
+            label="Phone number"
+            type="tel"
+            value={phoneInput}
+            onChange={(event) => setPhoneInput(formatUkPhoneNumber(event.target.value))}
+            disabled={saving}
+            helperText="Optional"
+            slotProps={{ htmlInput: { inputMode: "tel" } }}
+          />
           {saveError ? <Alert severity="error">{saveError}</Alert> : null}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -446,6 +571,34 @@ export default function CustomerView() {
             sx={{ textTransform: "none", bgcolor: "#083a6b", minWidth: 120, "&:hover": { bgcolor: "#062d52" } }}
           >
             {saving ? <CircularProgress size={20} color="inherit" /> : "Save changes"}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={removeOpen} onClose={() => removing ? null : setRemoveOpen(false)} fullWidth maxWidth="xs">
+        <DialogTitle sx={{ fontWeight: 700, color: "#083a6b" }}>Remove from customers?</DialogTitle>
+        <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 1.5, pt: "12px !important" }}>
+          <Typography variant="body2" color="text.secondary">
+            <strong>{customer.name}</strong> will be removed from your Customers list and quote autocomplete.
+            Their quotes and invoices are kept for reference.
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Creating a new quote or invoice for them will bring them back automatically.
+          </Typography>
+          {removeError ? <Alert severity="error">{removeError}</Alert> : null}
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button onClick={() => setRemoveOpen(false)} disabled={removing} sx={{ textTransform: "none", color: "text.secondary" }}>
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={handleRemoveFromCustomers}
+            disabled={removing}
+            sx={{ textTransform: "none", minWidth: 140 }}
+          >
+            {removing ? <CircularProgress size={20} color="inherit" /> : "Remove"}
           </Button>
         </DialogActions>
       </Dialog>

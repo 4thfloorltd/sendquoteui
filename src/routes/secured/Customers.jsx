@@ -16,10 +16,11 @@ import {
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import EmailOutlinedIcon from "@mui/icons-material/EmailOutlined";
+import PhoneOutlinedIcon from "@mui/icons-material/PhoneOutlined";
 import SearchIcon from "@mui/icons-material/Search";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faFileInvoice, faPaperPlane, faUsers } from "@fortawesome/free-solid-svg-icons";
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, doc, onSnapshot, query, where } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { useNavigate } from "react-router-dom";
 import { auth, db } from "../../../firebase";
@@ -34,6 +35,11 @@ import {
 
 const PAGE_SIZE = 9;
 
+const toTelHref = (phone) => {
+  const cleaned = String(phone ?? "").replace(/[^\d+]/g, "");
+  return cleaned ? `tel:${cleaned}` : "";
+};
+
 const formatActivityDate = (timestamp) => {
   if (!timestamp) return "Date unavailable";
   return new Intl.DateTimeFormat("en-GB", {
@@ -47,6 +53,7 @@ export default function Customers() {
   const navigate = useNavigate();
   const [quotes, setQuotes] = useState([]);
   const [invoices, setInvoices] = useState([]);
+  const [hiddenCustomerKeys, setHiddenCustomerKeys] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -55,14 +62,17 @@ export default function Customers() {
   useEffect(() => {
     let unsubQuotes = () => {};
     let unsubInvoices = () => {};
+    let unsubUser = () => {};
 
     const unsubAuth = onAuthStateChanged(auth, (user) => {
       unsubQuotes();
       unsubInvoices();
+      unsubUser();
 
       if (!user) {
         setQuotes([]);
         setInvoices([]);
+        setHiddenCustomerKeys([]);
         setLoading(false);
         return;
       }
@@ -71,9 +81,26 @@ export default function Customers() {
       setError("");
       let quotesReady = false;
       let invoicesReady = false;
+      let userReady = false;
       const finishLoading = () => {
-        if (quotesReady && invoicesReady) setLoading(false);
+        if (quotesReady && invoicesReady && userReady) setLoading(false);
       };
+
+      unsubUser = onSnapshot(
+        doc(db, "users", user.uid),
+        (snapshot) => {
+          const keys = snapshot.exists() ? (snapshot.data()?.hiddenCustomerKeys ?? []) : [];
+          setHiddenCustomerKeys(Array.isArray(keys) ? keys : []);
+          userReady = true;
+          finishLoading();
+        },
+        (snapshotError) => {
+          console.error("Customers user profile snapshot error", snapshotError);
+          setHiddenCustomerKeys([]);
+          userReady = true;
+          finishLoading();
+        },
+      );
 
       unsubQuotes = onSnapshot(
         query(collection(db, "quotes"), where("userId", "==", user.uid)),
@@ -114,23 +141,31 @@ export default function Customers() {
       unsubAuth();
       unsubQuotes();
       unsubInvoices();
+      unsubUser();
     };
   }, []);
+
+  const hiddenKeySet = useMemo(
+    () => new Set(hiddenCustomerKeys.map((key) => String(key))),
+    [hiddenCustomerKeys],
+  );
 
   const customers = useMemo(() => {
     const byCustomer = new Map();
 
     const addDocument = (document, kind) => {
       const key = getCustomerKey(document);
-      if (!key) return;
+      if (!key || hiddenKeySet.has(key)) return;
 
       const email = getCustomerEmail(document);
       const name = String(document.customerName ?? "").trim();
+      const phone = String(document.customerPhone ?? "").trim();
       const timestamp = getDocumentActivityTime(document, kind);
       const current = byCustomer.get(key) ?? {
         key,
         name: name || email || "Unnamed customer",
         email,
+        phone: "",
         quoteCount: 0,
         invoiceCount: 0,
         lastActivity: 0,
@@ -139,11 +174,13 @@ export default function Customers() {
 
       if (name) current.name = name;
       if (email) current.email = email;
+      if (phone) current.phone = phone;
       if (kind === "quote") current.quoteCount += 1;
       if (kind === "invoice") current.invoiceCount += 1;
       if (timestamp >= current.lastActivity) {
         current.lastActivity = timestamp;
         current.lastDocumentKind = kind;
+        if (phone) current.phone = phone;
       }
       byCustomer.set(key, current);
     };
@@ -153,13 +190,14 @@ export default function Customers() {
 
     return [...byCustomer.values()].sort((a, b) =>
       b.lastActivity - a.lastActivity || a.name.localeCompare(b.name));
-  }, [invoices, quotes]);
+  }, [hiddenKeySet, invoices, quotes]);
 
   const normalizedSearch = normalizeCustomerValue(searchQuery);
   const filteredCustomers = customers.filter((customer) =>
     !normalizedSearch
     || normalizeCustomerValue(customer.name).includes(normalizedSearch)
-    || normalizeCustomerValue(customer.email).includes(normalizedSearch));
+    || normalizeCustomerValue(customer.email).includes(normalizedSearch)
+    || normalizeCustomerValue(customer.phone).includes(normalizedSearch));
   const displayedCustomers = filteredCustomers.slice(0, visibleCount);
   const hasMore = visibleCount < filteredCustomers.length;
 
@@ -312,19 +350,38 @@ export default function Customers() {
                         <Typography variant="body2" color="text.secondary" noWrap>
                           {customer.email || "No email address"}
                         </Typography>
+                        {customer.phone ? (
+                          <Typography variant="caption" color="text.secondary" noWrap sx={{ display: "block" }}>
+                            {customer.phone}
+                          </Typography>
+                        ) : null}
                       </Box>
-                      {customer.email ? (
-                        <IconButton
-                          component="a"
-                          href={`mailto:${customer.email}`}
-                          size="small"
-                          aria-label={`Email ${customer.name}`}
-                          onClick={(event) => event.stopPropagation()}
-                          sx={{ color: "#083a6b", bgcolor: "#F0F4F8", "&:hover": { bgcolor: "#E2E8F0" } }}
-                        >
-                          <EmailOutlinedIcon fontSize="small" />
-                        </IconButton>
-                      ) : null}
+                      <Box sx={{ display: "flex", gap: 0.5, flexShrink: 0 }}>
+                        {customer.email ? (
+                          <IconButton
+                            component="a"
+                            href={`mailto:${customer.email}`}
+                            size="small"
+                            aria-label={`Email ${customer.name}`}
+                            onClick={(event) => event.stopPropagation()}
+                            sx={{ color: "#083a6b", bgcolor: "#F0F4F8", "&:hover": { bgcolor: "#E2E8F0" } }}
+                          >
+                            <EmailOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        ) : null}
+                        {customer.phone && toTelHref(customer.phone) ? (
+                          <IconButton
+                            component="a"
+                            href={toTelHref(customer.phone)}
+                            size="small"
+                            aria-label={`Call ${customer.name}`}
+                            onClick={(event) => event.stopPropagation()}
+                            sx={{ color: "#083a6b", bgcolor: "#F0F4F8", "&:hover": { bgcolor: "#E2E8F0" } }}
+                          >
+                            <PhoneOutlinedIcon fontSize="small" />
+                          </IconButton>
+                        ) : null}
+                      </Box>
                     </Box>
 
                     <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mt: 2.5 }}>

@@ -1,5 +1,7 @@
 import { collection, doc, getDoc, runTransaction, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
+import { getCustomerKeyFromQuoteData } from "./customerRecords";
+import { unhideCustomerKey } from "./hiddenCustomers";
 
 /**
  * Atomically allocates the next sequential invoice number from `invoice_counters/{userId}`,
@@ -22,13 +24,17 @@ export async function saveInvoiceToFirestore({ quoteData, lineItems, pricing, us
       invoiceNumber,
       invoiceDate:     quoteData.quoteDate       ?? null,
       businessName:    quoteData.businessName    ?? "",
+      businessPhone:   quoteData.businessPhone   ?? "",
       businessEmail:   quoteData.businessEmail   ?? "",
       businessAddress: quoteData.businessAddress ?? "",
+      businessLogoUrl: quoteData.businessLogoUrl  ?? "",
+      businessLogoPath: quoteData.businessLogoPath ?? "",
       bankName:            quoteData.bankName            ?? "",
       bankAccountNumber:  quoteData.bankAccountNumber   ?? "",
       bankSortCode:       quoteData.bankSortCode        ?? "",
       customerName:    quoteData.customerName    ?? "",
       customerEmail:   quoteData.email           ?? "",
+      customerPhone:   quoteData.phone           ?? "",
       currency:        quoteData.currency        ?? "GBP",
       lineItems:       lineItems                 ?? [],
       pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },
@@ -42,6 +48,8 @@ export async function saveInvoiceToFirestore({ quoteData, lineItems, pricing, us
     tx.set(counterRef, { n: nextNumber + 1 }, { merge: true });
   });
 
+  await unhideCustomerKey(userId, getCustomerKeyFromQuoteData(quoteData));
+
   return { id: invoiceRef.id, invoiceNumber };
 }
 
@@ -52,13 +60,17 @@ export async function updateInvoiceInFirestore({ invoiceId, quoteData, lineItems
   await updateDoc(doc(db, "invoices", invoiceId), {
     invoiceDate:     quoteData.quoteDate       ?? null,
     businessName:    quoteData.businessName    ?? "",
+    businessPhone:   quoteData.businessPhone   ?? "",
     businessEmail:   quoteData.businessEmail   ?? "",
     businessAddress: quoteData.businessAddress ?? "",
+    businessLogoUrl: quoteData.businessLogoUrl  ?? "",
+    businessLogoPath: quoteData.businessLogoPath ?? "",
     bankName:            quoteData.bankName            ?? "",
     bankAccountNumber:  quoteData.bankAccountNumber   ?? "",
     bankSortCode:       quoteData.bankSortCode        ?? "",
     customerName:    quoteData.customerName    ?? "",
     customerEmail:   quoteData.email           ?? "",
+    customerPhone:   quoteData.phone           ?? "",
     currency:        quoteData.currency        ?? "GBP",
     lineItems:       lineItems                 ?? [],
     pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },

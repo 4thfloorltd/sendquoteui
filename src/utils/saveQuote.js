@@ -1,5 +1,7 @@
 import { collection, doc, getDoc, runTransaction, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "../../firebase";
+import { getCustomerKeyFromQuoteData } from "./customerRecords";
+import { unhideCustomerKey } from "./hiddenCustomers";
 
 /**
  * Atomically allocates the next sequential quote number for this user
@@ -25,10 +27,14 @@ export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, user
       quoteNumber:     String(nextNumber).padStart(4, "0"),
       quoteDate:       quoteData.quoteDate       ?? null,
       businessName:    quoteData.businessName    ?? "",
+      businessPhone:   quoteData.businessPhone   ?? "",
       businessEmail:   quoteData.businessEmail   ?? "",
       businessAddress: quoteData.businessAddress ?? "",
+      businessLogoUrl: quoteData.businessLogoUrl  ?? "",
+      businessLogoPath: quoteData.businessLogoPath ?? "",
       customerName:    quoteData.customerName    ?? "",
       customerEmail:   quoteData.email           ?? "",
+      customerPhone:   quoteData.phone           ?? "",
       currency:        quoteData.currency        ?? "GBP",
       lineItems:       lineItems                 ?? [],
       pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },
@@ -43,6 +49,9 @@ export async function saveQuoteToFirestore({ quoteData, lineItems, pricing, user
     tx.set(counterRef, { n: nextNumber + 1 }, { merge: true });
   });
 
+  // New activity with the same details brings a previously hidden customer back.
+  await unhideCustomerKey(userId, getCustomerKeyFromQuoteData(quoteData));
+
   return quoteRef.id;
 }
 
@@ -54,10 +63,14 @@ export async function updateQuoteInFirestore({ quoteId, quoteData, lineItems, pr
   await updateDoc(doc(db, "quotes", quoteId), {
     quoteDate:       quoteData.quoteDate       ?? null,
     businessName:    quoteData.businessName    ?? "",
+    businessPhone:   quoteData.businessPhone   ?? "",
     businessEmail:   quoteData.businessEmail   ?? "",
     businessAddress: quoteData.businessAddress ?? "",
+    businessLogoUrl: quoteData.businessLogoUrl  ?? "",
+    businessLogoPath: quoteData.businessLogoPath ?? "",
     customerName:    quoteData.customerName    ?? "",
     customerEmail:   quoteData.email           ?? "",
+    customerPhone:   quoteData.phone           ?? "",
     currency:        quoteData.currency        ?? "GBP",
     lineItems:       lineItems                 ?? [],
     pricing:         pricing                   ?? { subtotal: 0, tax: 0, total: 0 },
