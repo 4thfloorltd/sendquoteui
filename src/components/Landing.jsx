@@ -79,21 +79,20 @@ const Landing = () => {
   const scrollToPrompt = () => {
     const entry = document.getElementById("project-chat-entry");
     const promptInput = document.getElementById("projectPromptInput");
+    // Focus must stay in the same user-gesture turn or mobile browsers
+    // (especially iOS) will not open the keyboard.
+    promptInput?.focus({ preventScroll: true });
+
     const el = entry ?? promptInput;
-    if (el) {
-      const top =
-        window.scrollY +
-        el.getBoundingClientRect().top -
-        LANDING_PROMPT_SCROLL_TOP_OFFSET_PX;
-      window.scrollTo({
-        top: Math.max(0, top),
-        behavior: prefersReducedMotion ? "auto" : "smooth",
-      });
-    }
-    // Defer focus so iOS/Android don’t fight the scroll with keyboard jump
-    window.setTimeout(() => {
-      promptInput?.focus({ preventScroll: true });
-    }, prefersReducedMotion ? 0 : 350);
+    if (!el) return;
+    const top =
+      window.scrollY +
+      el.getBoundingClientRect().top -
+      LANDING_PROMPT_SCROLL_TOP_OFFSET_PX;
+    window.scrollTo({
+      top: Math.max(0, top),
+      behavior: prefersReducedMotion ? "auto" : "smooth",
+    });
   };
 
   const scrollToFaq = () => {
